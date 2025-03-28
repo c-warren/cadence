@@ -151,6 +151,7 @@ func (c *clientImpl) DescribeHistoryHost(
 
 	var err error
 	var peer string
+	x := 1
 
 	if request.ShardIDForHost != nil {
 		peer, err = c.peerResolver.FromShardID(int(request.GetShardIDForHost()))
