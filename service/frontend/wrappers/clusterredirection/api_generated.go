@@ -784,7 +784,7 @@ func (handler *clusterRedirectionHandler) RespondQueryTaskCompleted(ctx context.
 		return err
 	}
 
-	err = handler.redirectionPolicy.WithDomainIDRedirect(ctx, token.GetDomainID(), apiName, func(targetDC string) error {
+	err = handler.redirectionPolicy.WithDomainIDRedirect(ctx, token.GetDomainID(), apiName, queryConsistencyLevel, func(targetDC string) error {
 		cluster = targetDC
 		switch {
 		case targetDC == handler.currentClusterName:
