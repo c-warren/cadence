@@ -1909,28 +1909,32 @@ func (d *handlerImpl) writeAuditLog(
 		return err
 	}
 
-	// DEBUG: Log old and new ActiveClusterName
-	oldActiveCluster := "nil"
-	newActiveCluster := "nil"
-	if oldDomain != nil && oldDomain.ReplicationConfig != nil {
-		oldActiveCluster = oldDomain.ReplicationConfig.ActiveClusterName
-	}
-	if newDomainResp != nil && newDomainResp.ReplicationConfig != nil {
-		newActiveCluster = newDomainResp.ReplicationConfig.ActiveClusterName
-	}
-	d.logger.Info("Computing domain diff for audit log",
-		tag.Value(oldActiveCluster),
-		tag.Value(newActiveCluster))
-
-	// Compute diff
-	diffBytes, err := audit.ComputeDomainDiff(oldDomain, newDomainResp)
+	// Serialize and compress both states
+	beforeBytes, err := audit.SerializeAndCompress(oldDomain)
 	if err != nil {
+		d.logger.Error("Failed to serialize old domain state", tag.Error(err))
 		return err
 	}
 
-	d.logger.Info("Domain diff computed",
-		tag.Value(len(diffBytes)),
-		tag.Value(string(diffBytes)))
+	afterBytes, err := audit.SerializeAndCompress(newDomainResp)
+	if err != nil {
+		d.logger.Error("Failed to serialize new domain state", tag.Error(err))
+		return err
+	}
+
+	// Compute change summary for fast filtering
+	summary, err := audit.ComputeChangeSummary(oldDomain, newDomainResp)
+	if err != nil {
+		d.logger.Error("Failed to compute change summary", tag.Error(err))
+		return err
+	}
+
+	// Serialize summary to JSON for storage in comment field
+	summaryJSON, err := json.Marshal(summary)
+	if err != nil {
+		d.logger.Error("Failed to marshal change summary", tag.Error(err))
+		return err
+	}
 
 	// Extract identity
 	identity, identityType := audit.ExtractIdentity(ctx)
@@ -1946,13 +1950,21 @@ func (d *handlerImpl) writeAuditLog(
 		CreatedTime:         now,
 		LastUpdatedTime:     now,
 		OperationType:       opType,
-		StateBefore:         []byte("{}"),
-		StateBeforeEncoding: "json",
-		StateAfter:          diffBytes,
-		StateAfterEncoding:  "json-patch",
+		StateBefore:         beforeBytes,
+		StateBeforeEncoding: audit.EncodingJSONSnappy,
+		StateAfter:          afterBytes,
+		StateAfterEncoding:  audit.EncodingJSONSnappy,
 		Identity:            identity,
 		IdentityType:        identityType,
+		Comment:             string(summaryJSON), // POC: Store change summary in comment field
 	}
+
+	d.logger.Info("Writing domain audit log",
+		tag.WorkflowDomainID(newDomainInfo.ID),
+		tag.Value(len(beforeBytes)),
+		tag.Value(len(afterBytes)),
+		tag.Value(summary.DefaultClusterChanged),
+		tag.Value(len(summary.ClusterAttributesChanged)))
 
 	// Write to persistence
 	return d.domainManager.WriteDomainAuditLog(ctx, &persistence.WriteDomainAuditLogRequest{

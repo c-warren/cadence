@@ -24,6 +24,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -259,16 +260,88 @@ func (wh *WorkflowHandler) ListFailoverHistory(
 		return nil, err
 	}
 
-	// Reconstruct failover events
-	events, err := audit.ReconstructFailoverEvents(readResp.Entries)
-	if err != nil {
-		return nil, err
+	events := make([]*types.FailoverEvent, 0, len(readResp.Entries))
+
+	for _, entry := range readResp.Entries {
+		// Only include failover operations
+		if entry.OperationType != persistence.DomainOperationTypeFailover {
+			continue
+		}
+
+		// Convert created time to Unix milliseconds
+		createdTimeMs := entry.CreatedTime.UnixNano() / int64(1000000)
+		eventID := entry.EventID
+		failoverType := types.FailoverTypeForce // TODO: Determine from entry
+
+		event := &types.FailoverEvent{
+			ID:           &eventID,
+			CreatedTime:  &createdTimeMs,
+			FailoverType: &failoverType,
+		}
+
+		// Note: FailoverEvent in List doesn't include detailed cluster failovers
+		// Use GetFailoverEvent for full details
+		// POC Toggle exists for testing decompression performance in List queries
+
+		// Apply filters (using change summary from comment)
+		if shouldIncludeEvent(entry.Comment, request.Filters) {
+			events = append(events, event)
+		}
 	}
 
 	return &types.ListFailoverHistoryResponse{
 		FailoverEvents: events,
 		NextPageToken:  readResp.NextPageToken,
 	}, nil
+}
+
+// shouldIncludeEvent filters events based on change summary
+func shouldIncludeEvent(
+	summaryJSON string,
+	filters *types.ListFailoverHistoryRequestFilters,
+) bool {
+	// Parse change summary from comment
+	var summary audit.ChangeSummary
+	if err := json.Unmarshal([]byte(summaryJSON), &summary); err != nil {
+		// If parsing fails, include the event (fail-open for filtering)
+		return true
+	}
+
+	// Filter: default cluster only
+	if filters.DefaultActiveCluster != nil && *filters.DefaultActiveCluster && !summary.DefaultClusterChanged {
+		return false
+	}
+
+	// Filter: specific cluster attributes
+	if len(filters.Attributes) > 0 {
+		if !matchesAttributeFilter(summary.ClusterAttributesChanged, filters.Attributes) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// matchesAttributeFilter checks if any changed attributes match the requested filters
+func matchesAttributeFilter(
+	changed []*audit.ClusterAttributeRef,
+	requested []*types.ClusterAttribute,
+) bool {
+	if len(changed) == 0 {
+		return false
+	}
+
+	for _, req := range requested {
+		if req == nil {
+			continue
+		}
+		for _, chg := range changed {
+			if chg.Scope == req.Scope && chg.Name == req.Name {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // GetFailoverEvent retrieves detailed information about a specific failover event
@@ -290,44 +363,107 @@ func (wh *WorkflowHandler) GetFailoverEvent(
 	}
 
 	logger := wh.GetLogger()
-	logger.Debug("GetFailoverEvent request received",
-		tag.WorkflowDomainID(*request.DomainID),
-		tag.Value(*request.FailoverEventID),
-		tag.Value(*request.CreatedTime))
+	logger.Info(fmt.Sprintf("GetFailoverEvent request received: domain_id=%s, event_id=%s, created_time=%d",
+		*request.DomainID, *request.FailoverEventID, *request.CreatedTime))
 
-	// Convert Unix timestamp to time.Time
-	createdTime := time.Unix(0, *request.CreatedTime*int64(time.Millisecond))
-	logger.Debug("Converted timestamp for query",
-		tag.Timestamp(createdTime),
-		tag.Value(createdTime.UnixNano()))
+	// Convert Unix milliseconds to time.Time
+	logger.Info(fmt.Sprintf("DEBUG: Converting timestamp from Unix milliseconds: %d", *request.CreatedTime))
+
+	createdTime := time.Unix(0, *request.CreatedTime*int64(1000000)) // Convert ms to ns
+
+	logger.Info(fmt.Sprintf("DEBUG: Converted timestamp successfully: unix_nanos=%d, formatted=%s",
+		createdTime.UnixNano(), createdTime.Format(time.RFC3339Nano)))
 
 	// Get specific audit log entry
+	logger.Info(fmt.Sprintf("DEBUG: Querying for audit log entry: domain_id=%s, event_id=%s",
+		*request.DomainID, *request.FailoverEventID),
+		tag.Timestamp(createdTime))
+
 	entryResp, err := wh.GetDomainManager().GetDomainAuditLogEntry(ctx, &persistence.GetDomainAuditLogEntryRequest{
 		DomainID:    *request.DomainID,
 		EventID:     *request.FailoverEventID,
 		CreatedTime: createdTime,
 	})
 	if err != nil {
-		logger.Error("Failed to get domain audit log entry",
-			tag.Error(err),
-			tag.WorkflowDomainID(*request.DomainID),
-			tag.Value(*request.FailoverEventID))
+		logger.Error(fmt.Sprintf("Failed to get domain audit log entry: domain_id=%s, event_id=%s",
+			*request.DomainID, *request.FailoverEventID), tag.Error(err))
 		return nil, err
 	}
 
-	if entryResp == nil || entryResp.Entry == nil {
-		logger.Warn("GetDomainAuditLogEntry returned nil entry",
-			tag.WorkflowDomainID(*request.DomainID),
-			tag.Value(*request.FailoverEventID))
+	if entryResp == nil {
+		logger.Warn(fmt.Sprintf("GetDomainAuditLogEntry returned nil response: domain_id=%s, event_id=%s",
+			*request.DomainID, *request.FailoverEventID))
 		return &types.GetFailoverEventResponse{}, nil
 	}
 
-	logger.Debug("Retrieved audit log entry",
-		tag.WorkflowDomainID(entryResp.Entry.DomainID),
-		tag.Value(entryResp.Entry.EventID),
-		tag.Timestamp(entryResp.Entry.CreatedTime),
-		tag.Value(len(entryResp.Entry.StateAfter)))
+	if entryResp.Entry == nil {
+		logger.Warn(fmt.Sprintf("GetDomainAuditLogEntry returned nil entry: domain_id=%s, event_id=%s",
+			*request.DomainID, *request.FailoverEventID))
+		return &types.GetFailoverEventResponse{}, nil
+	}
 
-	// Reconstruct cluster failovers from the entry
-	return audit.GetFailoverEventDetails(entryResp.Entry)
+	entry := entryResp.Entry
+
+	logger.Info(fmt.Sprintf("DEBUG: Retrieved audit log entry successfully: domain_id=%s, event_id=%s, created_time=%s, state_before_size=%d, state_after_size=%d, state_before_encoding=%s, state_after_encoding=%s",
+		entry.DomainID, entry.EventID, entry.CreatedTime.Format(time.RFC3339),
+		len(entry.StateBefore), len(entry.StateAfter),
+		entry.StateBeforeEncoding, entry.StateAfterEncoding))
+
+	// Check if states are empty
+	if len(entry.StateBefore) == 0 {
+		logger.Warn("state_before is empty")
+	}
+	if len(entry.StateAfter) == 0 {
+		logger.Warn("state_after is empty")
+	}
+
+	// Decompress both states
+	logger.Info("DEBUG: Decompressing state_before")
+	before, err := audit.DecompressAndDeserialize(entry.StateBefore)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to decompress state_before: size=%d", len(entry.StateBefore)), tag.Error(err))
+		return nil, &types.InternalServiceError{Message: "Failed to decompress domain state"}
+	}
+	logger.Info(fmt.Sprintf("DEBUG: state_before decompressed successfully: has_info=%v, has_config=%v, has_replication_config=%v",
+		before.Info != nil, before.Config != nil, before.ReplicationConfig != nil))
+
+	logger.Info("DEBUG: Decompressing state_after")
+	after, err := audit.DecompressAndDeserialize(entry.StateAfter)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to decompress state_after: size=%d", len(entry.StateAfter)), tag.Error(err))
+		return nil, &types.InternalServiceError{Message: "Failed to decompress domain state"}
+	}
+	logger.Info(fmt.Sprintf("DEBUG: state_after decompressed successfully: has_info=%v, has_config=%v, has_replication_config=%v",
+		after.Info != nil, after.Config != nil, after.ReplicationConfig != nil))
+
+	// Log cluster info for debugging
+	if before.ReplicationConfig != nil && after.ReplicationConfig != nil {
+		logger.Info(fmt.Sprintf("DEBUG: Cluster info: before_active_cluster=%s, after_active_cluster=%s, before_has_active_clusters=%v, after_has_active_clusters=%v",
+			before.ReplicationConfig.ActiveClusterName, after.ReplicationConfig.ActiveClusterName,
+			before.ReplicationConfig.ActiveClusters != nil, after.ReplicationConfig.ActiveClusters != nil))
+	}
+
+	// Compute detailed cluster failovers
+	logger.Info("DEBUG: Computing cluster failovers")
+	clusterFailovers, err := audit.ComputeClusterFailovers(before, after)
+	if err != nil {
+		logger.Error("Failed to compute cluster failovers", tag.Error(err))
+		return nil, &types.InternalServiceError{Message: "Failed to compute failover details"}
+	}
+
+	logger.Info(fmt.Sprintf("DEBUG: Computed cluster failovers: num_failovers=%d", len(clusterFailovers)))
+
+	// Log each failover for debugging
+	for i, failover := range clusterFailovers {
+		isDefault := failover.IsDefaultCluster != nil && *failover.IsDefaultCluster
+		logger.Info(fmt.Sprintf("DEBUG: Cluster failover detail [%d]: is_default=%v, from_cluster=%s, to_cluster=%s, has_attribute=%v",
+			i, isDefault, failover.FromCluster.ActiveClusterName, failover.ToCluster.ActiveClusterName,
+			failover.ClusterAttribute != nil))
+	}
+
+	logger.Info(fmt.Sprintf("DEBUG: Returning response with %d cluster failovers", len(clusterFailovers)))
+
+	return &types.GetFailoverEventResponse{
+		ClusterFailovers: clusterFailovers,
+	}, nil
 }
