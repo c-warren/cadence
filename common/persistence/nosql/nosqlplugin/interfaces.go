@@ -186,6 +186,12 @@ type (
 		DeleteDomain(ctx context.Context, domainID *string, domainName *string) error
 		// right now domain metadata is just an integer as notification version
 		SelectDomainMetadata(ctx context.Context) (int64, error)
+		// Insert domain audit log entries
+		InsertDomainAuditLog(ctx context.Context, rows []*DomainAuditLogRow) error
+		// Select domain audit log entries with pagination
+		SelectDomainAuditLog(ctx context.Context, request *DomainAuditLogRequest) ([]*DomainAuditLogRow, []byte, error)
+		// Get a specific domain audit log entry by its composite key
+		GetDomainAuditLogEntry(ctx context.Context, domainID string, eventID string, createdTime time.Time) (*DomainAuditLogRow, error)
 	}
 
 	/**

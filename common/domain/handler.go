@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/domain/audit"
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
@@ -427,6 +428,19 @@ func (d *handlerImpl) UpdateDomain(
 		return nil, err
 	}
 
+	// Capture old domain state for audit logging - MUST be a deep copy
+	// because we will modify the fields below and don't want to affect oldDomainResp
+	// Use JSON marshal/unmarshal for deep copy
+	oldDomainResp := &persistence.GetDomainResponse{}
+	oldDomainJSON, err := json.Marshal(getResponse)
+	if err == nil {
+		_ = json.Unmarshal(oldDomainJSON, oldDomainResp)
+	}
+	// If deep copy fails, fall back to shallow copy (still better than nothing for audit)
+	if oldDomainResp.Info == nil {
+		oldDomainResp = getResponse
+	}
+
 	info := getResponse.Info
 	config := getResponse.Config
 	replicationConfig := getResponse.ReplicationConfig
@@ -660,6 +674,12 @@ func (d *handlerImpl) UpdateDomain(
 		err = d.domainManager.UpdateDomain(ctx, &updateReq)
 		if err != nil {
 			return nil, err
+		}
+
+		// Write audit log (best-effort, don't fail update if this fails)
+		if err := d.writeAuditLog(ctx, oldDomainResp, info, updateRequest); err != nil {
+			d.logger.Error("Failed to write domain audit log", tag.Error(err))
+			// Don't fail the update
 		}
 	}
 	if isGlobalDomain {
@@ -1806,6 +1826,71 @@ func NewFailoverEvent(
 		res.ToActiveClusters = *toActiveClusters
 	}
 	return res
+}
+
+func (d *handlerImpl) writeAuditLog(
+	ctx context.Context,
+	oldDomain *persistence.GetDomainResponse,
+	newDomainInfo *persistence.DomainInfo,
+	request *types.UpdateDomainRequest,
+) error {
+	// Get the full new domain state
+	newDomainResp, err := d.domainManager.GetDomain(ctx, &persistence.GetDomainRequest{
+		ID: newDomainInfo.ID,
+	})
+	if err != nil {
+		return err
+	}
+
+	// DEBUG: Log old and new ActiveClusterName
+	oldActiveCluster := "nil"
+	newActiveCluster := "nil"
+	if oldDomain != nil && oldDomain.ReplicationConfig != nil {
+		oldActiveCluster = oldDomain.ReplicationConfig.ActiveClusterName
+	}
+	if newDomainResp != nil && newDomainResp.ReplicationConfig != nil {
+		newActiveCluster = newDomainResp.ReplicationConfig.ActiveClusterName
+	}
+	d.logger.Info("Computing domain diff for audit log",
+		tag.Value(oldActiveCluster),
+		tag.Value(newActiveCluster))
+
+	// Compute diff
+	diffBytes, err := audit.ComputeDomainDiff(oldDomain, newDomainResp)
+	if err != nil {
+		return err
+	}
+
+	d.logger.Info("Domain diff computed",
+		tag.Value(len(diffBytes)),
+		tag.Value(string(diffBytes)))
+
+	// Extract identity
+	identity, identityType := audit.ExtractIdentity(ctx)
+
+	// Determine operation type
+	opType := audit.DetermineOperationType(request)
+
+	// Create audit log entry
+	now := time.Now()
+	entry := &persistence.DomainAuditLogEntry{
+		DomainID:            newDomainInfo.ID,
+		EventID:             uuid.New(),
+		CreatedTime:         now,
+		LastUpdatedTime:     now,
+		OperationType:       opType,
+		StateBefore:         []byte("{}"),
+		StateBeforeEncoding: "json",
+		StateAfter:          diffBytes,
+		StateAfterEncoding:  "json-patch",
+		Identity:            identity,
+		IdentityType:        identityType,
+	}
+
+	// Write to persistence
+	return d.domainManager.WriteDomainAuditLog(ctx, &persistence.WriteDomainAuditLogRequest{
+		Entries: []*persistence.DomainAuditLogEntry{entry},
+	})
 }
 
 func (d *handlerImpl) buildActiveActiveClusterScopesFromUpdateRequest(updateRequest *types.UpdateDomainRequest, config *persistence.DomainReplicationConfig, domainName string) (out *types.ActiveClusters, isChanged bool) {

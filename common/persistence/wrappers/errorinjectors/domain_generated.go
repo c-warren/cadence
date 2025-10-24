@@ -96,6 +96,21 @@ func (c *injectorDomainManager) GetDomain(ctx context.Context, request *persiste
 	return
 }
 
+func (c *injectorDomainManager) GetDomainAuditLogEntry(ctx context.Context, request *persistence.GetDomainAuditLogEntryRequest) (gp1 *persistence.GetDomainAuditLogEntryResponse, err error) {
+	fakeErr := generateFakeError(c.errorRate)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		gp1, err = c.wrapped.GetDomainAuditLogEntry(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "DomainManager.GetDomainAuditLogEntry", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *injectorDomainManager) GetMetadata(ctx context.Context) (gp1 *persistence.GetMetadataResponse, err error) {
 	fakeErr := generateFakeError(c.errorRate)
 	var forwardCall bool
@@ -130,6 +145,21 @@ func (c *injectorDomainManager) ListDomains(ctx context.Context, request *persis
 	return
 }
 
+func (c *injectorDomainManager) ReadDomainAuditLog(ctx context.Context, request *persistence.ReadDomainAuditLogRequest) (rp1 *persistence.ReadDomainAuditLogResponse, err error) {
+	fakeErr := generateFakeError(c.errorRate)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		rp1, err = c.wrapped.ReadDomainAuditLog(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "DomainManager.ReadDomainAuditLog", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *injectorDomainManager) UpdateDomain(ctx context.Context, request *persistence.UpdateDomainRequest) (err error) {
 	fakeErr := generateFakeError(c.errorRate)
 	var forwardCall bool
@@ -139,6 +169,21 @@ func (c *injectorDomainManager) UpdateDomain(ctx context.Context, request *persi
 
 	if fakeErr != nil {
 		logErr(c.logger, "DomainManager.UpdateDomain", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *injectorDomainManager) WriteDomainAuditLog(ctx context.Context, request *persistence.WriteDomainAuditLogRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		err = c.wrapped.WriteDomainAuditLog(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "DomainManager.WriteDomainAuditLog", fakeErr, forwardCall, err)
 		err = fakeErr
 		return
 	}

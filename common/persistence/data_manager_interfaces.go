@@ -76,6 +76,16 @@ const (
 	DomainStatusDeleted
 )
 
+// DomainOperationType constants
+const (
+	DomainOperationTypeUnknown DomainOperationType = iota
+	DomainOperationTypeCreate
+	DomainOperationTypeUpdate
+	DomainOperationTypeFailover
+	DomainOperationTypeDelete
+	DomainOperationTypeDeprecate
+)
+
 const (
 	// EventStoreVersion is already deprecated, this is used for forward
 	// compatibility (so that rollback is possible).
@@ -1244,6 +1254,57 @@ type (
 		NotificationVersion int64
 	}
 
+	// DomainOperationType represents the type of operation performed on a domain
+	DomainOperationType int
+
+	// DomainAuditLogEntry represents a single audit log entry for domain changes
+	DomainAuditLogEntry struct {
+		DomainID            string
+		EventID             string
+		CreatedTime         time.Time
+		LastUpdatedTime     time.Time
+		OperationType       DomainOperationType
+		StateBefore         []byte
+		StateBeforeEncoding string
+		StateAfter          []byte
+		StateAfterEncoding  string
+		Identity            string
+		IdentityType        string
+		Comment             string
+	}
+
+	// WriteDomainAuditLogRequest is used to write domain audit log entries
+	WriteDomainAuditLogRequest struct {
+		Entries []*DomainAuditLogEntry
+	}
+
+	// ReadDomainAuditLogRequest is used to read domain audit log entries
+	ReadDomainAuditLogRequest struct {
+		DomainID       string
+		PageSize       int
+		NextPageToken  []byte
+		MinCreatedTime *time.Time
+		MaxCreatedTime *time.Time
+	}
+
+	// ReadDomainAuditLogResponse is the response for ReadDomainAuditLog
+	ReadDomainAuditLogResponse struct {
+		Entries       []*DomainAuditLogEntry
+		NextPageToken []byte
+	}
+
+	// GetDomainAuditLogEntryRequest for fetching a specific entry
+	GetDomainAuditLogEntryRequest struct {
+		DomainID    string
+		EventID     string
+		CreatedTime time.Time
+	}
+
+	// GetDomainAuditLogEntryResponse returns a single entry with all details
+	GetDomainAuditLogEntryResponse struct {
+		Entry *DomainAuditLogEntry
+	}
+
 	// MutableStateStats is the size stats for MutableState
 	MutableStateStats struct {
 		// Total size of mutable state
@@ -1611,6 +1672,9 @@ type (
 		DeleteDomainByName(ctx context.Context, request *DeleteDomainByNameRequest) error
 		ListDomains(ctx context.Context, request *ListDomainsRequest) (*ListDomainsResponse, error)
 		GetMetadata(ctx context.Context) (*GetMetadataResponse, error)
+		WriteDomainAuditLog(ctx context.Context, request *WriteDomainAuditLogRequest) error
+		ReadDomainAuditLog(ctx context.Context, request *ReadDomainAuditLogRequest) (*ReadDomainAuditLogResponse, error)
+		GetDomainAuditLogEntry(ctx context.Context, request *GetDomainAuditLogEntryRequest) (*GetDomainAuditLogEntryResponse, error)
 	}
 
 	// QueueManager is used to manage queue store

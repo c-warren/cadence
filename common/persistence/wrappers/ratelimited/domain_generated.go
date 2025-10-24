@@ -65,6 +65,14 @@ func (c *ratelimitedDomainManager) GetDomain(ctx context.Context, request *persi
 	return c.wrapped.GetDomain(ctx, request)
 }
 
+func (c *ratelimitedDomainManager) GetDomainAuditLogEntry(ctx context.Context, request *persistence.GetDomainAuditLogEntryRequest) (gp1 *persistence.GetDomainAuditLogEntryResponse, err error) {
+	if ok := c.rateLimiter.Allow(); !ok {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.GetDomainAuditLogEntry(ctx, request)
+}
+
 func (c *ratelimitedDomainManager) GetMetadata(ctx context.Context) (gp1 *persistence.GetMetadataResponse, err error) {
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
@@ -85,10 +93,26 @@ func (c *ratelimitedDomainManager) ListDomains(ctx context.Context, request *per
 	return c.wrapped.ListDomains(ctx, request)
 }
 
+func (c *ratelimitedDomainManager) ReadDomainAuditLog(ctx context.Context, request *persistence.ReadDomainAuditLogRequest) (rp1 *persistence.ReadDomainAuditLogResponse, err error) {
+	if ok := c.rateLimiter.Allow(); !ok {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.ReadDomainAuditLog(ctx, request)
+}
+
 func (c *ratelimitedDomainManager) UpdateDomain(ctx context.Context, request *persistence.UpdateDomainRequest) (err error) {
 	if ok := c.rateLimiter.Allow(); !ok {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
 	return c.wrapped.UpdateDomain(ctx, request)
+}
+
+func (c *ratelimitedDomainManager) WriteDomainAuditLog(ctx context.Context, request *persistence.WriteDomainAuditLogRequest) (err error) {
+	if ok := c.rateLimiter.Allow(); !ok {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.WriteDomainAuditLog(ctx, request)
 }

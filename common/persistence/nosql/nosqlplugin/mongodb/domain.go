@@ -22,6 +22,7 @@ package mongodb
 
 import (
 	"context"
+	"time"
 
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
@@ -73,5 +74,31 @@ func (db *mdb) DeleteDomain(
 func (db *mdb) SelectDomainMetadata(
 	ctx context.Context,
 ) (int64, error) {
+	panic("TODO")
+}
+
+// InsertDomainAuditLog inserts domain audit log entries
+func (db *mdb) InsertDomainAuditLog(
+	ctx context.Context,
+	rows []*nosqlplugin.DomainAuditLogRow,
+) error {
+	panic("TODO")
+}
+
+// SelectDomainAuditLog selects domain audit log entries with pagination
+func (db *mdb) SelectDomainAuditLog(
+	ctx context.Context,
+	request *nosqlplugin.DomainAuditLogRequest,
+) ([]*nosqlplugin.DomainAuditLogRow, []byte, error) {
+	panic("TODO")
+}
+
+// GetDomainAuditLogEntry retrieves a specific domain audit log entry by its composite key
+func (db *mdb) GetDomainAuditLogEntry(
+	ctx context.Context,
+	domainID string,
+	eventID string,
+	createdTime time.Time,
+) (*nosqlplugin.DomainAuditLogRow, error) {
 	panic("TODO")
 }

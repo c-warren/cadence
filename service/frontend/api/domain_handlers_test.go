@@ -26,11 +26,13 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
@@ -413,6 +415,323 @@ func TestDeleteDomain(t *testing.T) {
 				assert.ErrorContains(t, err, tc.expectedError)
 			} else {
 				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestListFailoverHistory(t *testing.T) {
+	domainID := "test-domain-id"
+	testCases := []struct {
+		name          string
+		req           *types.ListFailoverHistoryRequest
+		setupMocks    func(*mockDeps)
+		expectError   bool
+		expectedError string
+		verifyResp    func(t *testing.T, resp *types.ListFailoverHistoryResponse)
+	}{
+		{
+			name: "success with default page size",
+			req: &types.ListFailoverHistoryRequest{
+				Filters: &types.ListFailoverHistoryRequestFilters{
+					DomainID: &domainID,
+				},
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockMetadataMgr.On("ReadDomainAuditLog", mock.Anything, &persistence.ReadDomainAuditLogRequest{
+					DomainID:      domainID,
+					PageSize:      5,
+					NextPageToken: nil,
+				}).Return(&persistence.ReadDomainAuditLogResponse{
+					Entries:       []*persistence.DomainAuditLogEntry{},
+					NextPageToken: nil,
+				}, nil)
+			},
+			expectError: false,
+			verifyResp: func(t *testing.T, resp *types.ListFailoverHistoryResponse) {
+				assert.NotNil(t, resp)
+				assert.Empty(t, resp.FailoverEvents)
+				assert.Nil(t, resp.NextPageToken)
+			},
+		},
+		{
+			name: "success with custom page size",
+			req: &types.ListFailoverHistoryRequest{
+				Filters: &types.ListFailoverHistoryRequestFilters{
+					DomainID: &domainID,
+				},
+				Pagination: &types.PaginationOptions{
+					PageSize: common.Int32Ptr(10),
+				},
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockMetadataMgr.On("ReadDomainAuditLog", mock.Anything, &persistence.ReadDomainAuditLogRequest{
+					DomainID:      domainID,
+					PageSize:      10,
+					NextPageToken: nil,
+				}).Return(&persistence.ReadDomainAuditLogResponse{
+					Entries:       []*persistence.DomainAuditLogEntry{},
+					NextPageToken: nil,
+				}, nil)
+			},
+			expectError: false,
+			verifyResp: func(t *testing.T, resp *types.ListFailoverHistoryResponse) {
+				assert.NotNil(t, resp)
+				assert.Empty(t, resp.FailoverEvents)
+			},
+		},
+		{
+			name: "success with pagination token",
+			req: &types.ListFailoverHistoryRequest{
+				Filters: &types.ListFailoverHistoryRequestFilters{
+					DomainID: &domainID,
+				},
+				Pagination: &types.PaginationOptions{
+					PageSize:      common.Int32Ptr(5),
+					NextPageToken: []byte("token123"),
+				},
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockMetadataMgr.On("ReadDomainAuditLog", mock.Anything, &persistence.ReadDomainAuditLogRequest{
+					DomainID:      domainID,
+					PageSize:      5,
+					NextPageToken: []byte("token123"),
+				}).Return(&persistence.ReadDomainAuditLogResponse{
+					Entries:       []*persistence.DomainAuditLogEntry{},
+					NextPageToken: []byte("token456"),
+				}, nil)
+			},
+			expectError: false,
+			verifyResp: func(t *testing.T, resp *types.ListFailoverHistoryResponse) {
+				assert.NotNil(t, resp)
+				assert.Equal(t, []byte("token456"), resp.NextPageToken)
+			},
+		},
+		{
+			name: "missing domain_id in filters",
+			req: &types.ListFailoverHistoryRequest{
+				Filters: nil,
+			},
+			setupMocks:    func(deps *mockDeps) {},
+			expectError:   true,
+			expectedError: "domain_id is required in filters",
+		},
+		{
+			name: "empty domain_id in filters",
+			req: &types.ListFailoverHistoryRequest{
+				Filters: &types.ListFailoverHistoryRequestFilters{
+					DomainID: common.StringPtr(""),
+				},
+			},
+			setupMocks:    func(deps *mockDeps) {},
+			expectError:   true,
+			expectedError: "domain_id is required in filters",
+		},
+		{
+			name: "persistence error",
+			req: &types.ListFailoverHistoryRequest{
+				Filters: &types.ListFailoverHistoryRequestFilters{
+					DomainID: &domainID,
+				},
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockMetadataMgr.On("ReadDomainAuditLog", mock.Anything, mock.Anything).
+					Return(nil, errors.New("persistence error"))
+			},
+			expectError:   true,
+			expectedError: "persistence error",
+		},
+		{
+			name: "shutting down",
+			req: &types.ListFailoverHistoryRequest{
+				Filters: &types.ListFailoverHistoryRequestFilters{
+					DomainID: &domainID,
+				},
+			},
+			setupMocks:    func(deps *mockDeps) {},
+			expectError:   true,
+			expectedError: "Shutting down",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			wh, deps := setupMocksForWorkflowHandler(t)
+
+			if tc.name == "shutting down" {
+				wh.Stop()
+			} else {
+				tc.setupMocks(deps)
+			}
+
+			resp, err := wh.ListFailoverHistory(context.Background(), tc.req)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.ErrorContains(t, err, tc.expectedError)
+			} else {
+				assert.NoError(t, err)
+				if tc.verifyResp != nil {
+					tc.verifyResp(t, resp)
+				}
+			}
+		})
+	}
+}
+
+func TestGetFailoverEvent(t *testing.T) {
+	domainID := "test-domain-id"
+	eventID := "test-event-id"
+	createdTime := time.Now().UTC()
+	createdTimeMs := createdTime.UnixNano() / int64(time.Millisecond)
+
+	validStateAfter := []byte(`[
+		{
+			"op": "replace",
+			"path": "/ReplicationConfig/ActiveClusterName",
+			"value": "cluster2"
+		}
+	]`)
+
+	testCases := []struct {
+		name          string
+		req           *types.GetFailoverEventRequest
+		setupMocks    func(*mockDeps)
+		expectError   bool
+		expectedError string
+		verifyResp    func(t *testing.T, resp *types.GetFailoverEventResponse)
+	}{
+		{
+			name: "success",
+			req: &types.GetFailoverEventRequest{
+				DomainID:        &domainID,
+				FailoverEventID: &eventID,
+				CreatedTime:     &createdTimeMs,
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockMetadataMgr.On("GetDomainAuditLogEntry", mock.Anything, &persistence.GetDomainAuditLogEntryRequest{
+					DomainID:    domainID,
+					EventID:     eventID,
+					CreatedTime: createdTime,
+				}).Return(&persistence.GetDomainAuditLogEntryResponse{
+					Entry: &persistence.DomainAuditLogEntry{
+						DomainID:    domainID,
+						EventID:     eventID,
+						CreatedTime: createdTime,
+						StateAfter:  validStateAfter,
+					},
+				}, nil)
+			},
+			expectError: false,
+			verifyResp: func(t *testing.T, resp *types.GetFailoverEventResponse) {
+				assert.NotNil(t, resp)
+				assert.NotNil(t, resp.ClusterFailovers)
+			},
+		},
+		{
+			name: "missing domain_id",
+			req: &types.GetFailoverEventRequest{
+				DomainID:        common.StringPtr(""),
+				FailoverEventID: &eventID,
+				CreatedTime:     &createdTimeMs,
+			},
+			setupMocks:    func(deps *mockDeps) {},
+			expectError:   true,
+			expectedError: "domain_id, failover_event_id, and created_time are required",
+		},
+		{
+			name: "missing failover_event_id",
+			req: &types.GetFailoverEventRequest{
+				DomainID:        &domainID,
+				FailoverEventID: common.StringPtr(""),
+				CreatedTime:     &createdTimeMs,
+			},
+			setupMocks:    func(deps *mockDeps) {},
+			expectError:   true,
+			expectedError: "domain_id, failover_event_id, and created_time are required",
+		},
+		{
+			name: "missing created_time",
+			req: &types.GetFailoverEventRequest{
+				DomainID:        &domainID,
+				FailoverEventID: &eventID,
+				CreatedTime:     nil,
+			},
+			setupMocks:    func(deps *mockDeps) {},
+			expectError:   true,
+			expectedError: "domain_id, failover_event_id, and created_time are required",
+		},
+		{
+			name: "persistence error",
+			req: &types.GetFailoverEventRequest{
+				DomainID:        &domainID,
+				FailoverEventID: &eventID,
+				CreatedTime:     &createdTimeMs,
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockMetadataMgr.On("GetDomainAuditLogEntry", mock.Anything, mock.Anything).
+					Return(nil, errors.New("persistence error"))
+			},
+			expectError:   true,
+			expectedError: "persistence error",
+		},
+		{
+			name: "invalid state_after JSON",
+			req: &types.GetFailoverEventRequest{
+				DomainID:        &domainID,
+				FailoverEventID: &eventID,
+				CreatedTime:     &createdTimeMs,
+			},
+			setupMocks: func(deps *mockDeps) {
+				deps.mockMetadataMgr.On("GetDomainAuditLogEntry", mock.Anything, &persistence.GetDomainAuditLogEntryRequest{
+					DomainID:    domainID,
+					EventID:     eventID,
+					CreatedTime: createdTime,
+				}).Return(&persistence.GetDomainAuditLogEntryResponse{
+					Entry: &persistence.DomainAuditLogEntry{
+						DomainID:    domainID,
+						EventID:     eventID,
+						CreatedTime: createdTime,
+						StateAfter:  []byte("invalid json"),
+					},
+				}, nil)
+			},
+			expectError:   true,
+			expectedError: "invalid character",
+		},
+		{
+			name: "shutting down",
+			req: &types.GetFailoverEventRequest{
+				DomainID:        &domainID,
+				FailoverEventID: &eventID,
+				CreatedTime:     &createdTimeMs,
+			},
+			setupMocks:    func(deps *mockDeps) {},
+			expectError:   true,
+			expectedError: "Shutting down",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			wh, deps := setupMocksForWorkflowHandler(t)
+
+			if tc.name == "shutting down" {
+				wh.Stop()
+			} else {
+				tc.setupMocks(deps)
+			}
+
+			resp, err := wh.GetFailoverEvent(context.Background(), tc.req)
+
+			if tc.expectError {
+				assert.Error(t, err)
+				assert.ErrorContains(t, err, tc.expectedError)
+			} else {
+				assert.NoError(t, err)
+				if tc.verifyResp != nil {
+					tc.verifyResp(t, resp)
+				}
 			}
 		})
 	}

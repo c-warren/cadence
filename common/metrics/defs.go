@@ -255,6 +255,12 @@ const (
 	PersistenceListDomainsScope
 	// PersistenceGetMetadataScope tracks DeleteDomainByName calls made by service to persistence layer
 	PersistenceGetMetadataScope
+	// PersistenceWriteDomainAuditLogScope tracks WriteDomainAuditLog calls made by service to persistence layer
+	PersistenceWriteDomainAuditLogScope
+	// PersistenceReadDomainAuditLogScope tracks ReadDomainAuditLog calls made by service to persistence layer
+	PersistenceReadDomainAuditLogScope
+	// PersistenceGetDomainAuditLogEntryScope tracks GetDomainAuditLogEntry calls made by service to persistence layer
+	PersistenceGetDomainAuditLogEntryScope
 	// PersistenceRecordWorkflowExecutionStartedScope tracks RecordWorkflowExecutionStarted calls made by service to persistence layer
 	PersistenceRecordWorkflowExecutionStartedScope
 	// PersistenceRecordWorkflowExecutionClosedScope tracks RecordWorkflowExecutionClosed calls made by service to persistence layer
@@ -552,6 +558,10 @@ const (
 	FrontendClientListTaskListPartitionsScope
 	// FrontendClientGetTaskListsByDomainScope tracks RPC calls to frontend service
 	FrontendClientGetTaskListsByDomainScope
+	// FrontendClientListFailoverHistoryScope tracks RPC calls to frontend service
+	FrontendClientListFailoverHistoryScope
+	// FrontendClientGetFailoverEventScope tracks RPC calls to frontend service
+	FrontendClientGetFailoverEventScope
 
 	// AdminClientAddSearchAttributeScope tracks RPC calls to admin service
 	AdminClientAddSearchAttributeScope
@@ -632,6 +642,10 @@ const (
 	DCRedirectionDeprecateDomainScope
 	// DCRedirectionFailoverDomainScope tracks RPC calls for dc redirection
 	DCRedirectionFailoverDomainScope
+	// DCRedirectionListFailoverHistoryScope tracks RPC calls for dc redirection
+	DCRedirectionListFailoverHistoryScope
+	// DCRedirectionGetFailoverEventScope tracks RPC calls for dc redirection
+	DCRedirectionGetFailoverEventScope
 	// DCRedirectionDescribeDomainScope tracks RPC calls for dc redirection
 	DCRedirectionDescribeDomainScope
 	// DCRedirectionDescribeTaskListScope tracks RPC calls for dc redirection
@@ -1055,6 +1069,10 @@ const (
 	FrontendDeprecateDomainScope
 	// FrontendFailoverDomainScope is the metric scope for frontend.FailoverDomain
 	FrontendFailoverDomainScope
+	// FrontendListFailoverHistoryScope is the metric scope for frontend.ListFailoverHistory
+	FrontendListFailoverHistoryScope
+	// FrontendGetFailoverEventScope is the metric scope for frontend.GetFailoverEvent
+	FrontendGetFailoverEventScope
 	// FrontendQueryWorkflowScope is the metric scope for frontend.QueryWorkflow
 	FrontendQueryWorkflowScope
 	// FrontendDescribeWorkflowExecutionScope is the metric scope for frontend.DescribeWorkflowExecution
@@ -1536,6 +1554,9 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		PersistenceDeleteDomainByNameScope:                       {operation: "DeleteDomainByName"},
 		PersistenceListDomainsScope:                              {operation: "ListDomain"},
 		PersistenceGetMetadataScope:                              {operation: "GetMetadata"},
+		PersistenceWriteDomainAuditLogScope:                      {operation: "WriteDomainAuditLog"},
+		PersistenceReadDomainAuditLogScope:                       {operation: "ReadDomainAuditLog"},
+		PersistenceGetDomainAuditLogEntryScope:                   {operation: "GetDomainAuditLogEntry"},
 		PersistenceRecordWorkflowExecutionStartedScope:           {operation: "RecordWorkflowExecutionStarted"},
 		PersistenceRecordWorkflowExecutionClosedScope:            {operation: "RecordWorkflowExecutionClosed"},
 		PersistenceRecordWorkflowExecutionUninitializedScope:     {operation: "RecordWorkflowExecutionUninitialized"},
@@ -1695,6 +1716,8 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendClientGetClusterInfoScope:                        {operation: "FrontendClientGetClusterInfo", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientListTaskListPartitionsScope:                {operation: "FrontendClientListTaskListPartitions", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientGetTaskListsByDomainScope:                  {operation: "FrontendClientGetTaskListsByDomain", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientListFailoverHistoryScope:                   {operation: "FrontendClientListFailoverHistory", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
+		FrontendClientGetFailoverEventScope:                      {operation: "FrontendClientGetFailoverEvent", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 		FrontendClientRestartWorkflowExecutionScope:              {operation: "FrontendClientRestartWorkflowExecution", tags: map[string]string{CadenceRoleTagName: FrontendClientRoleTagValue}},
 
 		AdminClientGetReplicationTasksScope:                   {operation: "AdminClientGetReplicationTasks", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
@@ -1737,6 +1760,8 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		DCRedirectionDeleteDomainScope:                          {operation: "DCRedirectionDeleteDomain", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionDeprecateDomainScope:                       {operation: "DCRedirectionDeprecateDomain", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionFailoverDomainScope:                        {operation: "DCRedirectionFailoverDomain", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
+		DCRedirectionListFailoverHistoryScope:                   {operation: "DCRedirectionListFailoverHistory", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
+		DCRedirectionGetFailoverEventScope:                      {operation: "DCRedirectionGetFailoverEvent", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionDescribeDomainScope:                        {operation: "DCRedirectionDescribeDomain", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionDescribeTaskListScope:                      {operation: "DCRedirectionDescribeTaskList", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
 		DCRedirectionDescribeWorkflowExecutionScope:             {operation: "DCRedirectionDescribeWorkflowExecution", tags: map[string]string{CadenceRoleTagName: DCRedirectionRoleTagValue}},
@@ -1943,6 +1968,8 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		FrontendDeleteDomainScope:                          {operation: "DeleteDomain"},
 		FrontendDeprecateDomainScope:                       {operation: "DeprecateDomain"},
 		FrontendFailoverDomainScope:                        {operation: "FailoverDomain"},
+		FrontendListFailoverHistoryScope:                   {operation: "ListFailoverHistory"},
+		FrontendGetFailoverEventScope:                      {operation: "GetFailoverEvent"},
 		FrontendQueryWorkflowScope:                         {operation: "QueryWorkflow"},
 		FrontendDescribeWorkflowExecutionScope:             {operation: "DescribeWorkflowExecution"},
 		FrontendDiagnoseWorkflowExecutionScope:             {operation: "DiagnoseWorkflowExecution"},
