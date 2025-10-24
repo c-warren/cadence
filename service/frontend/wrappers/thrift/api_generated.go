@@ -56,6 +56,11 @@ func (g APIHandler) GetClusterInfo(ctx context.Context) (cp1 *shared.ClusterInfo
 	return thrift.FromGetClusterInfoResponse(response), thrift.FromError(err)
 }
 
+func (g APIHandler) GetFailoverEvent(ctx context.Context, GetRequest *shared.GetFailoverEventRequest) (gp1 *shared.GetFailoverEventResponse, err error) {
+	response, err := g.h.GetFailoverEvent(ctx, thrift.ToGetFailoverEventRequest(GetRequest))
+	return thrift.FromGetFailoverEventResponse(response), thrift.FromError(err)
+}
+
 func (g APIHandler) GetSearchAttributes(ctx context.Context) (gp1 *shared.GetSearchAttributesResponse, err error) {
 	response, err := g.h.GetSearchAttributes(ctx)
 	return thrift.FromGetSearchAttributesResponse(response), thrift.FromError(err)
@@ -84,6 +89,11 @@ func (g APIHandler) ListClosedWorkflowExecutions(ctx context.Context, ListReques
 func (g APIHandler) ListDomains(ctx context.Context, ListRequest *shared.ListDomainsRequest) (lp1 *shared.ListDomainsResponse, err error) {
 	response, err := g.h.ListDomains(ctx, thrift.ToListDomainsRequest(ListRequest))
 	return thrift.FromListDomainsResponse(response), thrift.FromError(err)
+}
+
+func (g APIHandler) ListFailoverHistory(ctx context.Context, ListRequest *shared.ListFailoverHistoryRequest) (lp1 *shared.ListFailoverHistoryResponse, err error) {
+	response, err := g.h.ListFailoverHistory(ctx, thrift.ToListFailoverHistoryRequest(ListRequest))
+	return thrift.FromListFailoverHistoryResponse(response), thrift.FromError(err)
 }
 
 func (g APIHandler) ListOpenWorkflowExecutions(ctx context.Context, ListRequest *shared.ListOpenWorkflowExecutionsRequest) (lp1 *shared.ListOpenWorkflowExecutionsResponse, err error) {

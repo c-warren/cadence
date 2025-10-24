@@ -142,6 +142,10 @@ func (h *apiHandler) GetClusterInfo(ctx context.Context) (cp1 *types.ClusterInfo
 	return h.wrapped.GetClusterInfo(ctx)
 }
 
+func (h *apiHandler) GetFailoverEvent(ctx context.Context, gp1 *types.GetFailoverEventRequest) (gp2 *types.GetFailoverEventResponse, err error) {
+	return h.wrapped.GetFailoverEvent(ctx, gp1)
+}
+
 func (h *apiHandler) GetSearchAttributes(ctx context.Context) (gp1 *types.GetSearchAttributesResponse, err error) {
 	return h.wrapped.GetSearchAttributes(ctx)
 }
@@ -216,6 +220,10 @@ func (h *apiHandler) ListClosedWorkflowExecutions(ctx context.Context, lp1 *type
 
 func (h *apiHandler) ListDomains(ctx context.Context, lp1 *types.ListDomainsRequest) (lp2 *types.ListDomainsResponse, err error) {
 	return h.wrapped.ListDomains(ctx, lp1)
+}
+
+func (h *apiHandler) ListFailoverHistory(ctx context.Context, lp1 *types.ListFailoverHistoryRequest) (lp2 *types.ListFailoverHistoryResponse, err error) {
+	return h.wrapped.ListFailoverHistory(ctx, lp1)
 }
 
 func (h *apiHandler) ListOpenWorkflowExecutions(ctx context.Context, lp1 *types.ListOpenWorkflowExecutionsRequest) (lp2 *types.ListOpenWorkflowExecutionsResponse, err error) {

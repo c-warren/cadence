@@ -1256,6 +1256,21 @@ func (mr *MockDomainManagerMockRecorder) GetDomain(ctx, request any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomain", reflect.TypeOf((*MockDomainManager)(nil).GetDomain), ctx, request)
 }
 
+// GetDomainAuditLogEntry mocks base method.
+func (m *MockDomainManager) GetDomainAuditLogEntry(ctx context.Context, request *GetDomainAuditLogEntryRequest) (*GetDomainAuditLogEntryResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDomainAuditLogEntry", ctx, request)
+	ret0, _ := ret[0].(*GetDomainAuditLogEntryResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDomainAuditLogEntry indicates an expected call of GetDomainAuditLogEntry.
+func (mr *MockDomainManagerMockRecorder) GetDomainAuditLogEntry(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDomainAuditLogEntry", reflect.TypeOf((*MockDomainManager)(nil).GetDomainAuditLogEntry), ctx, request)
+}
+
 // GetMetadata mocks base method.
 func (m *MockDomainManager) GetMetadata(ctx context.Context) (*GetMetadataResponse, error) {
 	m.ctrl.T.Helper()
@@ -1300,6 +1315,21 @@ func (mr *MockDomainManagerMockRecorder) ListDomains(ctx, request any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDomains", reflect.TypeOf((*MockDomainManager)(nil).ListDomains), ctx, request)
 }
 
+// ReadDomainAuditLog mocks base method.
+func (m *MockDomainManager) ReadDomainAuditLog(ctx context.Context, request *ReadDomainAuditLogRequest) (*ReadDomainAuditLogResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadDomainAuditLog", ctx, request)
+	ret0, _ := ret[0].(*ReadDomainAuditLogResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadDomainAuditLog indicates an expected call of ReadDomainAuditLog.
+func (mr *MockDomainManagerMockRecorder) ReadDomainAuditLog(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadDomainAuditLog", reflect.TypeOf((*MockDomainManager)(nil).ReadDomainAuditLog), ctx, request)
+}
+
 // UpdateDomain mocks base method.
 func (m *MockDomainManager) UpdateDomain(ctx context.Context, request *UpdateDomainRequest) error {
 	m.ctrl.T.Helper()
@@ -1312,6 +1342,20 @@ func (m *MockDomainManager) UpdateDomain(ctx context.Context, request *UpdateDom
 func (mr *MockDomainManagerMockRecorder) UpdateDomain(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateDomain", reflect.TypeOf((*MockDomainManager)(nil).UpdateDomain), ctx, request)
+}
+
+// WriteDomainAuditLog mocks base method.
+func (m *MockDomainManager) WriteDomainAuditLog(ctx context.Context, request *WriteDomainAuditLogRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "WriteDomainAuditLog", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// WriteDomainAuditLog indicates an expected call of WriteDomainAuditLog.
+func (mr *MockDomainManagerMockRecorder) WriteDomainAuditLog(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WriteDomainAuditLog", reflect.TypeOf((*MockDomainManager)(nil).WriteDomainAuditLog), ctx, request)
 }
 
 // MockQueueManager is a mock of QueueManager interface.

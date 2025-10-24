@@ -66,6 +66,11 @@ func (g APIHandler) GetClusterInfo(ctx context.Context, request *apiv1.GetCluste
 	return proto.FromGetClusterInfoResponse(response), proto.FromError(err)
 }
 
+func (g APIHandler) GetFailoverEvent(ctx context.Context, request *apiv1.GetFailoverEventRequest) (*apiv1.GetFailoverEventResponse, error) {
+	response, err := g.h.GetFailoverEvent(ctx, proto.ToGetFailoverEventRequest(request))
+	return proto.FromGetFailoverEventResponse(response), proto.FromError(err)
+}
+
 func (g APIHandler) GetSearchAttributes(ctx context.Context, request *apiv1.GetSearchAttributesRequest) (*apiv1.GetSearchAttributesResponse, error) {
 	response, err := g.h.GetSearchAttributes(ctx)
 	return proto.FromGetSearchAttributesResponse(response), proto.FromError(err)
@@ -94,6 +99,11 @@ func (g APIHandler) ListClosedWorkflowExecutions(ctx context.Context, request *a
 func (g APIHandler) ListDomains(ctx context.Context, request *apiv1.ListDomainsRequest) (*apiv1.ListDomainsResponse, error) {
 	response, err := g.h.ListDomains(ctx, proto.ToListDomainsRequest(request))
 	return proto.FromListDomainsResponse(response), proto.FromError(err)
+}
+
+func (g APIHandler) ListFailoverHistory(ctx context.Context, request *apiv1.ListFailoverHistoryRequest) (*apiv1.ListFailoverHistoryResponse, error) {
+	response, err := g.h.ListFailoverHistory(ctx, proto.ToListFailoverHistoryRequest(request))
+	return proto.FromListFailoverHistoryResponse(response), proto.FromError(err)
 }
 
 func (g APIHandler) ListOpenWorkflowExecutions(ctx context.Context, request *apiv1.ListOpenWorkflowExecutionsRequest) (*apiv1.ListOpenWorkflowExecutionsResponse, error) {
