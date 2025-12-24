@@ -89,6 +89,7 @@ const (
 	wfTypeCrossClusterChild    = "workflow.CrossCluster.child"
 	wfTypeBatchParent          = "workflow.batch.parent"
 	wfTypeBatchChild           = "workflow.batch.child"
+	wfTypeJitter               = "workflow.jitter"
 
 	activityTypeEcho                 = "activity.echo"
 	activityTypeCron                 = "activity.cron"
@@ -113,4 +114,5 @@ const (
 	activityTypeStartBatch           = "activity.batch.start.batch"
 	activityTypeCrossCluster         = "activity.crosscluster.sample"
 	activityTypeCrossClusterFailover = "activity.crosscluster.failover"
+	activityTypeJitter               = "activity.jitter"
 )

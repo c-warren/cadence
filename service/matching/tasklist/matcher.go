@@ -30,7 +30,6 @@ import (
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/ctxutils"
 	"github.com/uber/cadence/common/log"
-	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/types"
@@ -46,15 +45,15 @@ type taskMatcherImpl struct {
 	// synchronous task channel to match producer/consumer for any isolation group
 	// tasks having no isolation requirement are added to this channel
 	// and pollers from all isolation groups read from this channel
-	taskC chan *InternalTask
-	// synchronos task channels to match producer/consumer for a certain isolation group
+	taskChannel chan *InternalTask
+	// synchronous task channels to match producer/consumer for a certain isolation group
 	// the key is the name of the isolation group
-	isolatedTaskC map[string]chan *InternalTask
+	isolatedTaskChannel map[string]chan *InternalTask
 	// synchronous task channel to match query task - the reason to have
 	// separate channel for this is because there are cases when consumers
 	// are interested in queryTasks but not others. Example is when domain is
 	// not active in a cluster
-	queryTaskC chan *InternalTask
+	queryTaskChannel chan *InternalTask
 	// ratelimiter that limits the rate at which tasks can be dispatched to consumers
 	limiter quotas.Limiter
 
@@ -88,26 +87,26 @@ func newTaskMatcher(
 	tasklistKind types.TaskListKind,
 	limiter quotas.Limiter,
 ) TaskMatcher {
-	isolatedTaskC := make(map[string]chan *InternalTask)
+	isolatedTaskChannel := make(map[string]chan *InternalTask)
 	for _, g := range isolationGroups {
-		isolatedTaskC[g] = make(chan *InternalTask)
+		isolatedTaskChannel[g] = make(chan *InternalTask)
 	}
 
 	cancelCtx, cancelFunc := context.WithCancel(context.Background())
 
 	matcher := &taskMatcherImpl{
-		log:           log,
-		scope:         scope,
-		fwdr:          fwdr,
-		taskC:         make(chan *InternalTask),
-		isolatedTaskC: isolatedTaskC,
-		queryTaskC:    make(chan *InternalTask),
-		config:        config,
-		tasklist:      tasklist,
-		tasklistKind:  tasklistKind,
-		limiter:       limiter,
-		cancelCtx:     cancelCtx,
-		cancelFunc:    cancelFunc,
+		log:                 log,
+		scope:               scope,
+		fwdr:                fwdr,
+		taskChannel:         make(chan *InternalTask),
+		isolatedTaskChannel: isolatedTaskChannel,
+		queryTaskChannel:    make(chan *InternalTask),
+		config:              config,
+		tasklist:            tasklist,
+		tasklistKind:        tasklistKind,
+		limiter:             limiter,
+		cancelCtx:           cancelCtx,
+		cancelFunc:          cancelFunc,
 	}
 
 	return matcher
@@ -165,7 +164,7 @@ func (tm *taskMatcherImpl) Offer(ctx context.Context, task *InternalTask) (bool,
 	if localWaitTime > 0 {
 		childCtx, cancel := context.WithTimeout(ctx, localWaitTime)
 		select {
-		case tm.getTaskC(task) <- task: // poller picked up the task
+		case tm.getTaskChannel(task) <- task: // poller picked up the task
 			cancel()
 			if task.ResponseC != nil {
 				// if there is a response channel, block until resp is received
@@ -187,7 +186,7 @@ func (tm *taskMatcherImpl) Offer(ctx context.Context, task *InternalTask) (bool,
 		}
 	}
 	select {
-	case tm.getTaskC(task) <- task: // poller picked up the task
+	case tm.getTaskChannel(task) <- task: // poller picked up the task
 		if task.ResponseC != nil {
 			// if there is a response channel, block until resp is received
 			// and return error if the response contains error
@@ -230,7 +229,7 @@ func (tm *taskMatcherImpl) Offer(ctx context.Context, task *InternalTask) (bool,
 // OfferOrTimeout offers a task to a poller and blocks until a poller picks up the task or context timeouts
 func (tm *taskMatcherImpl) OfferOrTimeout(ctx context.Context, startT time.Time, task *InternalTask) (bool, error) {
 	select {
-	case tm.getTaskC(task) <- task: // poller picked up the task
+	case tm.getTaskChannel(task) <- task: // poller picked up the task
 		if task.ResponseC != nil {
 			select {
 			case err := <-task.ResponseC:
@@ -251,7 +250,7 @@ func (tm *taskMatcherImpl) OfferOrTimeout(ctx context.Context, startT time.Time,
 // response and error are both nil, if forwarding occurs then response or error is returned.
 func (tm *taskMatcherImpl) OfferQuery(ctx context.Context, task *InternalTask) (*types.MatchingQueryWorkflowResponse, error) {
 	select {
-	case tm.queryTaskC <- task:
+	case tm.queryTaskChannel <- task:
 		<-task.ResponseC
 		return nil, nil
 	default:
@@ -261,7 +260,7 @@ func (tm *taskMatcherImpl) OfferQuery(ctx context.Context, task *InternalTask) (
 
 	for {
 		select {
-		case tm.queryTaskC <- task:
+		case tm.queryTaskChannel <- task:
 			<-task.ResponseC
 			return nil, nil
 		case token := <-fwdrTokenC:
@@ -294,28 +293,28 @@ func (tm *taskMatcherImpl) MustOffer(ctx context.Context, task *InternalTask) er
 	}
 	if err := tm.ratelimit(ctx); err != nil {
 		e.EventName = "Throttled While Dispatching"
-		event.Log(e)
+		event.LogWithLogger(tm.log, e)
 		return fmt.Errorf("rate limit error dispatching: %w", err)
 	}
 
 	startT := time.Now()
 	// attempt a match with local poller first. When that
 	// doesn't succeed, try both local match and remote match
-	taskC := tm.getTaskC(task)
+	taskChannel := tm.getTaskChannel(task)
 	localWaitTime := tm.config.LocalTaskWaitTime()
 	childCtx, cancel := context.WithTimeout(ctx, localWaitTime)
 	select {
-	case taskC <- task: // poller picked up the task
+	case taskChannel <- task: // poller picked up the task
 		cancel()
 		tm.scope.IncCounter(metrics.AsyncMatchLocalPollCounterPerTaskList)
 		tm.scope.RecordTimer(metrics.AsyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
 		e.EventName = "Dispatched to Local Poller"
-		event.Log(e)
+		event.LogWithLogger(tm.log, e)
 		return nil
 	case <-ctx.Done():
 		cancel()
 		e.EventName = "Context Done While Dispatching to Local Poller"
-		event.Log(e)
+		event.LogWithLogger(tm.log, e)
 		return fmt.Errorf("context done when trying to forward local task: %w", ctx.Err())
 	case <-childCtx.Done():
 		cancel()
@@ -326,20 +325,20 @@ forLoop:
 	for {
 		if err := ctx.Err(); err != nil {
 			e.EventName = "Context Done While Dispatching to Local or Forwarding"
-			event.Log(e)
+			event.LogWithLogger(tm.log, e)
 			return fmt.Errorf("failed to offer task: %w", ctx.Err())
 		}
 		select {
-		case taskC <- task: // poller picked up the task
+		case taskChannel <- task: // poller picked up the task
 			e.EventName = "Dispatched to Local Poller"
-			event.Log(e)
+			event.LogWithLogger(tm.log, e)
 			tm.scope.IncCounter(metrics.AsyncMatchLocalPollCounterPerTaskList)
 			tm.scope.RecordTimer(metrics.AsyncMatchLocalPollAttemptPerTaskList, time.Duration(attempt))
 			tm.scope.RecordTimer(metrics.AsyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
 			return nil
 		case token := <-tm.fwdrAddReqTokenC():
 			e.EventName = "Attempting to Forward Task"
-			event.Log(e)
+			event.LogWithLogger(tm.log, e)
 			childCtx, cancel := context.WithTimeout(ctx, time.Second*2)
 			err := tm.fwdr.ForwardTask(childCtx, task)
 			token.release()
@@ -349,20 +348,16 @@ forLoop:
 				}
 				e.EventName = "Task Forwarding Failed"
 				e.Payload = map[string]any{"error": err.Error()}
-				event.Log(e)
+				event.LogWithLogger(tm.log, e)
 				e.Payload = nil
-				tm.log.Debug("failed to forward task",
-					tag.Error(err),
-					tag.TaskID(task.Event.TaskID),
-				)
 				// forwarder returns error only when the call is rate limited. To
 				// avoid a busy loop on such rate limiting events, we only attempt to make
 				// the next forwarded call after this childCtx expires. Till then, we block
 				// hoping for a local poller match
 				select {
-				case taskC <- task: // poller picked up the task
+				case taskChannel <- task: // poller picked up the task
 					e.EventName = "Dispatched to Local Poller (after failed forward)"
-					event.Log(e)
+					event.LogWithLogger(tm.log, e)
 					cancel()
 					tm.scope.IncCounter(metrics.AsyncMatchLocalPollAfterForwardFailedCounterPerTaskList)
 					tm.scope.RecordTimer(metrics.AsyncMatchLocalPollAfterForwardFailedAttemptPerTaskList, time.Duration(attempt))
@@ -377,7 +372,7 @@ forLoop:
 			cancel()
 
 			e.EventName = "Task Forwarded"
-			event.Log(e)
+			event.LogWithLogger(tm.log, e)
 			tm.scope.IncCounter(metrics.AsyncMatchForwardPollCounterPerTaskList)
 			tm.scope.RecordTimer(metrics.AsyncMatchForwardPollAttemptPerTaskList, time.Duration(attempt))
 			tm.scope.RecordTimer(metrics.AsyncMatchForwardPollLatencyPerTaskList, time.Since(startT))
@@ -389,7 +384,7 @@ forLoop:
 			return nil
 		case <-ctx.Done():
 			e.EventName = "Context Done While Dispatching to Local or Forwarding"
-			event.Log(e)
+			event.LogWithLogger(tm.log, e)
 			return fmt.Errorf("failed to offer task: %w", ctx.Err())
 		}
 	}
@@ -401,10 +396,10 @@ forLoop:
 // Returns ErrMatcherClosed when matching is closed
 func (tm *taskMatcherImpl) Poll(ctx context.Context, isolationGroup string) (*InternalTask, error) {
 	startT := time.Now()
-	isolatedTaskC, ok := tm.isolatedTaskC[isolationGroup]
+	isolatedTaskChannel, ok := tm.isolatedTaskChannel[isolationGroup]
 	if !ok && isolationGroup != "" {
 		// fallback to default isolation group instead of making poller crash if the isolation group is invalid
-		isolatedTaskC = tm.taskC
+		isolatedTaskChannel = tm.taskChannel
 		tm.scope.IncCounter(metrics.PollerInvalidIsolationGroupCounter)
 	}
 
@@ -425,25 +420,28 @@ func (tm *taskMatcherImpl) Poll(ctx context.Context, isolationGroup string) (*In
 	}()
 
 	// try local match first without blocking until context timeout
-	if task, err = tm.pollNonBlocking(ctxWithCancelPropagation, isolatedTaskC, tm.taskC, tm.queryTaskC); err == nil {
+	if task, err = tm.pollNonBlocking(ctxWithCancelPropagation, isolatedTaskChannel, tm.taskChannel, tm.queryTaskChannel); err == nil {
 		tm.scope.RecordTimer(metrics.PollLocalMatchLatencyPerTaskList, time.Since(startT))
 		return task, nil
 	}
 	// there is no local poller available to pickup this task. Now block waiting
 	// either for a local poller or a forwarding token to be available. When a
 	// forwarding token becomes available, send this poll to a parent partition
-	tm.log.Debug("falling back to non-local polling",
-		tag.IsolationGroup(isolationGroup),
-		tag.Dynamic("isolated channel", len(isolatedTaskC)),
-		tag.Dynamic("fallback channel", len(tm.taskC)),
-	)
+	event.LogWithLogger(tm.log, event.E{
+		EventName: "Matcher Falling Back to Non-Local Polling",
+		Payload: map[string]any{
+			"IsolationGroup":  isolationGroup,
+			"IsolatedChannel": len(isolatedTaskChannel),
+			"FallbackChannel": len(tm.taskChannel),
+		},
+	})
 	event.Log(event.E{
 		TaskListName: tm.tasklist.GetName(),
 		TaskListType: tm.tasklist.GetType(),
 		TaskListKind: tm.tasklistKind.Ptr(),
 		EventName:    "Matcher Falling Back to Non-Local Polling",
 	})
-	task, err = tm.pollOrForward(ctxWithCancelPropagation, startT, isolationGroup, isolatedTaskC, tm.taskC, tm.queryTaskC)
+	task, err = tm.pollOrForward(ctxWithCancelPropagation, startT, isolationGroup, isolatedTaskChannel, tm.taskChannel, tm.queryTaskChannel)
 	return task, err
 }
 
@@ -453,7 +451,7 @@ func (tm *taskMatcherImpl) Poll(ctx context.Context, isolationGroup string) (*In
 func (tm *taskMatcherImpl) PollForQuery(ctx context.Context) (*InternalTask, error) {
 	startT := time.Now()
 	// try local match first without blocking until context timeout
-	if task, err := tm.pollNonBlocking(ctx, nil, nil, tm.queryTaskC); err == nil {
+	if task, err := tm.pollNonBlocking(ctx, nil, nil, tm.queryTaskChannel); err == nil {
 		tm.scope.RecordTimer(metrics.PollLocalMatchLatencyPerTaskList, time.Since(startT))
 		return task, nil
 	}
@@ -464,7 +462,7 @@ func (tm *taskMatcherImpl) PollForQuery(ctx context.Context) (*InternalTask, err
 	// there is no local poller available to pickup this task. Now block waiting
 	// either for a local poller or a forwarding token to be available. When a
 	// forwarding token becomes available, send this poll to a parent partition
-	return tm.pollOrForward(ctxWithCancelPropagation, startT, "", nil, nil, tm.queryTaskC)
+	return tm.pollOrForward(ctxWithCancelPropagation, startT, "", nil, nil, tm.queryTaskChannel)
 }
 
 func (tm *taskMatcherImpl) RefreshCancelContext() {
@@ -477,12 +475,12 @@ func (tm *taskMatcherImpl) pollOrForward(
 	ctx context.Context,
 	startT time.Time,
 	isolationGroup string,
-	isolatedTaskC <-chan *InternalTask,
+	isolatedTaskChannel <-chan *InternalTask,
 	taskC <-chan *InternalTask,
 	queryTaskC <-chan *InternalTask,
 ) (*InternalTask, error) {
 	select {
-	case task := <-isolatedTaskC:
+	case task := <-isolatedTaskChannel:
 		if task.ResponseC != nil {
 			tm.scope.IncCounter(metrics.PollSuccessWithSyncPerTaskListCounter)
 		}
@@ -557,19 +555,19 @@ func (tm *taskMatcherImpl) pollOrForward(
 			return task, nil
 		}
 		token.release()
-		return tm.poll(ctx, startT, isolatedTaskC, taskC, queryTaskC)
+		return tm.poll(ctx, startT, isolatedTaskChannel, taskC, queryTaskC)
 	}
 }
 
 func (tm *taskMatcherImpl) poll(
 	ctx context.Context,
 	startT time.Time,
-	isolatedTaskC <-chan *InternalTask,
+	isolatedTaskChannel <-chan *InternalTask,
 	taskC <-chan *InternalTask,
 	queryTaskC <-chan *InternalTask,
 ) (*InternalTask, error) {
 	select {
-	case task := <-isolatedTaskC:
+	case task := <-isolatedTaskChannel:
 		if task.ResponseC != nil {
 			tm.scope.IncCounter(metrics.PollSuccessWithSyncPerTaskListCounter)
 		}
@@ -627,12 +625,12 @@ func (tm *taskMatcherImpl) poll(
 
 func (tm *taskMatcherImpl) pollLocalWait(
 	ctx context.Context,
-	isolatedTaskC <-chan *InternalTask,
+	isolatedTaskChannel <-chan *InternalTask,
 	taskC <-chan *InternalTask,
 	queryTaskC <-chan *InternalTask,
 ) (*InternalTask, error) {
 	select {
-	case task := <-isolatedTaskC:
+	case task := <-isolatedTaskChannel:
 		if task.ResponseC != nil {
 			tm.scope.IncCounter(metrics.PollSuccessWithSyncPerTaskListCounter)
 		}
@@ -687,7 +685,7 @@ func (tm *taskMatcherImpl) pollLocalWait(
 
 func (tm *taskMatcherImpl) pollNonBlocking(
 	ctx context.Context,
-	isolatedTaskC <-chan *InternalTask,
+	isolatedTaskChannel <-chan *InternalTask,
 	taskC <-chan *InternalTask,
 	queryTaskC <-chan *InternalTask,
 ) (*InternalTask, error) {
@@ -695,10 +693,10 @@ func (tm *taskMatcherImpl) pollNonBlocking(
 	if waitTime > 0 {
 		childCtx, cancel := context.WithTimeout(ctx, waitTime)
 		defer cancel()
-		return tm.pollLocalWait(childCtx, isolatedTaskC, taskC, queryTaskC)
+		return tm.pollLocalWait(childCtx, isolatedTaskChannel, taskC, queryTaskC)
 	}
 	select {
-	case task := <-isolatedTaskC:
+	case task := <-isolatedTaskChannel:
 		if task.ResponseC != nil {
 			tm.scope.IncCounter(metrics.PollSuccessWithSyncPerTaskListCounter)
 		}
@@ -782,10 +780,10 @@ func (tm *taskMatcherImpl) isForwardingAllowed() bool {
 	return tm.fwdr != nil
 }
 
-func (tm *taskMatcherImpl) getTaskC(task *InternalTask) chan<- *InternalTask {
-	taskC := tm.taskC
-	if isolatedTaskC, ok := tm.isolatedTaskC[task.isolationGroup]; ok && task.isolationGroup != "" {
-		taskC = isolatedTaskC
+func (tm *taskMatcherImpl) getTaskChannel(task *InternalTask) chan<- *InternalTask {
+	taskC := tm.taskChannel
+	if isolatedTaskChannel, ok := tm.isolatedTaskChannel[task.isolationGroup]; ok && task.isolationGroup != "" {
+		taskC = isolatedTaskChannel
 	}
 	return taskC
 }

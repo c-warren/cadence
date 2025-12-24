@@ -23,17 +23,19 @@ package event
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
+	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 )
 
-var enabled = false
+var enabled = true
 
 func init() {
-	enabled = os.Getenv("MATCHING_LOG_EVENTS") == "true"
+	// enabled = os.Getenv("MATCHING_LOG_EVENTS") == "true"
+	enabled = true
 }
 
 type E struct {
@@ -62,5 +64,17 @@ func Log(events ...E) {
 		}
 
 		fmt.Printf("Matching New Event: %s\n", data)
+	}
+}
+
+func LogWithLogger(logger log.Logger, events ...E) {
+	for _, e := range events {
+		e.EventTime = time.Now()
+		logger.Debug(e.EventName,
+			tag.Dynamic("task-list-name", e.TaskListName),
+			tag.Dynamic("task-list-type", e.TaskListType),
+			tag.Dynamic("task-list-kind", e.TaskListKind),
+			tag.Dynamic("event-time", e.EventTime),
+		)
 	}
 }

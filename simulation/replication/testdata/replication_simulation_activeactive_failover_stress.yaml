@@ -1,0 +1,178 @@
+# Replication simulation scenario for testing failover behavior with task backlog
+# This scenario creates many long-running workflows in an active-active domain
+# to stress test failover + node death scenarios that cause task backlog issues
+#
+# Run via: ./simulation/replication/run.sh --scenario activeactive_failover_stress
+#
+# MANUAL TESTING PROCEDURE:
+# 1. Start this simulation
+# 2. While workflows are running, perform manual failovers every 30 seconds:
+#    cadence --do test-domain-failover-stress domain update --active_cluster cluster1
+#    (wait 30s)
+#    cadence --do test-domain-failover-stress domain update --active_cluster cluster0
+#    (repeat)
+# 3. Optionally kill matching nodes during failover to simulate node death
+# 4. Monitor for:
+#    - Backlog increasing (task_backlog_per_tl metric)
+#    - "Async task dispatch timed out" logs
+#    - Tasks not getting processed
+
+clusters:
+  cluster0:
+    grpcEndpoint: "cadence-cluster0:7833"
+  cluster1:
+    grpcEndpoint: "cadence-cluster1:7833"
+
+primaryCluster: "cluster0"
+
+domains:
+  test-domain-failover-stress:
+    activeClusterName: cluster0
+    clusterAttributes:
+      region:
+        region0: cluster0
+        region1: cluster1
+
+operations:
+  # Start 10 long-running workflows in cluster0 (region0)
+  # These workflows will execute many activities in a loop
+  - op: start_workflow
+    at: 0s
+    workflowID: stress-wf-1
+    workflowType: activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-failover-stress
+    workflowExecutionStartToCloseTimeout: 600s
+    activityCount: 100  # Many activities to stress the system
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+
+  - op: start_workflow
+    at: 0s
+    workflowID: stress-wf-2
+    workflowType: activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-failover-stress
+    workflowExecutionStartToCloseTimeout: 600s
+    activityCount: 100
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+
+  - op: start_workflow
+    at: 0s
+    workflowID: stress-wf-3
+    workflowType: activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-failover-stress
+    workflowExecutionStartToCloseTimeout: 600s
+    activityCount: 100
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+
+  - op: start_workflow
+    at: 0s
+    workflowID: stress-wf-4
+    workflowType: activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-failover-stress
+    workflowExecutionStartToCloseTimeout: 600s
+    activityCount: 100
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+
+  - op: start_workflow
+    at: 0s
+    workflowID: stress-wf-5
+    workflowType: activity-loop-workflow
+    cluster: cluster0
+    domain: test-domain-failover-stress
+    workflowExecutionStartToCloseTimeout: 600s
+    activityCount: 100
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region0
+
+  # Start 10 long-running workflows in cluster1 (region1)
+  - op: start_workflow
+    at: 0s
+    workflowID: stress-wf-6
+    workflowType: activity-loop-workflow
+    cluster: cluster1
+    domain: test-domain-failover-stress
+    workflowExecutionStartToCloseTimeout: 600s
+    activityCount: 100
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region1
+
+  - op: start_workflow
+    at: 0s
+    workflowID: stress-wf-7
+    workflowType: activity-loop-workflow
+    cluster: cluster1
+    domain: test-domain-failover-stress
+    workflowExecutionStartToCloseTimeout: 600s
+    activityCount: 100
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region1
+
+  - op: start_workflow
+    at: 0s
+    workflowID: stress-wf-8
+    workflowType: activity-loop-workflow
+    cluster: cluster1
+    domain: test-domain-failover-stress
+    workflowExecutionStartToCloseTimeout: 600s
+    activityCount: 100
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region1
+
+  - op: start_workflow
+    at: 0s
+    workflowID: stress-wf-9
+    workflowType: activity-loop-workflow
+    cluster: cluster1
+    domain: test-domain-failover-stress
+    workflowExecutionStartToCloseTimeout: 600s
+    activityCount: 100
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region1
+
+  - op: start_workflow
+    at: 0s
+    workflowID: stress-wf-10
+    workflowType: activity-loop-workflow
+    cluster: cluster1
+    domain: test-domain-failover-stress
+    workflowExecutionStartToCloseTimeout: 600s
+    activityCount: 100
+    activeClusterSelectionPolicy:
+      clusterAttribute:
+        scope: region
+        name: region1
+
+  # Wait for completion - this gives you time to perform manual failovers
+  # The test will run for ~10 minutes, giving you time to failover multiple times
+  - op: validate
+    at: 605s
+    workflowID: stress-wf-1
+    cluster: cluster0
+    domain: test-domain-failover-stress
+    want:
+      status: completed

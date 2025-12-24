@@ -1,0 +1,38 @@
+# Dynamic config overrides for activeactive_failover_stress simulation
+# This config helps expose the async match timeout issues during failover
+
+# Increase async task dispatch timeout to make timeouts more visible
+matching.asyncTaskDispatchTimeout:
+  - value: "10s"
+    constraints: {}
+
+# Reduce long poll timeout to make workers poll more frequently
+matching.longPollExpirationInterval:
+  - value: "30s"
+    constraints: {}
+
+# Local task wait time before trying to forward
+matching.localTaskWaitTime:
+  - value: "50ms"
+    constraints: {}
+
+# Enable verbose logging for matching service
+# This will help see the async match flow and timeout issues
+matching.enableDebugMode:
+  - value: true
+    constraints: {}
+
+# Reduce update ack interval to update backlog metrics more frequently
+matching.updateAckInterval:
+  - value: "1s"
+    constraints: {}
+
+# Task list isolation settings (for observability)
+matching.enableTasklistIsolation:
+  - value: true
+    constraints: {}
+
+# Make sync match timeout shorter to force more async matches
+matching.activityTaskSyncMatchWaitTime:
+  - value: "10ms"
+    constraints: {}

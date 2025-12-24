@@ -75,6 +75,13 @@ func (client *cadenceClient) createDomain(name string, desc string, owner string
 	err := client.Register(context.Background(), req)
 	if err != nil {
 		if _, ok := err.(*shared.DomainAlreadyExistsError); !ok {
+			// If we're on a non-primary cluster, domain registration will fail
+			// In XDC setups, domain should be registered via the primary cluster
+			// Check if domain exists by trying to describe it
+			if _, descErr := client.Describe(context.Background(), name); descErr == nil {
+				// Domain exists, registration error can be ignored
+				return nil
+			}
 			return err
 		}
 	}
