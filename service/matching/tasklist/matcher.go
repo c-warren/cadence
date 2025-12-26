@@ -293,7 +293,7 @@ func (tm *taskMatcherImpl) MustOffer(ctx context.Context, task *InternalTask) er
 	}
 	if err := tm.ratelimit(ctx); err != nil {
 		e.EventName = "Throttled While Dispatching"
-		event.LogWithLogger(tm.log, e)
+		event.Log(e)
 		return fmt.Errorf("rate limit error dispatching: %w", err)
 	}
 
@@ -309,12 +309,12 @@ func (tm *taskMatcherImpl) MustOffer(ctx context.Context, task *InternalTask) er
 		tm.scope.IncCounter(metrics.AsyncMatchLocalPollCounterPerTaskList)
 		tm.scope.RecordTimer(metrics.AsyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
 		e.EventName = "Dispatched to Local Poller"
-		event.LogWithLogger(tm.log, e)
+		event.Log(e)
 		return nil
 	case <-ctx.Done():
 		cancel()
 		e.EventName = "Context Done While Dispatching to Local Poller"
-		event.LogWithLogger(tm.log, e)
+		event.Log(e)
 		return fmt.Errorf("context done when trying to forward local task: %w", ctx.Err())
 	case <-childCtx.Done():
 		cancel()
@@ -325,20 +325,20 @@ forLoop:
 	for {
 		if err := ctx.Err(); err != nil {
 			e.EventName = "Context Done While Dispatching to Local or Forwarding"
-			event.LogWithLogger(tm.log, e)
+			event.Log(e)
 			return fmt.Errorf("failed to offer task: %w", ctx.Err())
 		}
 		select {
 		case taskChannel <- task: // poller picked up the task
 			e.EventName = "Dispatched to Local Poller"
-			event.LogWithLogger(tm.log, e)
+			event.Log(e)
 			tm.scope.IncCounter(metrics.AsyncMatchLocalPollCounterPerTaskList)
 			tm.scope.RecordTimer(metrics.AsyncMatchLocalPollAttemptPerTaskList, time.Duration(attempt))
 			tm.scope.RecordTimer(metrics.AsyncMatchLocalPollLatencyPerTaskList, time.Since(startT))
 			return nil
 		case token := <-tm.fwdrAddReqTokenC():
 			e.EventName = "Attempting to Forward Task"
-			event.LogWithLogger(tm.log, e)
+			event.Log(e)
 			childCtx, cancel := context.WithTimeout(ctx, time.Second*2)
 			err := tm.fwdr.ForwardTask(childCtx, task)
 			token.release()
@@ -348,7 +348,7 @@ forLoop:
 				}
 				e.EventName = "Task Forwarding Failed"
 				e.Payload = map[string]any{"error": err.Error()}
-				event.LogWithLogger(tm.log, e)
+				event.Log(e)
 				e.Payload = nil
 				// forwarder returns error only when the call is rate limited. To
 				// avoid a busy loop on such rate limiting events, we only attempt to make
@@ -357,7 +357,7 @@ forLoop:
 				select {
 				case taskChannel <- task: // poller picked up the task
 					e.EventName = "Dispatched to Local Poller (after failed forward)"
-					event.LogWithLogger(tm.log, e)
+					event.Log(e)
 					cancel()
 					tm.scope.IncCounter(metrics.AsyncMatchLocalPollAfterForwardFailedCounterPerTaskList)
 					tm.scope.RecordTimer(metrics.AsyncMatchLocalPollAfterForwardFailedAttemptPerTaskList, time.Duration(attempt))
@@ -372,7 +372,7 @@ forLoop:
 			cancel()
 
 			e.EventName = "Task Forwarded"
-			event.LogWithLogger(tm.log, e)
+			event.Log(e)
 			tm.scope.IncCounter(metrics.AsyncMatchForwardPollCounterPerTaskList)
 			tm.scope.RecordTimer(metrics.AsyncMatchForwardPollAttemptPerTaskList, time.Duration(attempt))
 			tm.scope.RecordTimer(metrics.AsyncMatchForwardPollLatencyPerTaskList, time.Since(startT))
@@ -384,7 +384,7 @@ forLoop:
 			return nil
 		case <-ctx.Done():
 			e.EventName = "Context Done While Dispatching to Local or Forwarding"
-			event.LogWithLogger(tm.log, e)
+			event.Log(e)
 			return fmt.Errorf("failed to offer task: %w", ctx.Err())
 		}
 	}
@@ -427,7 +427,7 @@ func (tm *taskMatcherImpl) Poll(ctx context.Context, isolationGroup string) (*In
 	// there is no local poller available to pickup this task. Now block waiting
 	// either for a local poller or a forwarding token to be available. When a
 	// forwarding token becomes available, send this poll to a parent partition
-	event.LogWithLogger(tm.log, event.E{
+	event.Log(event.E{
 		EventName: "Matcher Falling Back to Non-Local Polling",
 		Payload: map[string]any{
 			"IsolationGroup":  isolationGroup,

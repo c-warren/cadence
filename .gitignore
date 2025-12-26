@@ -43,3 +43,6 @@ dockerize
 # SQLite databases
 cadence.db*
 cadence_visibility.db*
+
+# logs
+logs/

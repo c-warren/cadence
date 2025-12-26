@@ -749,7 +749,7 @@ func (m *mutableStateDecisionTaskManagerImpl) UpdateDecision(
 			decision.DecisionTimeout,
 			decision.Attempt,
 			decision.StartedTimestamp,
-			debug.Stack(),
+			string(debug.Stack()),
 		)
 	}
 }

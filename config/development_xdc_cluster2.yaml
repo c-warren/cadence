@@ -122,6 +122,9 @@ archival:
         fileMode: "0666"
         dirMode: "0766"
 
+log:
+  level: debug
+
 domainDefaults:
   archival:
     history:

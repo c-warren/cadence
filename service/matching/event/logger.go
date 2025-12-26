@@ -75,6 +75,10 @@ func LogWithLogger(logger log.Logger, events ...E) {
 			tag.Dynamic("task-list-type", e.TaskListType),
 			tag.Dynamic("task-list-kind", e.TaskListKind),
 			tag.Dynamic("event-time", e.EventTime),
+			tag.Dynamic("wf-domain-id", e.DomainID),
+			tag.Dynamic("wf-id", e.WorkflowID),
+			tag.Dynamic("wf-run-id", e.RunID),
+			tag.Dynamic("event", e),
 		)
 	}
 }
