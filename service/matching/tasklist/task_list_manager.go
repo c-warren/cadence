@@ -573,27 +573,19 @@ func (c *taskListManagerImpl) AddTask(ctx context.Context, params AddTaskParams)
 			return r, err
 		}
 
+		// Retrieve isolation group for the task (used by taskReader during async dispatch)
 		isolationGroup, _ := c.getIsolationGroupForTask(ctx, params.TaskInfo)
-		// active task, try sync match first
-		syncMatch, err = c.trySyncMatch(ctx, params, isolationGroup)
-		if syncMatch {
-			e.EventName = "SyncMatched so not persisted"
-			event.Log(e)
-			return &persistence.CreateTasksResponse{}, err
-		}
-		if params.ActivityTaskDispatchInfo != nil {
-			return false, errRemoteSyncMatchFailed
-		}
+		_ = isolationGroup // Currently only used for potential future metrics
 
+		// Sync match disabled - all tasks go through async match path
+		// This ensures tasks are persisted to DB, read by taskReader,
+		// appear in backlog metrics, and dispatched via async match
+		syncMatch = false
+
+		e.EventName = "Task sent to writer for async match"
 		if isForwarded {
-			// forwarded from child partition - only do sync match
-			// child partition will persist the task when sync match fails
-			e.EventName = "Could not SyncMatched Forwarded Task so not persisted"
-			event.Log(e)
-			return &persistence.CreateTasksResponse{}, errRemoteSyncMatchFailed
+			e.EventName = "Forwarded task sent to writer for async match"
 		}
-
-		e.EventName = "Task Sent to Writer"
 		event.Log(e)
 		return c.taskWriter.appendTask(params.TaskInfo)
 	})
