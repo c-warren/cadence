@@ -22,6 +22,7 @@ package task
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -89,6 +90,87 @@ func standbyTaskPostActionTaskDiscarded(
 		tag.FailoverVersion(task.GetVersion()),
 		tag.Timestamp(task.GetVisibilityTimestamp()))
 	return ErrTaskDiscarded
+}
+
+// standbyTaskPostActionEnqueueToDLQ enqueues the task to DLQ instead of discarding
+func standbyTaskPostActionEnqueueToDLQ(
+	dlqManager persistence.StandbyTaskDLQManager,
+	shardID int,
+	clusterAttributeScope string,
+	clusterAttributeName string,
+) standbyPostActionFn {
+	return func(
+		ctx context.Context,
+		task persistence.Task,
+		postActionInfo interface{},
+		logger log.Logger,
+	) error {
+		if postActionInfo == nil {
+			return nil
+		}
+
+		logger.Warn("Enqueuing standby task to DLQ due to task being pending for too long",
+			tag.WorkflowID(task.GetWorkflowID()),
+			tag.WorkflowRunID(task.GetRunID()),
+			tag.WorkflowDomainID(task.GetDomainID()),
+			tag.TaskID(task.GetTaskID()),
+			tag.TaskType(task.GetTaskType()),
+			tag.FailoverVersion(task.GetVersion()),
+			tag.Timestamp(task.GetVisibilityTimestamp()))
+
+		// Serialize the task
+		taskPayload, err := serializeTask(task)
+		if err != nil {
+			logger.Error("Failed to serialize task for DLQ", tag.Error(err))
+			return ErrTaskDiscarded
+		}
+
+		err = dlqManager.EnqueueStandbyTask(ctx, &persistence.EnqueueStandbyTaskRequest{
+			ShardID:              shardID,
+			DomainID:             task.GetDomainID(),
+			ClusterAttributeScope: clusterAttributeScope,
+			ClusterAttributeName:  clusterAttributeName,
+			WorkflowID:           task.GetWorkflowID(),
+			RunID:                task.GetRunID(),
+			TaskID:               task.GetTaskID(),
+			VisibilityTimestamp:  task.GetVisibilityTimestamp().UnixNano(),
+			TaskType:             task.GetTaskType(),
+			TaskPayload:          taskPayload,
+			Version:              task.GetVersion(),
+		})
+
+		if err != nil {
+			// If duplicate, treat as success
+			if _, ok := err.(*persistence.ConditionFailedError); ok {
+				logger.Info("Task already exists in DLQ, treating as success",
+					tag.TaskID(task.GetTaskID()))
+				return ErrTaskDiscarded
+			}
+			logger.Error("Failed to enqueue task to DLQ", tag.Error(err))
+			return err
+		}
+
+		// Return ErrTaskDiscarded to remove from execution queue
+		return ErrTaskDiscarded
+	}
+}
+
+// serializeTask converts a task to bytes for storage
+func serializeTask(task persistence.Task) ([]byte, error) {
+	// For POC, we'll store the task info as JSON
+	// In production, this would use the same serialization as the persistence layer
+
+	// Try to convert to TransferTaskInfo first
+	if transferInfo, err := task.ToTransferTaskInfo(); err == nil {
+		return json.Marshal(transferInfo)
+	}
+
+	// Try to convert to TimerTaskInfo
+	if timerInfo, err := task.ToTimerTaskInfo(); err == nil {
+		return json.Marshal(timerInfo)
+	}
+
+	return nil, fmt.Errorf("unsupported task type: %T", task)
 }
 
 type (

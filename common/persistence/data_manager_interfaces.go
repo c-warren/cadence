@@ -2598,3 +2598,82 @@ func (c *DomainReplicationConfig) IsActiveActive() bool {
 func IsWorkflowRunning(state int) bool {
 	return state == WorkflowStateRunning || state == WorkflowStateCreated
 }
+
+// StandbyTaskDLQManager manages the dead letter queue for standby tasks
+type StandbyTaskDLQManager interface {
+	Closeable
+	EnqueueStandbyTask(ctx context.Context, request *EnqueueStandbyTaskRequest) error
+	ReadStandbyTasks(ctx context.Context, request *ReadStandbyTasksRequest) (*ReadStandbyTasksResponse, error)
+	DeleteStandbyTask(ctx context.Context, request *DeleteStandbyTaskRequest) error
+	GetStandbyTaskDLQSize(ctx context.Context, request *GetStandbyTaskDLQSizeRequest) (*GetStandbyTaskDLQSizeResponse, error)
+}
+
+// EnqueueStandbyTaskRequest is the request to enqueue a standby task to DLQ
+type EnqueueStandbyTaskRequest struct {
+	ShardID              int
+	DomainID             string
+	ClusterAttributeScope string
+	ClusterAttributeName  string
+	WorkflowID           string
+	RunID                string
+	TaskID               int64
+	VisibilityTimestamp  int64 // Unix timestamp in nanoseconds
+	TaskType             int
+	TaskPayload          []byte
+	Version              int64
+}
+
+// ReadStandbyTasksRequest is the request to read standby tasks from DLQ
+type ReadStandbyTasksRequest struct {
+	ShardID              int
+	DomainID             string
+	ClusterAttributeScope string
+	ClusterAttributeName  string
+	PageSize             int
+	NextPageToken        []byte
+}
+
+// ReadStandbyTasksResponse contains standby tasks from DLQ
+type ReadStandbyTasksResponse struct {
+	Tasks         []*StandbyTaskDLQEntry
+	NextPageToken []byte
+}
+
+// StandbyTaskDLQEntry represents a task in the DLQ
+type StandbyTaskDLQEntry struct {
+	ShardID              int
+	DomainID             string
+	ClusterAttributeScope string
+	ClusterAttributeName  string
+	WorkflowID           string
+	RunID                string
+	TaskID               int64
+	VisibilityTimestamp  int64 // Unix timestamp in nanoseconds
+	TaskType             int
+	TaskPayload          []byte
+	Version              int64
+	EnqueuedAt           int64 // Unix timestamp in seconds
+}
+
+// DeleteStandbyTaskRequest is the request to delete a standby task from DLQ
+type DeleteStandbyTaskRequest struct {
+	ShardID              int
+	DomainID             string
+	ClusterAttributeScope string
+	ClusterAttributeName  string
+	TaskID               int64
+	VisibilityTimestamp  int64 // Unix timestamp in nanoseconds
+}
+
+// GetStandbyTaskDLQSizeRequest is the request to get DLQ size
+type GetStandbyTaskDLQSizeRequest struct {
+	ShardID              int
+	DomainID             string
+	ClusterAttributeScope string
+	ClusterAttributeName  string
+}
+
+// GetStandbyTaskDLQSizeResponse contains the DLQ size
+type GetStandbyTaskDLQSizeResponse struct {
+	Size int64
+}
