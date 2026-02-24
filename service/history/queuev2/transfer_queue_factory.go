@@ -120,6 +120,9 @@ func (f *transferQueueFactory) createQueuev2(
 		openExecutionCheck,
 		logger,
 	)
+	// Create in-memory DLQ manager for POC
+	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager()
+
 	standbyTaskExecutor := task.NewTransferStandbyTaskExecutor(
 		shard,
 		f.archivalClient,
@@ -128,7 +131,7 @@ func (f *transferQueueFactory) createQueuev2(
 		logger,
 		shard.GetClusterMetadata().GetCurrentClusterName(),
 		shard.GetConfig(),
-		nil, // TODO: wire up DLQ manager
+		dlqManager,
 	)
 
 	executorWrapper := task.NewExecutorWrapper(

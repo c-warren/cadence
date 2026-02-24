@@ -192,7 +192,7 @@ func (t *transferStandbyTaskExecutor) processActivityTask(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.pushActivity,
-			t.pushActivity,
+			t.getDiscardTaskFn(), // Use DLQ enqueue if configured
 		),
 	)
 }
@@ -249,7 +249,7 @@ func (t *transferStandbyTaskExecutor) processDecisionTask(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.pushDecision,
-			t.pushDecision,
+			t.getDiscardTaskFn(), // Use DLQ enqueue if configured
 		),
 	)
 }
@@ -391,7 +391,7 @@ func (t *transferStandbyTaskExecutor) processCancelExecution(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionTaskDiscarded,
+			t.getDiscardTaskFn(), // Use DLQ enqueue if configured
 		),
 	)
 }
@@ -430,7 +430,7 @@ func (t *transferStandbyTaskExecutor) processSignalExecution(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionTaskDiscarded,
+			t.getDiscardTaskFn(), // Use DLQ enqueue if configured
 		),
 	)
 }
@@ -473,7 +473,7 @@ func (t *transferStandbyTaskExecutor) processStartChildExecution(
 			t.config.StandbyTaskMissingEventsResendDelay(),
 			t.config.StandbyTaskMissingEventsDiscardDelay(),
 			t.fetchHistoryFromRemote,
-			standbyTaskPostActionTaskDiscarded,
+			t.getDiscardTaskFn(), // Use DLQ enqueue if configured
 		),
 	)
 }
@@ -662,6 +662,22 @@ func (t *transferStandbyTaskExecutor) processTransfer(
 
 	release(nil)
 	return postActionFn(ctx, transferTask, historyResendInfo, t.logger)
+}
+
+func (t *transferStandbyTaskExecutor) getDiscardTaskFn() standbyPostActionFn {
+	// If DLQ manager is configured, enqueue to DLQ instead of discarding
+	if t.dlqManager != nil {
+		// For POC, use empty cluster attribute scope/name
+		// In production, this would be determined from the workflow's cluster attribute
+		return standbyTaskPostActionEnqueueToDLQ(
+			t.dlqManager,
+			t.shard.GetShardID(),
+			"", // clusterAttributeScope - TODO: get from workflow
+			"", // clusterAttributeName - TODO: get from workflow
+		)
+	}
+	// Fallback to old behavior if DLQ not configured
+	return standbyTaskPostActionTaskDiscarded
 }
 
 func (t *transferStandbyTaskExecutor) pushActivity(

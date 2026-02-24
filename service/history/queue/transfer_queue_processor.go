@@ -128,6 +128,9 @@ func NewTransferQueueProcessor(
 			shard.GetLogger(),
 		)
 		standByLogger := logger.WithTags(tag.QueueTypeStandby, tag.ActiveClusterName(clusterName))
+		// Create in-memory DLQ manager for POC
+		dlqManager := persistence.NewInMemoryStandbyTaskDLQManager()
+
 		standbyTaskExecutor := task.NewTransferStandbyTaskExecutor(
 			shard,
 			archivalClient,
@@ -136,7 +139,7 @@ func NewTransferQueueProcessor(
 			standByLogger,
 			clusterName,
 			config,
-			nil, // TODO: wire up DLQ manager
+			dlqManager,
 		)
 		standbyQueueProcessors[clusterName] = newTransferQueueStandbyProcessor(
 			clusterName,
