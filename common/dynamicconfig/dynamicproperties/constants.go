@@ -2820,6 +2820,12 @@ const (
 	// Default value: 25m (25*time.Minute)
 	// Allowed filters: N/A
 	StandbyTaskMissingEventsDiscardDelay
+	// StandbyTaskErrorInjectionRate is the error injection rate for standby task processing (0.0-1.0)
+	// KeyName: history.standbyTaskErrorInjectionRate
+	// Value type: Float
+	// Default value: 0.0
+	// Allowed filters: N/A
+	StandbyTaskErrorInjectionRate
 	// ActiveTaskRedispatchInterval is the active task redispatch interval
 	// KeyName: history.activeTaskRedispatchInterval
 	// Value type: Duration
@@ -5403,6 +5409,11 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		KeyName:      "history.standbyTaskMissingEventsDiscardDelay",
 		Description:  "StandbyTaskMissingEventsDiscardDelay is the amount of time standby cluster's will wait (if events are missing)before discarding the task",
 		DefaultValue: time.Minute * 25,
+	},
+	StandbyTaskErrorInjectionRate: {
+		KeyName:      "history.standbyTaskErrorInjectionRate",
+		Description:  "StandbyTaskErrorInjectionRate is the error injection rate for standby task processing (0.0-1.0), used for simulation testing",
+		DefaultValue: 0.0,
 	},
 	ActiveTaskRedispatchInterval: {
 		KeyName:      "history.activeTaskRedispatchInterval",
