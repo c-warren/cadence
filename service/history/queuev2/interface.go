@@ -32,12 +32,25 @@ import (
 )
 
 type (
+	// ClusterAttributeKey identifies a cluster attribute
+	ClusterAttributeKey struct {
+		Scope string
+		Name  string
+	}
+
 	Queue interface {
 		common.Daemon
 		Category() persistence.HistoryTaskCategory
 		NotifyNewTask(string, *hcommon.NotifyTaskInfo)
 
+		// FailoverDomain triggers failover for specified domains
+		// For backwards compatibility with active-passive domains
 		FailoverDomain(map[string]struct{})
+
+		// FailoverDomainWithClusterAttribute triggers failover for specified domains
+		// with a specific cluster attribute (for active-active domains)
+		FailoverDomainWithClusterAttribute(map[string]struct{}, *ClusterAttributeKey)
+
 		HandleAction(context.Context, string, *queue.Action) (*queue.ActionResult, error)
 		LockTaskProcessing()
 		UnlockTaskProcessing()

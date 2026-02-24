@@ -125,6 +125,13 @@ func (q *scheduledQueue) FailoverDomain(domainIDs map[string]struct{}) {
 	q.base.FailoverDomain(domainIDs)
 }
 
+func (q *scheduledQueue) FailoverDomainWithClusterAttribute(
+	domainIDs map[string]struct{},
+	clusterAttribute *ClusterAttributeKey,
+) {
+	q.base.FailoverDomainWithClusterAttribute(domainIDs, clusterAttribute)
+}
+
 func (q *scheduledQueue) HandleAction(ctx context.Context, clusterName string, action *queue.Action) (*queue.ActionResult, error) {
 	return q.base.HandleAction(ctx, clusterName, action)
 }

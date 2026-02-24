@@ -136,6 +136,7 @@ func NewTransferQueueProcessor(
 			standByLogger,
 			clusterName,
 			config,
+			nil, // TODO: wire up DLQ manager
 		)
 		standbyQueueProcessors[clusterName] = newTransferQueueStandbyProcessor(
 			clusterName,

@@ -47,6 +47,7 @@ type (
 		clusterName            string
 		historyResender        ndc.HistoryResender
 		getRemoteClusterNameFn func(context.Context, persistence.Task) (string, error)
+		dlqManager             persistence.StandbyTaskDLQManager
 	}
 )
 
@@ -59,6 +60,7 @@ func NewTransferStandbyTaskExecutor(
 	logger log.Logger,
 	clusterName string,
 	config *config.Config,
+	dlqManager persistence.StandbyTaskDLQManager,
 ) Executor {
 	return &transferStandbyTaskExecutor{
 		transferTaskExecutorBase: newTransferTaskExecutorBase(
@@ -70,6 +72,7 @@ func NewTransferStandbyTaskExecutor(
 		),
 		clusterName:     clusterName,
 		historyResender: historyResender,
+		dlqManager:      dlqManager,
 		getRemoteClusterNameFn: func(ctx context.Context, taskInfo persistence.Task) (string, error) {
 			if shard.GetConfig().EnableTransferQueueV2(shard.GetShardID()) {
 				return getRemoteClusterName(ctx, shard.GetClusterMetadata().GetCurrentClusterName(), shard.GetActiveClusterManager(), taskInfo)

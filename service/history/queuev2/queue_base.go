@@ -247,6 +247,18 @@ func (q *queueBase) FailoverDomain(domainIDs map[string]struct{}) {
 	q.rescheduler.RescheduleDomains(domainIDs)
 }
 
+func (q *queueBase) FailoverDomainWithClusterAttribute(
+	domainIDs map[string]struct{},
+	clusterAttribute *ClusterAttributeKey,
+) {
+	// For POC, delegate to existing FailoverDomain
+	// In full implementation, this would pass cluster attribute to rescheduler
+	q.FailoverDomain(domainIDs)
+
+	// TODO: Pass cluster attribute to rescheduler for scoped DLQ processing
+	// q.rescheduler.RescheduleDomainsWithClusterAttribute(domainIDs, clusterAttribute)
+}
+
 func (q *queueBase) HandleAction(ctx context.Context, clusterName string, action *queue.Action) (*queue.ActionResult, error) {
 	return nil, nil
 }
