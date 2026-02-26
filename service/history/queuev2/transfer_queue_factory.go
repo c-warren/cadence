@@ -121,7 +121,7 @@ func (f *transferQueueFactory) createQueuev2(
 		logger,
 	)
 	// Create in-memory DLQ manager for POC
-	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager()
+	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager(logger)
 
 	standbyTaskExecutor := task.NewTransferStandbyTaskExecutor(
 		shard,

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 )
@@ -16,7 +17,7 @@ import (
 // TestDLQ_Simulation_ShortDiscardDelay simulates rapid task discard with short delay
 func TestDLQ_Simulation_ShortDiscardDelay(t *testing.T) {
 	logger := testlogger.New(t)
-	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager()
+	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager(logger)
 	defer dlqManager.Close()
 
 	ctx := context.Background()
@@ -44,28 +45,28 @@ func TestDLQ_Simulation_ShortDiscardDelay(t *testing.T) {
 		time.Sleep(10 * time.Millisecond) // Small delay between tasks
 
 		err = dlqManager.EnqueueStandbyTask(ctx, &persistence.EnqueueStandbyTaskRequest{
-			ShardID:              1,
-			DomainID:             "sim-domain",
+			ShardID:               1,
+			DomainID:              "sim-domain",
 			ClusterAttributeScope: "sim-scope",
 			ClusterAttributeName:  "sim-attr",
-			WorkflowID:           fmt.Sprintf("wf-%d", i),
-			RunID:                "run1",
-			TaskID:               int64(100 + i),
-			VisibilityTimestamp:  taskInfo.VisibilityTimestamp.UnixNano(),
-			TaskType:             persistence.TransferTaskTypeActivityTask,
-			TaskPayload:          taskPayload,
-			Version:              5,
+			WorkflowID:            fmt.Sprintf("wf-%d", i),
+			RunID:                 "run1",
+			TaskID:                int64(100 + i),
+			VisibilityTimestamp:   taskInfo.VisibilityTimestamp.UnixNano(),
+			TaskType:              persistence.TransferTaskTypeActivityTask,
+			TaskPayload:           taskPayload,
+			Version:               5,
 		})
 		require.NoError(t, err)
 	}
 
 	// Verify all tasks in DLQ
 	resp, err := dlqManager.ReadStandbyTasks(ctx, &persistence.ReadStandbyTasksRequest{
-		ShardID:              1,
-		DomainID:             "sim-domain",
+		ShardID:               1,
+		DomainID:              "sim-domain",
 		ClusterAttributeScope: "sim-scope",
 		ClusterAttributeName:  "sim-attr",
-		PageSize:             100,
+		PageSize:              100,
 	})
 	require.NoError(t, err)
 	require.Len(t, resp.Tasks, numTasks)
@@ -83,8 +84,8 @@ func TestDLQ_Simulation_ShortDiscardDelay(t *testing.T) {
 
 	processor := NewStandbyTaskDLQProcessor(dlqManager, mockExecutor, logger)
 	err = processor.ProcessFailover(ctx, &ProcessFailoverRequest{
-		ShardID:              1,
-		DomainID:             "sim-domain",
+		ShardID:               1,
+		DomainID:              "sim-domain",
 		ClusterAttributeScope: "sim-scope",
 		ClusterAttributeName:  "sim-attr",
 	})
@@ -92,11 +93,11 @@ func TestDLQ_Simulation_ShortDiscardDelay(t *testing.T) {
 
 	// Verify DLQ is empty (tasks were processed and removed)
 	resp, err = dlqManager.ReadStandbyTasks(ctx, &persistence.ReadStandbyTasksRequest{
-		ShardID:              1,
-		DomainID:             "sim-domain",
+		ShardID:               1,
+		DomainID:              "sim-domain",
 		ClusterAttributeScope: "sim-scope",
 		ClusterAttributeName:  "sim-attr",
-		PageSize:             100,
+		PageSize:              100,
 	})
 	require.NoError(t, err)
 	require.Len(t, resp.Tasks, 0)
@@ -108,7 +109,7 @@ func TestDLQ_Simulation_ShortDiscardDelay(t *testing.T) {
 // When full task execution is implemented, this test will verify error handling.
 func TestDLQ_Simulation_ChaosInjection(t *testing.T) {
 	logger := testlogger.New(t)
-	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager()
+	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager(logger)
 	defer dlqManager.Close()
 
 	ctx := context.Background()
@@ -130,17 +131,17 @@ func TestDLQ_Simulation_ChaosInjection(t *testing.T) {
 		require.NoError(t, err)
 
 		err = dlqManager.EnqueueStandbyTask(ctx, &persistence.EnqueueStandbyTaskRequest{
-			ShardID:              1,
-			DomainID:             "chaos-domain",
+			ShardID:               1,
+			DomainID:              "chaos-domain",
 			ClusterAttributeScope: "chaos-scope",
 			ClusterAttributeName:  "chaos-attr",
-			WorkflowID:           fmt.Sprintf("wf-%d", i),
-			RunID:                "run1",
-			TaskID:               int64(200 + i),
-			VisibilityTimestamp:  taskInfo.VisibilityTimestamp.UnixNano(),
-			TaskType:             persistence.TransferTaskTypeActivityTask,
-			TaskPayload:          taskPayload,
-			Version:              5,
+			WorkflowID:            fmt.Sprintf("wf-%d", i),
+			RunID:                 "run1",
+			TaskID:                int64(200 + i),
+			VisibilityTimestamp:   taskInfo.VisibilityTimestamp.UnixNano(),
+			TaskType:              persistence.TransferTaskTypeActivityTask,
+			TaskPayload:           taskPayload,
+			Version:               5,
 		})
 		require.NoError(t, err)
 	}
@@ -156,8 +157,8 @@ func TestDLQ_Simulation_ChaosInjection(t *testing.T) {
 
 	processor := NewStandbyTaskDLQProcessor(dlqManager, mockExecutor, logger)
 	err := processor.ProcessFailover(ctx, &ProcessFailoverRequest{
-		ShardID:              1,
-		DomainID:             "chaos-domain",
+		ShardID:               1,
+		DomainID:              "chaos-domain",
 		ClusterAttributeScope: "chaos-scope",
 		ClusterAttributeName:  "chaos-attr",
 	})
@@ -165,11 +166,11 @@ func TestDLQ_Simulation_ChaosInjection(t *testing.T) {
 
 	// In the POC, all tasks are successfully deserialized and removed
 	resp, err := dlqManager.ReadStandbyTasks(ctx, &persistence.ReadStandbyTasksRequest{
-		ShardID:              1,
-		DomainID:             "chaos-domain",
+		ShardID:               1,
+		DomainID:              "chaos-domain",
 		ClusterAttributeScope: "chaos-scope",
 		ClusterAttributeName:  "chaos-attr",
-		PageSize:             100,
+		PageSize:              100,
 	})
 	require.NoError(t, err)
 	require.Len(t, resp.Tasks, 0, "All tasks should be processed and removed in POC")
@@ -178,7 +179,7 @@ func TestDLQ_Simulation_ChaosInjection(t *testing.T) {
 // TestDLQ_Simulation_ConcurrentFailovers tests concurrent failover processing
 func TestDLQ_Simulation_ConcurrentFailovers(t *testing.T) {
 	logger := testlogger.New(t)
-	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager()
+	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager(logger)
 	defer dlqManager.Close()
 
 	ctx := context.Background()
@@ -205,17 +206,17 @@ func TestDLQ_Simulation_ConcurrentFailovers(t *testing.T) {
 				require.NoError(t, err)
 
 				err = dlqManager.EnqueueStandbyTask(ctx, &persistence.EnqueueStandbyTaskRequest{
-					ShardID:              1,
-					DomainID:             fmt.Sprintf("domain-%d", d),
+					ShardID:               1,
+					DomainID:              fmt.Sprintf("domain-%d", d),
 					ClusterAttributeScope: "scope1",
 					ClusterAttributeName:  fmt.Sprintf("attr-%d", a),
-					WorkflowID:           fmt.Sprintf("wf-%d-%d-%d", d, a, i),
-					RunID:                "run1",
-					TaskID:               int64(d*1000 + a*100 + i),
-					VisibilityTimestamp:  taskInfo.VisibilityTimestamp.UnixNano(),
-					TaskType:             persistence.TransferTaskTypeActivityTask,
-					TaskPayload:          taskPayload,
-					Version:              5,
+					WorkflowID:            fmt.Sprintf("wf-%d-%d-%d", d, a, i),
+					RunID:                 "run1",
+					TaskID:                int64(d*1000 + a*100 + i),
+					VisibilityTimestamp:   taskInfo.VisibilityTimestamp.UnixNano(),
+					TaskType:              persistence.TransferTaskTypeActivityTask,
+					TaskPayload:           taskPayload,
+					Version:               5,
 				})
 				require.NoError(t, err)
 			}
@@ -240,8 +241,8 @@ func TestDLQ_Simulation_ConcurrentFailovers(t *testing.T) {
 			go func(domainIdx, attrIdx int) {
 				defer wg.Done()
 				err := processor.ProcessFailover(ctx, &ProcessFailoverRequest{
-					ShardID:              1,
-					DomainID:             fmt.Sprintf("domain-%d", domainIdx),
+					ShardID:               1,
+					DomainID:              fmt.Sprintf("domain-%d", domainIdx),
 					ClusterAttributeScope: "scope1",
 					ClusterAttributeName:  fmt.Sprintf("attr-%d", attrIdx),
 				})
@@ -256,11 +257,11 @@ func TestDLQ_Simulation_ConcurrentFailovers(t *testing.T) {
 	for d := 0; d < numDomains; d++ {
 		for a := 0; a < numAttrs; a++ {
 			resp, err := dlqManager.ReadStandbyTasks(ctx, &persistence.ReadStandbyTasksRequest{
-				ShardID:              1,
-				DomainID:             fmt.Sprintf("domain-%d", d),
+				ShardID:               1,
+				DomainID:              fmt.Sprintf("domain-%d", d),
 				ClusterAttributeScope: "scope1",
 				ClusterAttributeName:  fmt.Sprintf("attr-%d", a),
-				PageSize:             100,
+				PageSize:              100,
 			})
 			require.NoError(t, err)
 			require.Len(t, resp.Tasks, 0, "DLQ should be empty for domain-%d, attr-%d", d, a)

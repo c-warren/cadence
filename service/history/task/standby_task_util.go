@@ -105,7 +105,9 @@ func standbyTaskPostActionEnqueueToDLQ(
 		postActionInfo interface{},
 		logger log.Logger,
 	) error {
+		logger.Info("standbyTaskPostActionEnqueueToDLQ: enqueuing task to DLQ", tag.WorkflowID(task.GetWorkflowID()), tag.WorkflowRunID(task.GetRunID()), tag.Value(postActionInfo))
 		if postActionInfo == nil {
+			logger.Warn("standbyTaskPostActionEnqueueToDLQ: postActionInfo is nil", tag.WorkflowID(task.GetWorkflowID()), tag.WorkflowRunID(task.GetRunID()))
 			return nil
 		}
 
@@ -125,28 +127,28 @@ func standbyTaskPostActionEnqueueToDLQ(
 			return ErrTaskDiscarded
 		}
 
+		logger.Info("standbyTaskPostActionEnqueueToDLQ: enqueuing task to DLQ", tag.WorkflowID(task.GetWorkflowID()), tag.WorkflowRunID(task.GetRunID()), tag.Value(taskPayload))
 		err = dlqManager.EnqueueStandbyTask(ctx, &persistence.EnqueueStandbyTaskRequest{
-			ShardID:              shardID,
-			DomainID:             task.GetDomainID(),
+			ShardID:               shardID,
+			DomainID:              task.GetDomainID(),
 			ClusterAttributeScope: clusterAttributeScope,
 			ClusterAttributeName:  clusterAttributeName,
-			WorkflowID:           task.GetWorkflowID(),
-			RunID:                task.GetRunID(),
-			TaskID:               task.GetTaskID(),
-			VisibilityTimestamp:  task.GetVisibilityTimestamp().UnixNano(),
-			TaskType:             task.GetTaskType(),
-			TaskPayload:          taskPayload,
-			Version:              task.GetVersion(),
+			WorkflowID:            task.GetWorkflowID(),
+			RunID:                 task.GetRunID(),
+			TaskID:                task.GetTaskID(),
+			VisibilityTimestamp:   task.GetVisibilityTimestamp().UnixNano(),
+			TaskType:              task.GetTaskType(),
+			TaskPayload:           taskPayload,
+			Version:               task.GetVersion(),
 		})
 
 		if err != nil {
 			// If duplicate, treat as success
 			if _, ok := err.(*persistence.ConditionFailedError); ok {
-				logger.Info("Task already exists in DLQ, treating as success",
-					tag.TaskID(task.GetTaskID()))
+				logger.Info("standbyTaskPostActionEnqueueToDLQ: task already exists in DLQ, treating as success", tag.WorkflowID(task.GetWorkflowID()), tag.WorkflowRunID(task.GetRunID()), tag.TaskID(task.GetTaskID()))
 				return ErrTaskDiscarded
 			}
-			logger.Error("Failed to enqueue task to DLQ", tag.Error(err))
+			logger.Error("standbyTaskPostActionEnqueueToDLQ: failed to enqueue task to DLQ", tag.Error(err))
 			return err
 		}
 
@@ -262,9 +264,13 @@ func getStandbyPostActionFn(
 		tag.TaskID(taskInfo.GetTaskID()),
 		tag.TaskType(int(taskInfo.GetTaskType())),
 		tag.Timestamp(taskInfo.GetVisibilityTimestamp()),
+		tag.TimeWithKey("resendTime", resendTime),
+		tag.TimeWithKey("discardTime", discardTime),
 	}
 
 	now, err := standbyNow(taskInfo)
+	tags = append(tags, tag.TimeWithKey("now", now))
+
 	if err != nil {
 		tags = append(tags, tag.Error(err))
 		logger.Error("getStandbyPostActionFn error getting current time, fallback to standbyTaskPostActionNoOp", tags...)
@@ -273,18 +279,18 @@ func getStandbyPostActionFn(
 
 	// now < task start time + StandbyTaskMissingEventsResendDelay
 	if now.Before(resendTime) {
-		logger.Debug("getStandbyPostActionFn returning standbyTaskPostActionNoOp because now < task start time + StandbyTaskMissingEventsResendDelay", tags...)
+		logger.Info("getStandbyPostActionFn returning standbyTaskPostActionNoOp because now < task start time + StandbyTaskMissingEventsResendDelay", tags...)
 		return standbyTaskPostActionNoOp
 	}
 
 	// task start time + StandbyTaskMissingEventsResendDelay <= now < task start time + StandbyTaskMissingEventsResendDelay
 	if now.Before(discardTime) {
-		logger.Debug("getStandbyPostActionFn returning fetchHistoryStandbyPostActionFn because task start time + StandbyTaskMissingEventsResendDelay <= now < task start time + StandbyTaskMissingEventsResendDelay", tags...)
+		logger.Info("getStandbyPostActionFn returning fetchHistoryStandbyPostActionFn because task start time + StandbyTaskMissingEventsResendDelay <= now < task start time + StandbyTaskMissingEventsResendDelay", tags...)
 		return fetchHistoryStandbyPostActionFn
 	}
 
 	// task start time + StandbyTaskMissingEventsResendDelay <= now
-	logger.Debug("getStandbyPostActionFn returning discardTaskStandbyPostActionFn because task start time + StandbyTaskMissingEventsResendDelay <= now", tags...)
+	logger.Info("getStandbyPostActionFn returning discardTaskStandbyPostActionFn because task start time + StandbyTaskMissingEventsResendDelay <= now", tags...)
 	return discardTaskStandbyPostActionFn
 }
 

@@ -10,9 +10,21 @@ matching.enableStandbyTaskCompletion:
 history.standbyClusterDelay:
 - value: 30s
   constraints: {}
-history.standbyTaskMissingEventsResendDelay:
-- value: 30s
+# Enable TransferQueueV2 (required for DLQ)
+history.enableTransferQueueV2:
+    - value: true
+      constraints: {}
+history.enableTimerQueueV2:
+- value: true
   constraints: {}
+# SHORT discard delay for testing (default is 15 minutes)
+history.standbyTaskMissingEventsDiscardDelay:
+  - value: 2s
+    constraints: {}
+# Reduce resend delay for faster testing
+history.standbyTaskMissingEventsResendDelay:
+  - value: 1s
+    constraints: {}
 history.EnableConsistentQueryByDomain:
 - value: true
   constraints: {}
@@ -79,6 +91,12 @@ frontend.enableActiveClusterSelectionPolicyInStartWorkflow:
 - value: true
 history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation:
 - value: true
+history.errorInjectionRate:
+- value: 0.01
+  constraints: {}
+persistence.errorInjectionRate:
+- value: 0.01
+  constraints: {}
 shardDistributor.migrationMode:
   - value: "onboarded"
   - value: "local_pass"

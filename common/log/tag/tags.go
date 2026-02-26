@@ -75,6 +75,10 @@ func LatestTime(time int64) Tag {
 	return newInt64("latest-time", time)
 }
 
+func TimeWithKey(key string, timestamp time.Time) Tag {
+	return newTimeTag(key, timestamp)
+}
+
 // /////////////////  Workflow tags defined here: ( wf is short for workflow) ///////////////////
 
 // WorkflowAction returns tag for WorkflowAction

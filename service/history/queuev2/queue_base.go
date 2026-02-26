@@ -111,7 +111,7 @@ func newQueueBase(
 	if err != nil {
 		logger.Fatal("Failed to get queue state, probably task category is not supported", tag.Error(err), tag.Dynamic("category", category))
 	}
-	logger.Info("loading queue state", tag.Dynamic("queue-state", persistenceQueueState))
+	logger.Info("loading queue state v2", tag.Dynamic("queue-state", persistenceQueueState))
 	queueState := FromPersistenceQueueState(persistenceQueueState)
 	exclusiveAckLevel, _ := getExclusiveAckLevelAndMaxQueueIDFromQueueState(queueState)
 
@@ -281,7 +281,7 @@ func (q *queueBase) processNewTasks() bool {
 
 	newVirtualSlice := NewVirtualSlice(newVirtualSliceState, q.taskInitializer, q.queueReader, NewPendingTaskTracker(), q.logger)
 
-	q.logger.Debug("processing new tasks", tag.Dynamic("inclusiveMinTaskKey", newVirtualSliceState.Range.InclusiveMinTaskKey), tag.Dynamic("exclusiveMaxTaskKey", newVirtualSliceState.Range.ExclusiveMaxTaskKey))
+	q.logger.Info("processing new tasks v2", tag.Dynamic("inclusiveMinTaskKey", newVirtualSliceState.Range.InclusiveMinTaskKey), tag.Dynamic("exclusiveMaxTaskKey", newVirtualSliceState.Range.ExclusiveMaxTaskKey))
 	q.virtualQueueManager.AddNewVirtualSliceToRootQueue(newVirtualSlice)
 	return true
 }

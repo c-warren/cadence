@@ -288,6 +288,9 @@ func (c *Collection) GetDurationProperty(key dynamicproperties.DurationKey) dyna
 			key,
 			filters,
 		)
+		if key == dynamicproperties.StandbyTaskMissingEventsDiscardDelay {
+			c.logger.Info("FetchedStandbyTaskMissingEventsDiscardDelay", tag.Key(key.String()), tag.Value(val))
+		}
 		if err != nil {
 			c.logError(key, filters, err)
 			return key.DefaultDuration()

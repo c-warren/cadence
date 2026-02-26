@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
@@ -13,7 +14,7 @@ import (
 
 func TestStandbyTaskPostActionEnqueueToDLQ(t *testing.T) {
 	logger := testlogger.New(t)
-	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager()
+	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager(logger)
 	defer dlqManager.Close()
 
 	ctx := context.Background()
@@ -53,11 +54,11 @@ func TestStandbyTaskPostActionEnqueueToDLQ(t *testing.T) {
 
 	// Verify task was enqueued to DLQ
 	resp, err := dlqManager.ReadStandbyTasks(ctx, &persistence.ReadStandbyTasksRequest{
-		ShardID:              1,
-		DomainID:             "test-domain",
+		ShardID:               1,
+		DomainID:              "test-domain",
 		ClusterAttributeScope: "scope1",
 		ClusterAttributeName:  "attr1",
-		PageSize:             10,
+		PageSize:              10,
 	})
 	require.NoError(t, err)
 	require.Len(t, resp.Tasks, 1)

@@ -626,12 +626,15 @@ func (t *transferStandbyTaskExecutor) processTransfer(
 	actionFn standbyActionFn,
 	postActionFn standbyPostActionFn,
 ) (retError error) {
+	t.logger.Info("transfer flow: processing transfer")
+
 	wfContext, release, err := t.executionCache.GetOrCreateWorkflowExecutionWithTimeout(
 		transferTask.GetDomainID(),
 		getWorkflowExecution(transferTask),
 		taskGetExecutionContextTimeout,
 	)
 	if err != nil {
+		t.logger.Info("transfer flow: error getting workflow execution", tag.Error(err))
 		if err == context.DeadlineExceeded {
 			return errWorkflowBusy
 		}
@@ -647,19 +650,24 @@ func (t *transferStandbyTaskExecutor) processTransfer(
 
 	mutableState, err := loadMutableState(ctx, wfContext, transferTask, t.metricsClient.Scope(metrics.TransferQueueProcessorScope), t.logger, eventID)
 	if err != nil || mutableState == nil {
+		t.logger.Info("transfer flow: error loading mutable state", tag.Error(err))
 		return err
 	}
 
 	if !mutableState.IsWorkflowExecutionRunning() && !processTaskIfClosed {
+		t.logger.Info("transfer flow: workflow already finished", tag.WorkflowID(transferTask.GetWorkflowID()), tag.WorkflowRunID(transferTask.GetRunID()))
 		// workflow already finished, no need to process the timer
 		return nil
 	}
 
+	t.logger.Info("transfer flow: calling actionFn")
 	historyResendInfo, err := actionFn(ctx, wfContext, mutableState)
 	if err != nil {
+		t.logger.Info("transfer flow: error calling actionFn", tag.Error(err))
 		return err
 	}
 
+	t.logger.Info("transfer flow: calling postActionFn", tag.WorkflowID(transferTask.GetWorkflowID()), tag.WorkflowRunID(transferTask.GetRunID()), tag.Value(historyResendInfo))
 	release(nil)
 	return postActionFn(ctx, transferTask, historyResendInfo, t.logger)
 }
@@ -667,6 +675,7 @@ func (t *transferStandbyTaskExecutor) processTransfer(
 func (t *transferStandbyTaskExecutor) getDiscardTaskFn() standbyPostActionFn {
 	// If DLQ manager is configured, enqueue to DLQ instead of discarding
 	if t.dlqManager != nil {
+		t.logger.Info("transfer flow setup: DLQ manager is configured", tag.ShardID(t.shard.GetShardID()))
 		// For POC, use empty cluster attribute scope/name
 		// In production, this would be determined from the workflow's cluster attribute
 		return standbyTaskPostActionEnqueueToDLQ(

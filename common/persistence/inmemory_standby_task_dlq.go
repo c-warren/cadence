@@ -6,19 +6,25 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/uber/cadence/common/log"
 )
 
 type (
 	inMemoryStandbyTaskDLQManager struct {
-		mu    sync.RWMutex
-		tasks map[string][]*StandbyTaskDLQEntry // key: shard:domain:scope:name
+		mu     sync.RWMutex
+		tasks  map[string][]*StandbyTaskDLQEntry // key: shard:domain:scope:name
+		logger log.Logger
 	}
 )
 
 // NewInMemoryStandbyTaskDLQManager creates a new in-memory DLQ manager
-func NewInMemoryStandbyTaskDLQManager() StandbyTaskDLQManager {
+func NewInMemoryStandbyTaskDLQManager(logger log.Logger) StandbyTaskDLQManager {
+	logger.Info("Creating in-memory standby task DLQ manager")
+
 	return &inMemoryStandbyTaskDLQManager{
-		tasks: make(map[string][]*StandbyTaskDLQEntry),
+		tasks:  make(map[string][]*StandbyTaskDLQEntry),
+		logger: logger,
 	}
 }
 
@@ -47,18 +53,18 @@ func (m *inMemoryStandbyTaskDLQManager) EnqueueStandbyTask(
 	}
 
 	entry := &StandbyTaskDLQEntry{
-		ShardID:              request.ShardID,
-		DomainID:             request.DomainID,
+		ShardID:               request.ShardID,
+		DomainID:              request.DomainID,
 		ClusterAttributeScope: request.ClusterAttributeScope,
 		ClusterAttributeName:  request.ClusterAttributeName,
-		WorkflowID:           request.WorkflowID,
-		RunID:                request.RunID,
-		TaskID:               request.TaskID,
-		VisibilityTimestamp:  request.VisibilityTimestamp,
-		TaskType:             request.TaskType,
-		TaskPayload:          request.TaskPayload,
-		Version:              request.Version,
-		EnqueuedAt:           time.Now().Unix(),
+		WorkflowID:            request.WorkflowID,
+		RunID:                 request.RunID,
+		TaskID:                request.TaskID,
+		VisibilityTimestamp:   request.VisibilityTimestamp,
+		TaskType:              request.TaskType,
+		TaskPayload:           request.TaskPayload,
+		Version:               request.Version,
+		EnqueuedAt:            time.Now().Unix(),
 	}
 
 	m.tasks[key] = append(m.tasks[key], entry)

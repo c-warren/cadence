@@ -2,6 +2,7 @@ persistence:
   defaultStore: cass-default
   visibilityStore: cass-visibility
   numHistoryShards: 4
+  # errorInjectionRate: 0.5
   datastores:
     cass-default:
       nosql:

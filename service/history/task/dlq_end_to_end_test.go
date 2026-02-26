@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 )
@@ -20,7 +21,7 @@ func TestDLQ_EndToEnd(t *testing.T) {
 	ctx := context.Background()
 
 	// Create DLQ manager
-	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager()
+	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager(logger)
 	defer dlqManager.Close()
 
 	// Step 1: Simulate standby cluster receiving a task that can't be processed
@@ -56,11 +57,11 @@ func TestDLQ_EndToEnd(t *testing.T) {
 
 	// Step 2: Verify task is in DLQ
 	dlqTasks, err := dlqManager.ReadStandbyTasks(ctx, &persistence.ReadStandbyTasksRequest{
-		ShardID:              1,
-		DomainID:             "test-domain",
+		ShardID:               1,
+		DomainID:              "test-domain",
 		ClusterAttributeScope: "data-residency",
 		ClusterAttributeName:  "us-west",
-		PageSize:             10,
+		PageSize:              10,
 	})
 	require.NoError(t, err)
 	require.Len(t, dlqTasks.Tasks, 1, "Task should be in DLQ")
@@ -71,8 +72,8 @@ func TestDLQ_EndToEnd(t *testing.T) {
 	processor := NewStandbyTaskDLQProcessor(dlqManager, nil, logger)
 
 	err = processor.ProcessFailover(ctx, &ProcessFailoverRequest{
-		ShardID:              1,
-		DomainID:             "test-domain",
+		ShardID:               1,
+		DomainID:              "test-domain",
 		ClusterAttributeScope: "data-residency",
 		ClusterAttributeName:  "us-west",
 	})
@@ -80,19 +81,19 @@ func TestDLQ_EndToEnd(t *testing.T) {
 
 	// Step 4: Verify task was removed from DLQ
 	dlqTasksAfter, err := dlqManager.ReadStandbyTasks(ctx, &persistence.ReadStandbyTasksRequest{
-		ShardID:              1,
-		DomainID:             "test-domain",
+		ShardID:               1,
+		DomainID:              "test-domain",
 		ClusterAttributeScope: "data-residency",
 		ClusterAttributeName:  "us-west",
-		PageSize:             10,
+		PageSize:              10,
 	})
 	require.NoError(t, err)
 	require.Len(t, dlqTasksAfter.Tasks, 0, "Task should be removed from DLQ after processing")
 
 	// Step 5: Verify DLQ size is correct
 	sizeResp, err := dlqManager.GetStandbyTaskDLQSize(ctx, &persistence.GetStandbyTaskDLQSizeRequest{
-		ShardID:              1,
-		DomainID:             "test-domain",
+		ShardID:               1,
+		DomainID:              "test-domain",
 		ClusterAttributeScope: "data-residency",
 		ClusterAttributeName:  "us-west",
 	})
@@ -106,7 +107,7 @@ func TestDLQ_MultipleClusterAttributes(t *testing.T) {
 	logger := testlogger.New(t)
 	ctx := context.Background()
 
-	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager()
+	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager(logger)
 	defer dlqManager.Close()
 
 	// Enqueue tasks for different cluster attributes
@@ -134,17 +135,17 @@ func TestDLQ_MultipleClusterAttributes(t *testing.T) {
 		require.NoError(t, err)
 
 		err = dlqManager.EnqueueStandbyTask(ctx, &persistence.EnqueueStandbyTaskRequest{
-			ShardID:              1,
-			DomainID:             "multi-domain",
+			ShardID:               1,
+			DomainID:              "multi-domain",
 			ClusterAttributeScope: attr.scope,
 			ClusterAttributeName:  attr.name,
-			WorkflowID:           "workflow-" + attr.name,
-			RunID:                "run1",
-			TaskID:               int64(100 + i),
-			VisibilityTimestamp:  time.Now().UnixNano(),
-			TaskType:             persistence.TransferTaskTypeActivityTask,
-			TaskPayload:          taskPayload,
-			Version:              5,
+			WorkflowID:            "workflow-" + attr.name,
+			RunID:                 "run1",
+			TaskID:                int64(100 + i),
+			VisibilityTimestamp:   time.Now().UnixNano(),
+			TaskType:              persistence.TransferTaskTypeActivityTask,
+			TaskPayload:           taskPayload,
+			Version:               5,
 		})
 		require.NoError(t, err)
 	}
@@ -152,8 +153,8 @@ func TestDLQ_MultipleClusterAttributes(t *testing.T) {
 	// Process failover for only us-west
 	processor := NewStandbyTaskDLQProcessor(dlqManager, nil, logger)
 	err := processor.ProcessFailover(ctx, &ProcessFailoverRequest{
-		ShardID:              1,
-		DomainID:             "multi-domain",
+		ShardID:               1,
+		DomainID:              "multi-domain",
 		ClusterAttributeScope: "data-residency",
 		ClusterAttributeName:  "us-west",
 	})
@@ -161,33 +162,33 @@ func TestDLQ_MultipleClusterAttributes(t *testing.T) {
 
 	// Verify only us-west task was processed
 	usWestTasks, err := dlqManager.ReadStandbyTasks(ctx, &persistence.ReadStandbyTasksRequest{
-		ShardID:              1,
-		DomainID:             "multi-domain",
+		ShardID:               1,
+		DomainID:              "multi-domain",
 		ClusterAttributeScope: "data-residency",
 		ClusterAttributeName:  "us-west",
-		PageSize:             10,
+		PageSize:              10,
 	})
 	require.NoError(t, err)
 	require.Len(t, usWestTasks.Tasks, 0, "us-west task should be processed")
 
 	// Verify eu-central task is still in DLQ
 	euTasks, err := dlqManager.ReadStandbyTasks(ctx, &persistence.ReadStandbyTasksRequest{
-		ShardID:              1,
-		DomainID:             "multi-domain",
+		ShardID:               1,
+		DomainID:              "multi-domain",
 		ClusterAttributeScope: "data-residency",
 		ClusterAttributeName:  "eu-central",
-		PageSize:             10,
+		PageSize:              10,
 	})
 	require.NoError(t, err)
 	require.Len(t, euTasks.Tasks, 1, "eu-central task should still be in DLQ")
 
 	// Verify pci task is still in DLQ
 	pciTasks, err := dlqManager.ReadStandbyTasks(ctx, &persistence.ReadStandbyTasksRequest{
-		ShardID:              1,
-		DomainID:             "multi-domain",
+		ShardID:               1,
+		DomainID:              "multi-domain",
 		ClusterAttributeScope: "compliance",
 		ClusterAttributeName:  "pci",
-		PageSize:             10,
+		PageSize:              10,
 	})
 	require.NoError(t, err)
 	require.Len(t, pciTasks.Tasks, 1, "pci task should still be in DLQ")

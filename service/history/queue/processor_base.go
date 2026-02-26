@@ -96,6 +96,7 @@ func newProcessorBase(
 	metricsClient metrics.Client,
 ) *processorBase {
 	metricsScope := metricsClient.Scope(options.MetricScope).Tagged(metrics.ShardIDTag(shard.GetShardID()))
+	logger.Info("creating processor base", tag.Dynamic("metricScope", options.MetricScope))
 	return &processorBase{
 		shard:         shard,
 		taskProcessor: taskProcessor,

@@ -20,8 +20,8 @@ type (
 
 	// ProcessFailoverRequest contains parameters for processing DLQ on failover
 	ProcessFailoverRequest struct {
-		ShardID              int
-		DomainID             string
+		ShardID               int
+		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
 	}
@@ -57,12 +57,12 @@ func (p *StandbyTaskDLQProcessor) ProcessFailover(
 	for {
 		// Read tasks from DLQ
 		resp, err := p.dlqManager.ReadStandbyTasks(ctx, &persistence.ReadStandbyTasksRequest{
-			ShardID:              request.ShardID,
-			DomainID:             request.DomainID,
+			ShardID:               request.ShardID,
+			DomainID:              request.DomainID,
 			ClusterAttributeScope: request.ClusterAttributeScope,
 			ClusterAttributeName:  request.ClusterAttributeName,
-			PageSize:             pageSize,
-			NextPageToken:        nextPageToken,
+			PageSize:              pageSize,
+			NextPageToken:         nextPageToken,
 		})
 		if err != nil {
 			p.logger.Error("Failed to read DLQ tasks", tag.Error(err))
@@ -81,12 +81,12 @@ func (p *StandbyTaskDLQProcessor) ProcessFailover(
 
 			// Delete task from DLQ after successful processing
 			if err := p.dlqManager.DeleteStandbyTask(ctx, &persistence.DeleteStandbyTaskRequest{
-				ShardID:              dlqTask.ShardID,
-				DomainID:             dlqTask.DomainID,
+				ShardID:               dlqTask.ShardID,
+				DomainID:              dlqTask.DomainID,
 				ClusterAttributeScope: dlqTask.ClusterAttributeScope,
 				ClusterAttributeName:  dlqTask.ClusterAttributeName,
-				TaskID:               dlqTask.TaskID,
-				VisibilityTimestamp:  dlqTask.VisibilityTimestamp,
+				TaskID:                dlqTask.TaskID,
+				VisibilityTimestamp:   dlqTask.VisibilityTimestamp,
 			}); err != nil {
 				p.logger.Error("Failed to delete DLQ task after processing",
 					tag.TaskID(dlqTask.TaskID),

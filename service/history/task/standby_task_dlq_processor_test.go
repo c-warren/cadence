@@ -8,13 +8,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 )
 
 func TestStandbyTaskDLQProcessor_ProcessOnFailover(t *testing.T) {
 	logger := testlogger.New(t)
-	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager()
+	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager(logger)
 	defer dlqManager.Close()
 
 	ctx := context.Background()
@@ -35,17 +36,17 @@ func TestStandbyTaskDLQProcessor_ProcessOnFailover(t *testing.T) {
 		require.NoError(t, err)
 
 		err = dlqManager.EnqueueStandbyTask(ctx, &persistence.EnqueueStandbyTaskRequest{
-			ShardID:              1,
-			DomainID:             "test-domain",
+			ShardID:               1,
+			DomainID:              "test-domain",
 			ClusterAttributeScope: "scope1",
 			ClusterAttributeName:  "attr1",
-			WorkflowID:           fmt.Sprintf("wf%d", i),
-			RunID:                "run1",
-			TaskID:               int64(100 + i),
-			VisibilityTimestamp:  int64(1000000000 + i),
-			TaskType:             persistence.TransferTaskTypeActivityTask,
-			TaskPayload:          taskPayload,
-			Version:              5,
+			WorkflowID:            fmt.Sprintf("wf%d", i),
+			RunID:                 "run1",
+			TaskID:                int64(100 + i),
+			VisibilityTimestamp:   int64(1000000000 + i),
+			TaskType:              persistence.TransferTaskTypeActivityTask,
+			TaskPayload:           taskPayload,
+			Version:               5,
 		})
 		require.NoError(t, err)
 	}
@@ -59,8 +60,8 @@ func TestStandbyTaskDLQProcessor_ProcessOnFailover(t *testing.T) {
 
 	// Process failover
 	err := processor.ProcessFailover(ctx, &ProcessFailoverRequest{
-		ShardID:              1,
-		DomainID:             "test-domain",
+		ShardID:               1,
+		DomainID:              "test-domain",
 		ClusterAttributeScope: "scope1",
 		ClusterAttributeName:  "attr1",
 	})
@@ -68,11 +69,11 @@ func TestStandbyTaskDLQProcessor_ProcessOnFailover(t *testing.T) {
 
 	// Verify tasks were removed from DLQ after processing
 	resp, err := dlqManager.ReadStandbyTasks(ctx, &persistence.ReadStandbyTasksRequest{
-		ShardID:              1,
-		DomainID:             "test-domain",
+		ShardID:               1,
+		DomainID:              "test-domain",
 		ClusterAttributeScope: "scope1",
 		ClusterAttributeName:  "attr1",
-		PageSize:             10,
+		PageSize:              10,
 	})
 	require.NoError(t, err)
 	require.Len(t, resp.Tasks, 0, "All tasks should be removed from DLQ after processing")
