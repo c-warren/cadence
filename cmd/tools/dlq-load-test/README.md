@@ -65,6 +65,11 @@ Start workflows without running a worker:
 ### Mode Flags
 - `--worker-only` - Only run worker, don't start workflows
 - `--client-only` - Only start workflows, don't run worker
+- `--worker-delay` - Duration to delay before worker starts polling (default: `0` = no delay)
+  - Useful for DLQ testing: delay allows workflows to start, replicate to standby, and hit DLQ timeout before being processed
+  - Example: `--worker-delay 15s` waits 15 seconds before worker starts polling
+  - Works with `--worker-only` or combined client+worker mode
+  - Respects Ctrl+C during delay (cancels cleanly)
 
 ## Examples
 
@@ -95,6 +100,37 @@ Start workflows without running a worker:
 - Tasks being retried
 - Tasks being enqueued to DLQ after 10s
 - DLQ processing after failover
+
+### DLQ Testing with Worker Delay
+
+**Scenario:** Start workflows, let tasks hit DLQ on standby (10s timeout), then process
+
+**Terminal 1: Start worker with 15s delay** (tasks hit DLQ at 10s, worker starts at 15s)
+```bash
+./dlq-load-test \
+  --host localhost:7833 \
+  --domain dlq-test \
+  --worker-delay 15s \
+  --worker-only
+```
+
+**Terminal 2: Start workflows immediately**
+```bash
+./dlq-load-test \
+  --host localhost:7833 \
+  --domain dlq-test \
+  --count 20 \
+  --batch 5 \
+  --client-only
+```
+
+**Watch cluster1 (standby) logs for DLQ activity around 10s mark**
+**Watch cluster0 logs for worker processing around 15s mark**
+
+**Combined mode with delay:**
+```bash
+./dlq-load-test --domain dlq-test --count 10 --worker-delay 15s
+```
 
 ### High Volume Test
 

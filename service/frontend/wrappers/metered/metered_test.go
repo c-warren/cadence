@@ -673,6 +673,13 @@ func TestHandleErr(t *testing.T) {
 			expectedCounter: "test.cadence_err_service_busy_counter+",
 		},
 		{
+			name:            "ServiceBusyError",
+			err:             types.ServiceBusyError{Message: "service busy"},
+			expectedErrType: types.ServiceBusyError{},
+			expectedErrMsg:  "service busy",
+			expectedCounter: "test.cadence_err_service_busy_counter+",
+		},
+		{
 			name:            "EntityNotExistsError",
 			err:             &types.EntityNotExistsError{Message: "entity not exists"},
 			expectedErrType: &types.EntityNotExistsError{},

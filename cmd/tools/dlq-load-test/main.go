@@ -40,8 +40,9 @@ var (
 	activityDelay = flag.Duration("activity-delay", 100*time.Millisecond, "Delay in each activity")
 
 	// Mode flags
-	workerOnly = flag.Bool("worker-only", false, "Only run worker, don't start workflows")
-	clientOnly = flag.Bool("client-only", false, "Only start workflows, don't run worker")
+	workerOnly  = flag.Bool("worker-only", false, "Only run worker, don't start workflows")
+	clientOnly  = flag.Bool("client-only", false, "Only start workflows, don't run worker")
+	workerDelay = flag.Duration("worker-delay", 0, "Delay before worker starts polling (e.g., 15s, 30s)")
 )
 
 type (
@@ -178,6 +179,20 @@ func main() {
 }
 
 func runWorker(ctx context.Context, service workflowserviceclient.Interface) {
+	// Add delay if configured
+	if *workerDelay > 0 {
+		logger.Info("Delaying worker startup",
+			zap.Duration("delay", *workerDelay))
+
+		select {
+		case <-time.After(*workerDelay):
+			logger.Info("Worker delay complete, starting worker")
+		case <-ctx.Done():
+			logger.Info("Worker startup cancelled during delay")
+			return
+		}
+	}
+
 	logger.Info("Starting worker", zap.String("tasklist", *taskList))
 
 	w := worker.New(service, *domain, *taskList, worker.Options{
