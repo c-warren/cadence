@@ -114,6 +114,36 @@ func (f *Factory) NewConfigStore() (persistence.ConfigStore, error) {
 	return NewNoSQLConfigStore(f.cfg, f.logger, f.metricsClient, f.dc)
 }
 
+// NewStandbyTaskDLQManager returns a new standby task DLQ manager
+func (f *Factory) NewStandbyTaskDLQManager() (persistence.StandbyTaskDLQManager, error) {
+	// Get a DB instance - use the first shard's DB
+	storeShard, err := f.getStoreShard()
+	if err != nil {
+		return nil, err
+	}
+
+	// Check if the DB supports DLQ manager creation (Cassandra does)
+	if dlqDB, ok := storeShard.db.(interface {
+		NewStandbyTaskDLQManager() persistence.StandbyTaskDLQManager
+	}); ok {
+		return dlqDB.NewStandbyTaskDLQManager(), nil
+	}
+
+	// Fallback to in-memory for other DB types
+	f.logger.Info("DB does not support Cassandra DLQ manager, using in-memory")
+	return persistence.NewInMemoryStandbyTaskDLQManager(f.logger), nil
+}
+
+// getStoreShard returns a store shard (used for non-shard-specific operations like DLQ)
+func (f *Factory) getStoreShard() (*nosqlStore, error) {
+	factory, err := f.executionStoreFactory()
+	if err != nil {
+		return nil, err
+	}
+	// Use shard 0 to get a DB connection (DLQ is not shard-specific)
+	return factory.shardedNosqlStore.GetStoreShardByHistoryShard(0)
+}
+
 // Close closes the factory
 func (f *Factory) Close() {
 	f.Lock()

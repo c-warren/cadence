@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.45",
+  "MinCompatibleVersion": "0.45",
+  "Description": "DLQ comparison tables for point-delete vs range-delete patterns",
+  "SchemaUpdateCqlFiles": [
+    "dlq_tables.cql"
+  ]
+}

@@ -193,3 +193,154 @@ func TestDLQ_MultipleClusterAttributes(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, pciTasks.Tasks, 1, "pci task should still be in DLQ")
 }
+
+// TestDLQ_ComparisonPointVsRange demonstrates comparison between point-delete and range-delete
+// DLQ implementations using the in-memory implementation as a baseline
+// NOTE: This test uses in-memory DLQ. For true Cassandra comparison testing,
+// use the integration test suite with real Cassandra instances
+func TestDLQ_ComparisonPointVsRange(t *testing.T) {
+	logger := testlogger.New(t)
+	ctx := context.Background()
+
+	// Use in-memory DLQ for baseline comparison
+	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager(logger)
+	defer dlqManager.Close()
+
+	const (
+		numTasks      = 100
+		shardID       = 1
+		domainID      = "comparison-test-domain"
+		scope         = "data-residency"
+		attributeName = "us-west"
+	)
+
+	// Step 1: Enqueue multiple tasks
+	enqueuedTasks := make([]*persistence.EnqueueStandbyTaskRequest, numTasks)
+	startTime := time.Now()
+
+	for i := 0; i < numTasks; i++ {
+		taskInfo := &persistence.TransferTaskInfo{
+			DomainID:            domainID,
+			WorkflowID:          "workflow-" + string(rune('A'+i%26)),
+			RunID:               "run-1",
+			TaskID:              int64(1000 + i),
+			TaskType:            persistence.TransferTaskTypeActivityTask,
+			Version:             int64(i),
+			VisibilityTimestamp: time.Now().Add(time.Duration(i) * time.Second),
+		}
+
+		taskPayload, err := json.Marshal(taskInfo)
+		require.NoError(t, err)
+
+		req := &persistence.EnqueueStandbyTaskRequest{
+			ShardID:               shardID,
+			DomainID:              domainID,
+			ClusterAttributeScope: scope,
+			ClusterAttributeName:  attributeName,
+			WorkflowID:            taskInfo.WorkflowID,
+			RunID:                 taskInfo.RunID,
+			TaskID:                taskInfo.TaskID,
+			VisibilityTimestamp:   taskInfo.VisibilityTimestamp.UnixNano(),
+			TaskType:              taskInfo.TaskType,
+			TaskPayload:           taskPayload,
+			Version:               taskInfo.Version,
+		}
+
+		err = dlqManager.EnqueueStandbyTask(ctx, req)
+		require.NoError(t, err)
+		enqueuedTasks[i] = req
+	}
+
+	enqueueTime := time.Since(startTime)
+	t.Logf("Enqueued %d tasks in %v (avg: %v per task)", numTasks, enqueueTime, enqueueTime/numTasks)
+
+	// Step 2: Read all tasks in pages
+	readStartTime := time.Now()
+	var allReadTasks []*persistence.StandbyTaskDLQEntry
+	var pageToken []byte
+	pageSize := 25
+
+	for {
+		resp, err := dlqManager.ReadStandbyTasks(ctx, &persistence.ReadStandbyTasksRequest{
+			ShardID:               shardID,
+			DomainID:              domainID,
+			ClusterAttributeScope: scope,
+			ClusterAttributeName:  attributeName,
+			PageSize:              pageSize,
+			NextPageToken:         pageToken,
+		})
+		require.NoError(t, err)
+
+		allReadTasks = append(allReadTasks, resp.Tasks...)
+		if len(resp.NextPageToken) == 0 {
+			break
+		}
+		pageToken = resp.NextPageToken
+	}
+
+	readTime := time.Since(readStartTime)
+	require.Len(t, allReadTasks, numTasks, "Should read all enqueued tasks")
+	t.Logf("Read %d tasks in %v (avg: %v per task)", numTasks, readTime, readTime/numTasks)
+
+	// Step 3: Get DLQ size
+	sizeStartTime := time.Now()
+	sizeResp, err := dlqManager.GetStandbyTaskDLQSize(ctx, &persistence.GetStandbyTaskDLQSizeRequest{
+		ShardID:               shardID,
+		DomainID:              domainID,
+		ClusterAttributeScope: scope,
+		ClusterAttributeName:  attributeName,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(numTasks), sizeResp.Size)
+	t.Logf("GetStandbyTaskDLQSize completed in %v", time.Since(sizeStartTime))
+
+	// Step 4: Delete half the tasks (simulate partial processing)
+	deleteStartTime := time.Now()
+	tasksToDelete := numTasks / 2
+
+	for i := 0; i < tasksToDelete; i++ {
+		err = dlqManager.DeleteStandbyTask(ctx, &persistence.DeleteStandbyTaskRequest{
+			ShardID:               shardID,
+			DomainID:              domainID,
+			ClusterAttributeScope: scope,
+			ClusterAttributeName:  attributeName,
+			TaskID:                allReadTasks[i].TaskID,
+			VisibilityTimestamp:   allReadTasks[i].VisibilityTimestamp,
+		})
+		require.NoError(t, err)
+	}
+
+	deleteTime := time.Since(deleteStartTime)
+	t.Logf("Deleted %d tasks in %v (avg: %v per task)", tasksToDelete, deleteTime, deleteTime/time.Duration(tasksToDelete))
+
+	// Step 5: Verify remaining tasks
+	remainingResp, err := dlqManager.ReadStandbyTasks(ctx, &persistence.ReadStandbyTasksRequest{
+		ShardID:               shardID,
+		DomainID:              domainID,
+		ClusterAttributeScope: scope,
+		ClusterAttributeName:  attributeName,
+		PageSize:              numTasks,
+	})
+	require.NoError(t, err)
+	require.Len(t, remainingResp.Tasks, numTasks-tasksToDelete, "Should have remaining tasks after partial delete")
+
+	// Step 6: Verify size after delete
+	sizeAfterDelete, err := dlqManager.GetStandbyTaskDLQSize(ctx, &persistence.GetStandbyTaskDLQSizeRequest{
+		ShardID:               shardID,
+		DomainID:              domainID,
+		ClusterAttributeScope: scope,
+		ClusterAttributeName:  attributeName,
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(numTasks-tasksToDelete), sizeAfterDelete.Size)
+
+	// Summary
+	t.Logf("\n=== DLQ Performance Summary ===")
+	t.Logf("Tasks: %d", numTasks)
+	t.Logf("Enqueue: %v total, %v per task", enqueueTime, enqueueTime/time.Duration(numTasks))
+	t.Logf("Read:    %v total, %v per task", readTime, readTime/time.Duration(numTasks))
+	t.Logf("Delete:  %v total, %v per task", deleteTime, deleteTime/time.Duration(tasksToDelete))
+	t.Logf("Note: This test uses in-memory DLQ. For Cassandra comparison testing,")
+	t.Logf("      run integration tests with real Cassandra instances to compare")
+	t.Logf("      point-delete vs range-delete performance and tombstone accumulation")
+}

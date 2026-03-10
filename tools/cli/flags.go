@@ -85,6 +85,8 @@ const (
 	FlagHostFile                       = "host_file"
 	FlagCluster                        = "cluster"
 	FlagInputCluster                   = "input_cluster"
+	FlagClusterAttributeScope          = "cluster-attribute-scope"
+	FlagClusterAttributeName           = "cluster-attribute-name"
 	FlagStartOffset                    = "start_offset"
 	FlagTopic                          = "topic"
 	FlagGroup                          = "group"
@@ -227,8 +229,6 @@ const (
 	FlagNumReadPartitions              = "num_read_partitions"
 	FlagNumWritePartitions             = "num_write_partitions"
 	FlagCronOverlapPolicy              = "cron_overlap_policy"
-	FlagClusterAttributeScope          = "cluster_attribute_scope"
-	FlagClusterAttributeName           = "cluster_attribute_name"
 
 	FlagClustersUsage = "Clusters (example: --clusters clusterA,clusterB or --cl clusterA --cl clusterB)"
 )

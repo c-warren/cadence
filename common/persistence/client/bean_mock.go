@@ -152,6 +152,21 @@ func (mr *MockBeanMockRecorder) GetShardManager() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetShardManager", reflect.TypeOf((*MockBean)(nil).GetShardManager))
 }
 
+// GetStandbyTaskDLQManager mocks base method.
+func (m *MockBean) GetStandbyTaskDLQManager() (persistence.StandbyTaskDLQManager, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStandbyTaskDLQManager")
+	ret0, _ := ret[0].(persistence.StandbyTaskDLQManager)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetStandbyTaskDLQManager indicates an expected call of GetStandbyTaskDLQManager.
+func (mr *MockBeanMockRecorder) GetStandbyTaskDLQManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStandbyTaskDLQManager", reflect.TypeOf((*MockBean)(nil).GetStandbyTaskDLQManager))
+}
+
 // GetTaskManager mocks base method.
 func (m *MockBean) GetTaskManager() persistence.TaskManager {
 	m.ctrl.T.Helper()

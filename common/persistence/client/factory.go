@@ -75,6 +75,8 @@ type (
 		NewDomainReplicationQueueManager() (p.QueueManager, error)
 		// NewConfigStoreManager returns a new config store manager
 		NewConfigStoreManager() (p.ConfigStoreManager, error)
+		// NewStandbyTaskDLQManager returns a new standby task DLQ manager
+		NewStandbyTaskDLQManager() (p.StandbyTaskDLQManager, error)
 	}
 	// DataStoreFactory is a low level interface to be implemented by a datastore
 	// Examples of datastores are cassandra, mysql etc
@@ -535,6 +537,26 @@ func (f *factoryImpl) NewConfigStoreManager() (p.ConfigStoreManager, error) {
 	}
 
 	return result, nil
+}
+
+// NewStandbyTaskDLQManager creates a new standby task DLQ manager
+func (f *factoryImpl) NewStandbyTaskDLQManager() (p.StandbyTaskDLQManager, error) {
+	// Use the execution datastore as it has the same DB connection (Cassandra)
+	ds := f.datastores[storeTypeExecution]
+
+	// Try to get Cassandra manager from nosql store
+	if nosqlFactory, ok := ds.factory.(*nosql.Factory); ok {
+		dlqManager, err := nosqlFactory.NewStandbyTaskDLQManager()
+		if err == nil {
+			f.logger.Info("Creating Cassandra-based standby task DLQ manager")
+			return dlqManager, nil
+		}
+		f.logger.Warn("Failed to create Cassandra DLQ manager, falling back to in-memory", tag.Error(err))
+	}
+
+	// Fallback to in-memory implementation for SQL or other stores
+	f.logger.Info("Creating in-memory standby task DLQ manager")
+	return p.NewInMemoryStandbyTaskDLQManager(f.logger), nil
 }
 
 // Close closes this factory

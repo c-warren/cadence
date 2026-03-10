@@ -120,8 +120,11 @@ func (f *transferQueueFactory) createQueuev2(
 		openExecutionCheck,
 		logger,
 	)
-	// Create in-memory DLQ manager for POC
-	dlqManager := persistence.NewInMemoryStandbyTaskDLQManager(logger)
+	// Get DLQ manager from persistence bean (Cassandra if available, otherwise in-memory)
+	dlqManager, err := shard.GetService().GetPersistenceBean().GetStandbyTaskDLQManager()
+	if err != nil {
+		logger.Fatal("Failed to create standby task DLQ manager", tag.Error(err))
+	}
 
 	standbyTaskExecutor := task.NewTransferStandbyTaskExecutor(
 		shard,

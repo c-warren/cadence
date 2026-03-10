@@ -844,7 +844,7 @@ func newAdminDLQCommands() []*cli.Command {
 				&cli.StringFlag{
 					Name:    FlagDLQType,
 					Aliases: []string{"dt"},
-					Usage:   "Type of DLQ to manage. (Options: domain, history)",
+					Usage:   "Type of DLQ to manage. (Options: domain, history, standby)",
 					Value:   "history",
 				},
 				&cli.BoolFlag{
@@ -853,6 +853,12 @@ func newAdminDLQCommands() []*cli.Command {
 				},
 			},
 			Action: AdminCountDLQMessages,
+		},
+		{
+			Name:        "standby",
+			Aliases:     []string{"st"},
+			Usage:       "Manage standby task DLQ (requires cluster attributes)",
+			Subcommands: newAdminStandbyDLQCommands(),
 		},
 		{
 			Name:    "read",
@@ -881,6 +887,109 @@ func newAdminDLQCommands() []*cli.Command {
 			Usage:   "Merge DLQ messages with equal or smaller ids than the provided task id",
 			Flags:   getDLQFlags(),
 			Action:  AdminMergeDLQMessages,
+		},
+	}
+}
+
+func newAdminStandbyDLQCommands() []*cli.Command {
+	return []*cli.Command{
+		{
+			Name:    "count",
+			Aliases: []string{"c"},
+			Usage:   "Count standby task DLQ",
+			Flags: []cli.Flag{
+				&cli.IntFlag{
+					Name:  FlagShardID,
+					Usage: "Shard ID (default: 0)",
+					Value: 0,
+				},
+				&cli.StringFlag{
+					Name:     FlagDomainID,
+					Usage:    "Domain ID (required)",
+					Required: true,
+				},
+				&cli.StringFlag{
+					Name:     FlagClusterAttributeScope,
+					Usage:    "Cluster attribute scope (required)",
+					Required: true,
+				},
+				&cli.StringFlag{
+					Name:     FlagClusterAttributeName,
+					Usage:    "Cluster attribute name (required)",
+					Required: true,
+				},
+			},
+			Action: AdminCountStandbyDLQ,
+		},
+		{
+			Name:    "read",
+			Aliases: []string{"r"},
+			Usage:   "Read standby task DLQ",
+			Flags: []cli.Flag{
+				&cli.IntFlag{
+					Name:  FlagShardID,
+					Usage: "Shard ID (default: 0)",
+					Value: 0,
+				},
+				&cli.StringFlag{
+					Name:     FlagDomainID,
+					Usage:    "Domain ID (required)",
+					Required: true,
+				},
+				&cli.StringFlag{
+					Name:     FlagClusterAttributeScope,
+					Usage:    "Cluster attribute scope (required)",
+					Required: true,
+				},
+				&cli.StringFlag{
+					Name:     FlagClusterAttributeName,
+					Usage:    "Cluster attribute name (required)",
+					Required: true,
+				},
+				&cli.IntFlag{
+					Name:  FlagPageSize,
+					Usage: "Page size (default: 100)",
+					Value: 100,
+				},
+			},
+			Action: AdminReadStandbyDLQ,
+		},
+		{
+			Name:    "delete",
+			Aliases: []string{"d"},
+			Usage:   "Delete a specific task from standby task DLQ",
+			Flags: []cli.Flag{
+				&cli.IntFlag{
+					Name:  FlagShardID,
+					Usage: "Shard ID (default: 0)",
+					Value: 0,
+				},
+				&cli.StringFlag{
+					Name:     FlagDomainID,
+					Usage:    "Domain ID (required)",
+					Required: true,
+				},
+				&cli.StringFlag{
+					Name:     FlagClusterAttributeScope,
+					Usage:    "Cluster attribute scope (required)",
+					Required: true,
+				},
+				&cli.StringFlag{
+					Name:     FlagClusterAttributeName,
+					Usage:    "Cluster attribute name (required)",
+					Required: true,
+				},
+				&cli.Int64Flag{
+					Name:     FlagTaskID,
+					Usage:    "Task ID to delete (required)",
+					Required: true,
+				},
+				&cli.Int64Flag{
+					Name:  FlagTaskVisibilityTimestamp,
+					Usage: "Task visibility timestamp (required for deletion)",
+				},
+			},
+			Action: AdminDeleteStandbyDLQ,
 		},
 	}
 }

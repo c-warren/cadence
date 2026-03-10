@@ -23,6 +23,7 @@
 package client
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/uber/cadence/common/config"
@@ -65,6 +66,8 @@ type (
 
 		GetConfigStoreManager() persistence.ConfigStoreManager
 		SetConfigStoreManager(persistence.ConfigStoreManager)
+
+		GetStandbyTaskDLQManager() (persistence.StandbyTaskDLQManager, error)
 	}
 
 	// BeanImpl stores persistence managers
@@ -78,6 +81,7 @@ type (
 		historyManager                persistence.HistoryManager
 		configStoreManager            persistence.ConfigStoreManager
 		executionManagerFactory       persistence.ExecutionManagerFactory
+		standbyTaskDLQManager         persistence.StandbyTaskDLQManager
 
 		sync.RWMutex
 		shardIDToExecutionManager map[int]persistence.ExecutionManager
@@ -386,6 +390,39 @@ func (s *BeanImpl) SetConfigStoreManager(
 	s.configStoreManager = configStoreManager
 }
 
+// GetStandbyTaskDLQManager gets StandbyTaskDLQManager
+func (s *BeanImpl) GetStandbyTaskDLQManager() (persistence.StandbyTaskDLQManager, error) {
+	s.RLock()
+	if s.standbyTaskDLQManager != nil {
+		defer s.RUnlock()
+		return s.standbyTaskDLQManager, nil
+	}
+	s.RUnlock()
+
+	s.Lock()
+	defer s.Unlock()
+
+	// Double-check after acquiring write lock
+	if s.standbyTaskDLQManager != nil {
+		return s.standbyTaskDLQManager, nil
+	}
+
+	// Lazy initialization - this will be created once and cached
+	// executionManagerFactory is actually the Factory interface
+	if factory, ok := s.executionManagerFactory.(Factory); ok {
+		dlqManager, err := factory.NewStandbyTaskDLQManager()
+		if err != nil {
+			return nil, err
+		}
+		s.standbyTaskDLQManager = dlqManager
+		return s.standbyTaskDLQManager, nil
+	}
+
+	// If factory doesn't implement NewStandbyTaskDLQManager, return an error
+	// This shouldn't happen in practice as all factories should implement it
+	return nil, fmt.Errorf("execution manager factory does not support standby task DLQ manager")
+}
+
 // Close cleanup connections
 func (s *BeanImpl) Close() {
 
@@ -406,6 +443,9 @@ func (s *BeanImpl) Close() {
 	s.historyManager.Close()
 	s.executionManagerFactory.Close()
 	s.configStoreManager.Close()
+	if s.standbyTaskDLQManager != nil {
+		s.standbyTaskDLQManager.Close()
+	}
 	for _, executionMgr := range s.shardIDToExecutionManager {
 		executionMgr.Close()
 	}

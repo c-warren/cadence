@@ -128,8 +128,11 @@ func NewTransferQueueProcessor(
 			shard.GetLogger(),
 		)
 		standByLogger := logger.WithTags(tag.QueueTypeStandby, tag.ActiveClusterName(clusterName))
-		// Create in-memory DLQ manager for POC
-		dlqManager := persistence.NewInMemoryStandbyTaskDLQManager(standByLogger)
+		// Get DLQ manager from persistence bean (Cassandra if available, otherwise in-memory)
+		dlqManager, err := shard.GetService().GetPersistenceBean().GetStandbyTaskDLQManager()
+		if err != nil {
+			standByLogger.Fatal("Failed to create standby task DLQ manager", tag.Error(err))
+		}
 
 		standbyTaskExecutor := task.NewTransferStandbyTaskExecutor(
 			shard,

@@ -134,3 +134,12 @@ func (db *CDB) executeBatchWithConsistencyAll(b gocql.Batch) error {
 	}
 	return db.session.ExecuteBatch(b)
 }
+
+// NewStandbyTaskDLQManager creates a new standby task DLQ manager for Cassandra
+// This returns a comparison wrapper that delegates to both point-delete and range-delete implementations
+func (db *CDB) NewStandbyTaskDLQManager() persistence.StandbyTaskDLQManager {
+	return NewCassandraComparisonDLQ(
+		db.session,
+		db.logger.WithTags(tag.Value("standby-task-dlq")),
+	)
+}

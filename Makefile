@@ -809,17 +809,17 @@ start: bins
 
 install-schema-xdc: cadence-cassandra-tool
 	$Q echo Setting up cadence_cluster0 key space
-	./cadence-cassandra-tool --ep 127.0.0.1 create -k cadence_cluster0 --rf 1
-	./cadence-cassandra-tool --ep 127.0.0.1 -k cadence_cluster0 setup-schema -v 0.0
-	./cadence-cassandra-tool --ep 127.0.0.1 -k cadence_cluster0 update-schema -d ./schema/cassandra/cadence/versioned
-	./cadence-cassandra-tool --ep 127.0.0.1 create -k cadence_visibility_cluster0 --rf 1
-	./cadence-cassandra-tool --ep 127.0.0.1 -k cadence_visibility_cluster0 setup-schema -v 0.0
-	./cadence-cassandra-tool --ep 127.0.0.1 -k cadence_visibility_cluster0 update-schema -d ./schema/cassandra/visibility/versioned
+	./cadence-cassandra-tool --ep 127.0.0.1 -p 9042 create -k cadence_cluster0 --rf 1
+	./cadence-cassandra-tool --ep 127.0.0.1 -p 9042 -k cadence_cluster0 setup-schema -v 0.0
+	./cadence-cassandra-tool --ep 127.0.0.1 -p 9042 -k cadence_cluster0 update-schema -d ./schema/cassandra/cadence/versioned
+	./cadence-cassandra-tool --ep 127.0.0.1 -p 9042 create -k cadence_visibility_cluster0 --rf 1
+	./cadence-cassandra-tool --ep 127.0.0.1 -p 9042 -k cadence_visibility_cluster0 setup-schema -v 0.0
+	./cadence-cassandra-tool --ep 127.0.0.1 -p 9042 -k cadence_visibility_cluster0 update-schema -d ./schema/cassandra/visibility/versioned
 
 	$Q echo Setting up cadence_cluster1 key space
 	./cadence-cassandra-tool --ep 127.0.0.1 create -k cadence_cluster1 --rf 1
 	./cadence-cassandra-tool --ep 127.0.0.1 -k cadence_cluster1 setup-schema -v 0.0
-	./cadence-cassandra-tool --ep 127.0.0.1 -k cadence_cluster1 update-schema -d ./schema/cassandra/cadence/versioned
+	./cadence-cassandra-tool --ep 127.0.0.1 -k cadence_cluster1 update-schema -d ./schema/cassandra/cadence/versioned 
 	./cadence-cassandra-tool --ep 127.0.0.1 create -k cadence_visibility_cluster1 --rf 1
 	./cadence-cassandra-tool --ep 127.0.0.1 -k cadence_visibility_cluster1 setup-schema -v 0.0
 	./cadence-cassandra-tool --ep 127.0.0.1 -k cadence_visibility_cluster1 update-schema -d ./schema/cassandra/visibility/versioned
