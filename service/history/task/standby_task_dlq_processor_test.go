@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 )
@@ -52,9 +53,14 @@ func TestStandbyTaskDLQProcessor_ProcessOnFailover(t *testing.T) {
 	}
 
 	// Create processor
+	mockInitializer := func(t persistence.Task) Task {
+		return nil // For this test, we don't actually execute tasks
+	}
 	processor := NewStandbyTaskDLQProcessor(
 		dlqManager,
 		nil, // executor not needed for POC
+		mockInitializer,
+		clock.NewMockedTimeSource(),
 		logger,
 	)
 

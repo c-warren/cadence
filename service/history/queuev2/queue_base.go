@@ -82,15 +82,16 @@ type (
 		timeSource      clock.TimeSource
 		taskInitializer task.Initializer
 
-		rescheduler           task.Rescheduler
-		queueReader           QueueReader
-		monitor               Monitor
-		mitigator             Mitigator
-		updateQueueStateTimer clock.Timer
-		virtualQueueManager   VirtualQueueManager
-		exclusiveAckLevel     persistence.HistoryTaskKey
-		alertCh               chan *Alert
-		newVirtualSliceState  VirtualSliceState
+		standbyTaskDLQProcessor *task.StandbyTaskDLQProcessor
+		rescheduler             task.Rescheduler
+		queueReader             QueueReader
+		monitor                 Monitor
+		mitigator               Mitigator
+		updateQueueStateTimer   clock.Timer
+		virtualQueueManager     VirtualQueueManager
+		exclusiveAckLevel       persistence.HistoryTaskKey
+		alertCh                 chan *Alert
+		newVirtualSliceState    VirtualSliceState
 
 		updateQueueStateFn func(ctx context.Context)
 	}
@@ -191,23 +192,39 @@ func newQueueBase(
 			MaxVirtualQueueCount: options.MaxVirtualQueueCount,
 		},
 	)
+
+	// Create DLQ processor for processing standby tasks during failover
+	dlqManager, err := shard.GetService().GetPersistenceBean().GetStandbyTaskDLQManager()
+	if err != nil {
+		logger.Fatal("Failed to create standby task DLQ manager", tag.Error(err), tag.Dynamic("category", category))
+	}
+
+	standbyTaskDLQProcessor := task.NewStandbyTaskDLQProcessor(
+		dlqManager,
+		taskExecutor,
+		taskInitializer,
+		timeSource,
+		logger,
+	)
+
 	q := &queueBase{
-		shard:               shard,
-		taskProcessor:       taskProcessor,
-		logger:              logger,
-		metricsClient:       metricsClient,
-		metricsScope:        metricsScope,
-		category:            category,
-		options:             options,
-		timeSource:          timeSource,
-		taskInitializer:     taskInitializer,
-		rescheduler:         rescheduler,
-		queueReader:         queueReader,
-		monitor:             monitor,
-		mitigator:           mitigator,
-		exclusiveAckLevel:   exclusiveAckLevel,
-		virtualQueueManager: virtualQueueManager,
-		alertCh:             make(chan *Alert, alertChSize),
+		shard:                   shard,
+		taskProcessor:           taskProcessor,
+		logger:                  logger,
+		metricsClient:           metricsClient,
+		metricsScope:            metricsScope,
+		category:                category,
+		options:                 options,
+		timeSource:              timeSource,
+		taskInitializer:         taskInitializer,
+		standbyTaskDLQProcessor: standbyTaskDLQProcessor,
+		rescheduler:             rescheduler,
+		queueReader:             queueReader,
+		monitor:                 monitor,
+		mitigator:               mitigator,
+		exclusiveAckLevel:       exclusiveAckLevel,
+		virtualQueueManager:     virtualQueueManager,
+		alertCh:                 make(chan *Alert, alertChSize),
 		newVirtualSliceState: VirtualSliceState{
 			Range: Range{
 				InclusiveMinTaskKey: queueState.ExclusiveMaxReadLevel,
@@ -230,6 +247,9 @@ func (q *queueBase) Start() {
 	))
 
 	q.monitor.Subscribe(q.alertCh)
+
+	// Start DLQ processor for periodic cleanup
+	q.standbyTaskDLQProcessor.Start()
 }
 
 func (q *queueBase) Stop() {
@@ -237,6 +257,9 @@ func (q *queueBase) Stop() {
 	q.updateQueueStateTimer.Stop()
 	q.virtualQueueManager.Stop()
 	q.rescheduler.Stop()
+
+	// Stop DLQ processor
+	q.standbyTaskDLQProcessor.Stop()
 }
 
 func (q *queueBase) Category() persistence.HistoryTaskCategory {
@@ -244,6 +267,10 @@ func (q *queueBase) Category() persistence.HistoryTaskCategory {
 }
 
 func (q *queueBase) FailoverDomain(domainIDs map[string]struct{}) {
+	// Process DLQ tasks BEFORE rescheduling
+	q.processDLQForFailover(context.Background(), domainIDs, nil)
+
+	// Reschedule tasks
 	q.rescheduler.RescheduleDomains(domainIDs)
 }
 
@@ -251,12 +278,43 @@ func (q *queueBase) FailoverDomainWithClusterAttribute(
 	domainIDs map[string]struct{},
 	clusterAttribute *ClusterAttributeKey,
 ) {
-	// For POC, delegate to existing FailoverDomain
-	// In full implementation, this would pass cluster attribute to rescheduler
-	q.FailoverDomain(domainIDs)
+	// Process DLQ tasks with cluster attribute BEFORE rescheduling
+	q.processDLQForFailover(context.Background(), domainIDs, clusterAttribute)
 
-	// TODO: Pass cluster attribute to rescheduler for scoped DLQ processing
-	// q.rescheduler.RescheduleDomainsWithClusterAttribute(domainIDs, clusterAttribute)
+	// Reschedule tasks
+	q.FailoverDomain(domainIDs)
+}
+
+// processDLQForFailover processes DLQ tasks for failover
+func (q *queueBase) processDLQForFailover(
+	ctx context.Context,
+	domainIDs map[string]struct{},
+	clusterAttribute *ClusterAttributeKey,
+) {
+	// Use configurable timeout to prevent hanging failover
+	timeout := 30 * time.Second
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	for domainID := range domainIDs {
+		request := &task.ProcessFailoverRequest{
+			ShardID:  q.shard.GetShardID(),
+			DomainID: domainID,
+		}
+
+		if clusterAttribute != nil {
+			request.ClusterAttributeScope = clusterAttribute.Scope
+			request.ClusterAttributeName = clusterAttribute.Name
+		}
+
+		err := q.standbyTaskDLQProcessor.ProcessFailover(ctx, request)
+		if err != nil {
+			q.logger.Error("Failed to process DLQ during failover",
+				tag.WorkflowDomainID(domainID),
+				tag.Error(err))
+			// Continue with other domains - don't fail entire failover
+		}
+	}
 }
 
 func (q *queueBase) HandleAction(ctx context.Context, clusterName string, action *queue.Action) (*queue.ActionResult, error) {

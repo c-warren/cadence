@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 )
@@ -69,7 +70,11 @@ func TestDLQ_EndToEnd(t *testing.T) {
 
 	// Step 3: Simulate cluster attribute failover from active to standby
 	// The standby cluster becomes active for this cluster attribute
-	processor := NewStandbyTaskDLQProcessor(dlqManager, nil, logger)
+	// Mock task initializer - in real usage this comes from queue
+	mockInitializer := func(t persistence.Task) Task {
+		return nil // For this test, we don't actually execute tasks
+	}
+	processor := NewStandbyTaskDLQProcessor(dlqManager, nil, mockInitializer, clock.NewMockedTimeSource(), logger)
 
 	err = processor.ProcessFailover(ctx, &ProcessFailoverRequest{
 		ShardID:               1,
@@ -151,7 +156,10 @@ func TestDLQ_MultipleClusterAttributes(t *testing.T) {
 	}
 
 	// Process failover for only us-west
-	processor := NewStandbyTaskDLQProcessor(dlqManager, nil, logger)
+	mockInitializer := func(t persistence.Task) Task {
+		return nil // For this test, we don't actually execute tasks
+	}
+	processor := NewStandbyTaskDLQProcessor(dlqManager, nil, mockInitializer, clock.NewMockedTimeSource(), logger)
 	err := processor.ProcessFailover(ctx, &ProcessFailoverRequest{
 		ShardID:               1,
 		DomainID:              "multi-domain",

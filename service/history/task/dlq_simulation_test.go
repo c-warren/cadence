@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 )
@@ -82,7 +83,10 @@ func TestDLQ_Simulation_ShortDiscardDelay(t *testing.T) {
 		},
 	}
 
-	processor := NewStandbyTaskDLQProcessor(dlqManager, mockExecutor, logger)
+	mockInitializer := func(t persistence.Task) Task {
+		return nil // For this test, executor is mocked
+	}
+	processor := NewStandbyTaskDLQProcessor(dlqManager, mockExecutor, mockInitializer, clock.NewMockedTimeSource(), logger)
 	err = processor.ProcessFailover(ctx, &ProcessFailoverRequest{
 		ShardID:               1,
 		DomainID:              "sim-domain",
@@ -155,7 +159,10 @@ func TestDLQ_Simulation_ChaosInjection(t *testing.T) {
 		},
 	}
 
-	processor := NewStandbyTaskDLQProcessor(dlqManager, mockExecutor, logger)
+	mockInitializer := func(t persistence.Task) Task {
+		return nil // For this test, executor is mocked
+	}
+	processor := NewStandbyTaskDLQProcessor(dlqManager, mockExecutor, mockInitializer, clock.NewMockedTimeSource(), logger)
 	err := processor.ProcessFailover(ctx, &ProcessFailoverRequest{
 		ShardID:               1,
 		DomainID:              "chaos-domain",
@@ -233,7 +240,10 @@ func TestDLQ_Simulation_ConcurrentFailovers(t *testing.T) {
 		},
 	}
 
-	processor := NewStandbyTaskDLQProcessor(dlqManager, mockExecutor, logger)
+	mockInitializer := func(t persistence.Task) Task {
+		return nil // For this test, executor is mocked
+	}
+	processor := NewStandbyTaskDLQProcessor(dlqManager, mockExecutor, mockInitializer, clock.NewMockedTimeSource(), logger)
 
 	for d := 0; d < numDomains; d++ {
 		for a := 0; a < numAttrs; a++ {

@@ -185,6 +185,13 @@ func (d *cassandraPointDeleteDLQ) ReadStandbyTasks(ctx context.Context, request 
 	// For now, let's just read from a single task type or iterate through known types
 	// The plan doesn't specify how task_type filtering works in ReadStandbyTasks, so I'll read all types
 
+	d.logger.Info("[POINT-DELETE-DLQ] Executing query",
+		tag.ShardID(request.ShardID),
+		tag.WorkflowDomainID(request.DomainID),
+		tag.Value(fmt.Sprintf("scope='%s', name='%s', task_type=0, startTS=%v",
+			request.ClusterAttributeScope, request.ClusterAttributeName, startVisibilityTS)),
+	)
+
 	query := d.session.Query(templateReadStandbyTasksPoint,
 		request.ShardID,
 		request.DomainID,
@@ -192,38 +199,63 @@ func (d *cassandraPointDeleteDLQ) ReadStandbyTasks(ctx context.Context, request 
 		request.ClusterAttributeName,
 		0, // task_type - we need to iterate through types or have a way to query all
 		startVisibilityTS,
-		startTaskID,
-		request.PageSize+1, // +1 to check if there are more pages
-	).WithContext(ctx)
+		request.PageSize*2, // Fetch more since we'll filter in-app
+	).WithContext(ctx).Consistency(gocql.One)
 
 	iter := query.Iter()
-	defer iter.Close()
+	if iter == nil {
+		d.logger.Error("[POINT-DELETE-DLQ] Query failed to create iterator")
+		return nil, fmt.Errorf("failed to create query iterator for point-delete DLQ read")
+	}
+	defer func() {
+		if err := iter.Close(); err != nil {
+			d.logger.Error("[POINT-DELETE-DLQ] Error closing iterator",
+				tag.Error(err),
+			)
+		}
+	}()
 
 	count := 0
 	var lastVisibilityTS int64
 	var lastTaskID int64
+	rowsScanned := 0
 
+	// Scan rows
 	for count < request.PageSize {
 		row := make(map[string]interface{})
+
+		// MapScan returns false when no more rows or error
 		if !iter.MapScan(row) {
 			break
 		}
+		rowsScanned++
 
+		// Try to map the row to entry
 		entry := d.mapRowToEntry(row)
+		if entry == nil {
+			d.logger.Warn("[POINT-DELETE-DLQ] Failed to map row, skipping")
+			continue
+		}
+
+		d.logger.Debug("[POINT-DELETE-DLQ] Scanned row",
+			tag.TaskID(entry.TaskID),
+			tag.Value(fmt.Sprintf("task_type=%d, visTS=%d", entry.TaskType, entry.VisibilityTimestamp)),
+		)
+
+		// Skip entries before our pagination point (when paginating within same timestamp)
+		if entry.VisibilityTimestamp == startVisibilityTS.UnixNano() && entry.TaskID < startTaskID {
+			continue
+		}
+
 		allTasks = append(allTasks, entry)
 		lastVisibilityTS = entry.VisibilityTimestamp
 		lastTaskID = entry.TaskID
 		count++
 	}
 
-	if err := iter.Close(); err != nil {
-		d.logger.Error("Failed to read standby tasks from point-delete DLQ",
-			tag.Error(err),
-			tag.ShardID(request.ShardID),
-			tag.WorkflowDomainID(request.DomainID),
-		)
-		return nil, err
-	}
+	d.logger.Info("[POINT-DELETE-DLQ] Query complete",
+		tag.Value(fmt.Sprintf("rowsScanned=%d, tasksReturned=%d", rowsScanned, len(allTasks))),
+	)
 
 	// Check if there are more pages
 	var nextPageToken []byte
@@ -333,7 +365,7 @@ func (d *cassandraPointDeleteDLQ) Close() {
 // ========================= Range-Delete Implementation =========================
 
 func (d *cassandraRangeDeleteDLQ) EnqueueStandbyTask(ctx context.Context, request *persistence.EnqueueStandbyTaskRequest) error {
-	d.logger.Debug("[RANGE-DELETE-DLQ] Enqueuing standby task",
+	d.logger.Info("[RANGE-DELETE-DLQ] Enqueuing standby task",
 		tag.ShardID(request.ShardID),
 		tag.WorkflowDomainID(request.DomainID),
 		tag.TaskID(request.TaskID),
@@ -394,8 +426,17 @@ func (d *cassandraRangeDeleteDLQ) EnqueueStandbyTask(ctx context.Context, reques
 	return nil
 }
 
-func (d *cassandraRangeDeleteDLQ) ReadStandbyTasks(ctx context.Context, request *persistence.ReadStandbyTasksRequest) (*persistence.ReadStandbyTasksResponse, error) {
-	d.logger.Debug("[RANGE-DELETE-DLQ] Reading standby tasks",
+func (d *cassandraRangeDeleteDLQ) ReadStandbyTasks(ctx context.Context, request *persistence.ReadStandbyTasksRequest) (resp *persistence.ReadStandbyTasksResponse, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			d.logger.Error("[RANGE-DELETE-DLQ] PANIC RECOVERED",
+				tag.Value(fmt.Sprintf("panic: %v", r)))
+			err = fmt.Errorf("panic during range-delete DLQ read: %v", r)
+			resp = nil
+		}
+	}()
+
+	d.logger.Info("[RANGE-DELETE-DLQ] Reading standby tasks - START",
 		tag.ShardID(request.ShardID),
 		tag.WorkflowDomainID(request.DomainID),
 		tag.Value(request.ClusterAttributeScope+"/"+request.ClusterAttributeName),
@@ -403,40 +444,100 @@ func (d *cassandraRangeDeleteDLQ) ReadStandbyTasks(ctx context.Context, request 
 	)
 
 	// Get ack level for filtering
+	d.logger.Info("[RANGE-DELETE-DLQ] Getting ack level...")
 	ackLevel, err := d.getAckLevel(ctx, request.ShardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName, 0)
 	if err != nil {
 		// If no ack level exists, start from 0
+		d.logger.Info("[RANGE-DELETE-DLQ] No ack level found, starting from 0",
+			tag.Error(err))
 		ackLevel = 0
+	} else {
+		d.logger.Info("[RANGE-DELETE-DLQ] Found ack level",
+			tag.Value(fmt.Sprintf("ackLevel=%d", ackLevel)))
 	}
 
 	ackLevelTS := time.Unix(0, ackLevel)
+
+	d.logger.Info("[RANGE-DELETE-DLQ] Executing query",
+		tag.ShardID(request.ShardID),
+		tag.WorkflowDomainID(request.DomainID),
+		tag.Value(fmt.Sprintf("scope=%s, name=%s, task_type=0, row_type=0, ackLevel=%d",
+			request.ClusterAttributeScope, request.ClusterAttributeName, ackLevel)),
+	)
 
 	query := d.session.Query(templateReadStandbyTasksRange,
 		request.ShardID,
 		request.DomainID,
 		request.ClusterAttributeScope,
 		request.ClusterAttributeName,
-		0, // task_type
-		rowTypeDLQTask,
+		0,              // task_type
+		rowTypeDLQTask, // row_type = 0 (tasks only, not ack-level rows)
 		ackLevelTS,
 		request.PageSize+1,
-	).WithContext(ctx)
+	).WithContext(ctx).Consistency(gocql.One)
 
+	d.logger.Info("[RANGE-DELETE-DLQ] Creating iterator...")
 	iter := query.Iter()
-	defer iter.Close()
+	if iter == nil {
+		d.logger.Error("[RANGE-DELETE-DLQ] Query failed to create iterator")
+		return nil, fmt.Errorf("failed to create query iterator for range-delete DLQ read")
+	}
+	d.logger.Info("[RANGE-DELETE-DLQ] Iterator created successfully")
+
+	defer func() {
+		if closeErr := iter.Close(); closeErr != nil {
+			d.logger.Error("[RANGE-DELETE-DLQ] Error closing iterator",
+				tag.Error(closeErr),
+			)
+		}
+	}()
 
 	var allTasks []*persistence.StandbyTaskDLQEntry
 	count := 0
 	var lastVisibilityTS int64
 	var lastTaskID int64
+	rowsScanned := 0
 
+	d.logger.Info("[RANGE-DELETE-DLQ] Starting to scan rows...")
+
+	// Try using Scan instead of MapScan for debugging
 	for count < request.PageSize {
-		row := make(map[string]interface{})
-		if !iter.MapScan(row) {
+		var shardID int
+		var domainID, scope, name, workflowID, runID, encodingType string
+		var taskType int
+		var visibilityTS time.Time
+		var taskID, version int64
+		var taskPayload []byte
+		var createdAt time.Time
+
+		if !iter.Scan(&shardID, &domainID, &scope, &name, &taskType, &visibilityTS, &taskID, &workflowID, &runID, &taskPayload, &encodingType, &version, &createdAt) {
 			break
 		}
+		rowsScanned++
 
-		entry := d.mapRowToEntry(row)
+		entry := &persistence.StandbyTaskDLQEntry{
+			ShardID:               shardID,
+			DomainID:              domainID,
+			ClusterAttributeScope: scope,
+			ClusterAttributeName:  name,
+			WorkflowID:            workflowID,
+			RunID:                 runID,
+			TaskID:                taskID,
+			VisibilityTimestamp:   visibilityTS.UnixNano(),
+			TaskType:              taskType,
+			TaskPayload:           taskPayload,
+			Version:               version,
+			EnqueuedAt:            createdAt.Unix(),
+		}
+
+		if d.logger != nil {
+			d.logger.Info("[RANGE-DELETE-DLQ] Scanned row",
+				tag.TaskID(entry.TaskID),
+				tag.Value(fmt.Sprintf("task_type=%d, visTS=%d", entry.TaskType, entry.VisibilityTimestamp)),
+			)
+		} else {
+		}
+
 		allTasks = append(allTasks, entry)
 		lastVisibilityTS = entry.VisibilityTimestamp
 		lastTaskID = entry.TaskID
@@ -452,16 +553,21 @@ func (d *cassandraRangeDeleteDLQ) ReadStandbyTasks(ctx context.Context, request 
 		return nil, err
 	}
 
+	d.logger.Info("[RANGE-DELETE-DLQ] Query complete",
+		tag.Value(fmt.Sprintf("rowsScanned=%d, tasksReturned=%d", rowsScanned, len(allTasks))),
+	)
+
 	// Check if there are more pages
+	// NOTE: We fetched PageSize+1 rows, so if we got exactly PageSize+1, there are more pages
 	var nextPageToken []byte
-	if len(allTasks) == request.PageSize {
-		if iter.MapScan(make(map[string]interface{})) {
-			token := &pageToken{
-				VisibilityTimestamp: lastVisibilityTS,
-				TaskID:              lastTaskID + 1,
-			}
-			nextPageToken = d.serializePageToken(token)
+	if rowsScanned > request.PageSize {
+		// Remove the extra row we fetched
+		allTasks = allTasks[:request.PageSize]
+		token := &pageToken{
+			VisibilityTimestamp: lastVisibilityTS,
+			TaskID:              lastTaskID + 1,
 		}
+		nextPageToken = d.serializePageToken(token)
 	}
 
 	return &persistence.ReadStandbyTasksResponse{
@@ -471,7 +577,7 @@ func (d *cassandraRangeDeleteDLQ) ReadStandbyTasks(ctx context.Context, request 
 }
 
 func (d *cassandraRangeDeleteDLQ) DeleteStandbyTask(ctx context.Context, request *persistence.DeleteStandbyTaskRequest) error {
-	d.logger.Debug("[RANGE-DELETE-DLQ] Deleting standby task (advancing ack level)",
+	d.logger.Info("[RANGE-DELETE-DLQ] Deleting standby task (advancing ack level)",
 		tag.ShardID(request.ShardID),
 		tag.TaskID(request.TaskID),
 	)
@@ -582,7 +688,6 @@ func (d *cassandraRangeDeleteDLQ) getAckLevel(ctx context.Context, shardID int, 
 		taskType,
 		rowTypeDLQAckLevel,
 		time.Unix(0, 0), // visibility_timestamp = 0 for ack level rows
-		0,               // Placeholder for ack level marker
 	).WithContext(ctx)
 
 	var ackLevel int64
@@ -646,6 +751,150 @@ func (d *cassandraRangeDeleteDLQ) insertAckLevel(ctx context.Context, shardID in
 	return nil
 }
 
+// CleanupProcessedTasks performs range delete for tasks below ack level
+// This runs periodically (similar to queuev2's updateQueueState timer)
+func (d *cassandraRangeDeleteDLQ) CleanupProcessedTasks(ctx context.Context) error {
+	d.logger.Debug("[RANGE-DELETE-DLQ] Starting periodic cleanup of processed tasks")
+
+	// Read all ack levels (this query scans all partitions - expensive but necessary)
+	type ackLevelKey struct {
+		ShardID    int
+		DomainID   string
+		Scope      string
+		Name       string
+		TaskType   int
+		AckLevelTS int64
+	}
+
+	query := d.session.Query(templateReadAllAckLevelsRange, rowTypeDLQAckLevel).WithContext(ctx)
+	iter := query.Iter()
+
+	var ackLevels []ackLevelKey
+	var shardID int
+	var domainID, scope, name string
+	var taskType int
+	var ackLevelTaskID int64
+
+	for iter.Scan(&shardID, &domainID, &scope, &name, &taskType, &ackLevelTaskID) {
+		ackLevels = append(ackLevels, ackLevelKey{
+			ShardID:    shardID,
+			DomainID:   domainID,
+			Scope:      scope,
+			Name:       name,
+			TaskType:   taskType,
+			AckLevelTS: ackLevelTaskID,
+		})
+	}
+
+	if err := iter.Close(); err != nil {
+		d.logger.Error("[RANGE-DELETE-DLQ] Failed to read ack levels", tag.Error(err))
+		return err
+	}
+
+	d.logger.Info("[RANGE-DELETE-DLQ] Found ack levels for cleanup",
+		tag.Dynamic("count", len(ackLevels)))
+
+	// For each ack level, read and delete tasks with visibility_timestamp <= ack_level
+	for _, ack := range ackLevels {
+		// The ack level value is a visibility_timestamp (stored in task_id column of ack level row)
+		ackTime := time.Unix(0, ack.AckLevelTS)
+
+		d.logger.Debug("[RANGE-DELETE-DLQ] Deleting tasks below ack level",
+			tag.ShardID(ack.ShardID),
+			tag.WorkflowDomainID(ack.DomainID),
+			tag.Dynamic("ack_level_ts", ackTime))
+
+		// Read all tasks with visibility_timestamp <= ack_level
+		// Note: We can't use WHERE visibility_timestamp <= ? in DELETE because it's not the last clustering column
+		// Instead, we read tasks and delete them individually
+		readQuery := d.session.Query(templateReadStandbyTasksRange,
+			ack.ShardID,
+			ack.DomainID,
+			ack.Scope,
+			ack.Name,
+			ack.TaskType,
+			rowTypeDLQTask,
+			time.Unix(0, 0), // Start from beginning
+			10000,           // Large page size for cleanup
+		).WithContext(ctx)
+
+		iter := readQuery.Iter()
+		var shardID int
+		var domainID, scope, name string
+		var taskType int
+		var visibilityTS time.Time
+		var taskID int64
+		var workflowID, runID string
+		var taskPayload []byte
+		var encodingType string
+		var version int64
+		var createdAt time.Time
+
+		deletedCount := 0
+		readCount := 0
+		skippedCount := 0
+		for iter.Scan(&shardID, &domainID, &scope, &name, &taskType, &visibilityTS, &taskID, &workflowID, &runID, &taskPayload, &encodingType, &version, &createdAt) {
+			readCount++
+
+			// Only delete if visibility_timestamp <= ack_level
+			if visibilityTS.UnixNano() > ack.AckLevelTS {
+				skippedCount++
+				continue
+			}
+
+			d.logger.Debug("[RANGE-DELETE-DLQ] Deleting individual task",
+				tag.TaskID(taskID),
+				tag.Dynamic("visibility_ts", visibilityTS),
+				tag.Dynamic("ack_level_ts", ackTime))
+
+			// Delete this specific task by full primary key
+			deleteQuery := d.session.Query(templateDeleteStandbyTaskRange,
+				shardID,
+				domainID,
+				scope,
+				name,
+				taskType,
+				rowTypeDLQTask,
+				visibilityTS,
+				taskID,
+			).WithContext(ctx)
+
+			if err := deleteQuery.Exec(); err != nil {
+				d.logger.Error("[RANGE-DELETE-DLQ] Failed to delete individual task",
+					tag.Error(err),
+					tag.TaskID(taskID),
+					tag.WorkflowDomainID(domainID))
+				// Continue with other tasks
+				continue
+			}
+			deletedCount++
+		}
+
+		d.logger.Info("[RANGE-DELETE-DLQ] Cleanup scan complete",
+			tag.ShardID(ack.ShardID),
+			tag.WorkflowDomainID(ack.DomainID),
+			tag.Dynamic("read_count", readCount),
+			tag.Dynamic("skipped_count", skippedCount),
+			tag.Dynamic("deleted_count", deletedCount))
+
+		if err := iter.Close(); err != nil {
+			d.logger.Error("[RANGE-DELETE-DLQ] Failed to read tasks for cleanup",
+				tag.Error(err),
+				tag.ShardID(ack.ShardID),
+				tag.WorkflowDomainID(ack.DomainID))
+			continue
+		}
+
+		d.logger.Info("[RANGE-DELETE-DLQ] Deleted tasks below ack level",
+			tag.ShardID(ack.ShardID),
+			tag.WorkflowDomainID(ack.DomainID),
+			tag.Dynamic("ack_level_ts", ackTime),
+			tag.Dynamic("deleted_count", deletedCount))
+	}
+
+	return nil
+}
+
 // ========================= Comparison Wrapper Implementation =========================
 
 func (d *cassandraComparisonDLQ) EnqueueStandbyTask(ctx context.Context, request *persistence.EnqueueStandbyTaskRequest) error {
@@ -677,8 +926,7 @@ func (d *cassandraComparisonDLQ) EnqueueStandbyTask(ctx context.Context, request
 }
 
 func (d *cassandraComparisonDLQ) ReadStandbyTasks(ctx context.Context, request *persistence.ReadStandbyTasksRequest) (*persistence.ReadStandbyTasksResponse, error) {
-	// For reads, we'll use the point-delete implementation as the source of truth
-	// but also execute range-delete for comparison
+	// Execute both implementations for comparison
 	respPoint, errPoint := d.pointImpl.ReadStandbyTasks(ctx, request)
 	if errPoint != nil {
 		d.logger.Error("Point-delete read failed", tag.Error(errPoint))
@@ -698,7 +946,7 @@ func (d *cassandraComparisonDLQ) ReadStandbyTasks(ctx context.Context, request *
 		}
 	}
 
-	// Return point-delete result
+	// Return point-delete result (source of truth)
 	if errPoint != nil {
 		return nil, errPoint
 	}
@@ -759,6 +1007,12 @@ func (d *cassandraComparisonDLQ) GetStandbyTaskDLQSize(ctx context.Context, requ
 	}
 
 	return respPoint, nil
+}
+
+func (d *cassandraComparisonDLQ) CleanupProcessedTasks(ctx context.Context) error {
+	// Point-delete doesn't need cleanup (tasks are deleted immediately)
+	// Only range-delete needs periodic cleanup
+	return d.rangeImpl.CleanupProcessedTasks(ctx)
 }
 
 func (d *cassandraComparisonDLQ) Close() {
@@ -823,6 +1077,12 @@ func (d *cassandraRangeDeleteDLQ) deserializePageToken(data []byte) (*pageToken,
 }
 
 func (d *cassandraRangeDeleteDLQ) mapRowToEntry(row map[string]interface{}) *persistence.StandbyTaskDLQEntry {
+	// Check for required fields
+	if row["workflow_id"] == nil || row["run_id"] == nil || row["task_payload"] == nil {
+		// This might be an ack-level row or corrupted data, skip it
+		return nil
+	}
+
 	return &persistence.StandbyTaskDLQEntry{
 		ShardID:               row["shard_id"].(int),
 		DomainID:              row["domain_id"].(string),

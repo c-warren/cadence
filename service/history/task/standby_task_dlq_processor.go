@@ -3,8 +3,10 @@ package task
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -13,9 +15,14 @@ import (
 type (
 	// StandbyTaskDLQProcessor processes tasks from the DLQ after failover
 	StandbyTaskDLQProcessor struct {
-		dlqManager persistence.StandbyTaskDLQManager
-		executor   Executor
-		logger     log.Logger
+		dlqManager      persistence.StandbyTaskDLQManager
+		executor        Executor
+		taskInitializer Initializer
+		logger          log.Logger
+		timeSource      clock.TimeSource
+		cleanupTimer    clock.Timer
+		shutdownCh      chan struct{}
+		shutdownWG      sync.WaitGroup
 	}
 
 	// ProcessFailoverRequest contains parameters for processing DLQ on failover
@@ -31,13 +38,41 @@ type (
 func NewStandbyTaskDLQProcessor(
 	dlqManager persistence.StandbyTaskDLQManager,
 	executor Executor,
+	taskInitializer Initializer,
+	timeSource clock.TimeSource,
 	logger log.Logger,
 ) *StandbyTaskDLQProcessor {
 	return &StandbyTaskDLQProcessor{
-		dlqManager: dlqManager,
-		executor:   executor,
-		logger:     logger,
+		dlqManager:      dlqManager,
+		executor:        executor,
+		taskInitializer: taskInitializer,
+		timeSource:      timeSource,
+		logger:          logger,
+		shutdownCh:      make(chan struct{}),
 	}
+}
+
+// Start begins the periodic DLQ cleanup process
+func (p *StandbyTaskDLQProcessor) Start() {
+	// Start periodic cleanup timer (every 10 seconds, similar to queue UpdateAckInterval)
+	cleanupInterval := 10 * time.Second
+	p.cleanupTimer = p.timeSource.NewTimer(cleanupInterval)
+
+	p.shutdownWG.Add(1)
+	go p.cleanupLoop()
+
+	p.logger.Info("StandbyTaskDLQProcessor started with periodic cleanup")
+}
+
+// Stop gracefully shuts down the DLQ processor
+func (p *StandbyTaskDLQProcessor) Stop() {
+	close(p.shutdownCh)
+	p.cleanupTimer.Stop()
+
+	// Wait for cleanup loop to finish
+	p.shutdownWG.Wait()
+
+	p.logger.Info("StandbyTaskDLQProcessor stopped")
 }
 
 // ProcessFailover processes all DLQ tasks for a specific domain/cluster attribute combination
@@ -45,6 +80,20 @@ func (p *StandbyTaskDLQProcessor) ProcessFailover(
 	ctx context.Context,
 	request *ProcessFailoverRequest,
 ) error {
+	startTime := time.Now()
+	totalProcessed := 0
+	totalFailed := 0
+
+	defer func() {
+		duration := time.Since(startTime)
+		p.logger.Info("DLQ failover processing completed",
+			tag.ShardID(request.ShardID),
+			tag.WorkflowDomainID(request.DomainID),
+			tag.Dynamic("total_processed", totalProcessed),
+			tag.Dynamic("total_failed", totalFailed),
+			tag.Dynamic("duration_ms", duration.Milliseconds()))
+	}()
+
 	p.logger.Info("Processing DLQ tasks for failover",
 		tag.ShardID(request.ShardID),
 		tag.WorkflowDomainID(request.DomainID),
@@ -55,6 +104,14 @@ func (p *StandbyTaskDLQProcessor) ProcessFailover(
 	var nextPageToken []byte
 
 	for {
+		// Check context cancellation (timeout)
+		if ctx.Err() != nil {
+			p.logger.Warn("DLQ failover processing cancelled",
+				tag.Error(ctx.Err()),
+				tag.WorkflowDomainID(request.DomainID))
+			return ctx.Err()
+		}
+
 		// Read tasks from DLQ
 		resp, err := p.dlqManager.ReadStandbyTasks(ctx, &persistence.ReadStandbyTasksRequest{
 			ShardID:               request.ShardID,
@@ -71,7 +128,10 @@ func (p *StandbyTaskDLQProcessor) ProcessFailover(
 
 		// Process each task
 		for _, dlqTask := range resp.Tasks {
+			totalProcessed++
+
 			if err := p.processTask(ctx, dlqTask); err != nil {
+				totalFailed++
 				p.logger.Error("Failed to process DLQ task",
 					tag.TaskID(dlqTask.TaskID),
 					tag.Error(err))
@@ -100,10 +160,6 @@ func (p *StandbyTaskDLQProcessor) ProcessFailover(
 		nextPageToken = resp.NextPageToken
 	}
 
-	p.logger.Info("Completed processing DLQ tasks for failover",
-		tag.ShardID(request.ShardID),
-		tag.WorkflowDomainID(request.DomainID))
-
 	return nil
 }
 
@@ -115,17 +171,78 @@ func (p *StandbyTaskDLQProcessor) processTask(
 	// Deserialize task
 	persistenceTask, err := p.deserializeTask(dlqTask)
 	if err != nil {
+		p.logger.Error("Failed to deserialize DLQ task",
+			tag.TaskID(dlqTask.TaskID),
+			tag.Error(err))
 		return err
 	}
 
-	// For POC, we'll execute the raw persistence task
-	// In production, this would wrap it with NewHistoryTask and execute through the queue
-	// For now, just log that we would execute it
-	p.logger.Info("DLQ task deserialized successfully, would execute",
+	// Convert persistence task to task.Task using the initializer
+	// This creates a fully-initialized task with executor, processor, rescheduler, etc.
+	historyTask := p.taskInitializer(persistenceTask)
+
+	// If executor or historyTask is nil (e.g., in tests), just log that we deserialized successfully
+	if p.executor == nil || historyTask == nil {
+		p.logger.Info("DLQ task deserialized successfully, would execute",
+			tag.TaskID(persistenceTask.GetTaskID()),
+			tag.WorkflowDomainID(persistenceTask.GetDomainID()))
+		return nil
+	}
+
+	p.logger.Info("Executing DLQ task after failover",
 		tag.TaskID(persistenceTask.GetTaskID()),
 		tag.WorkflowDomainID(persistenceTask.GetDomainID()))
 
+	// Execute the task through the executor
+	// This will run the task as if it were being processed by the active queue
+	resp, err := p.executor.Execute(historyTask)
+	if err != nil {
+		p.logger.Error("Failed to execute DLQ task",
+			tag.TaskID(persistenceTask.GetTaskID()),
+			tag.WorkflowDomainID(persistenceTask.GetDomainID()),
+			tag.Error(err))
+		return err
+	}
+
+	p.logger.Info("DLQ task executed successfully",
+		tag.TaskID(persistenceTask.GetTaskID()),
+		tag.WorkflowDomainID(persistenceTask.GetDomainID()),
+		tag.Dynamic("is_active_task", resp.IsActiveTask))
+
 	return nil
+}
+
+// cleanupLoop runs periodically to clean up processed DLQ tasks
+func (p *StandbyTaskDLQProcessor) cleanupLoop() {
+	defer p.shutdownWG.Done()
+
+	cleanupInterval := 10 * time.Second
+
+	for {
+		select {
+		case <-p.cleanupTimer.Chan():
+			p.cleanupProcessedTasks(context.Background())
+			p.cleanupTimer.Reset(cleanupInterval)
+
+		case <-p.shutdownCh:
+			return
+		}
+	}
+}
+
+// cleanupProcessedTasks performs range delete for tasks below ack level
+func (p *StandbyTaskDLQProcessor) cleanupProcessedTasks(ctx context.Context) {
+	p.logger.Debug("Running DLQ periodic cleanup")
+
+	// Call cleanup on the DLQ manager (will be no-op for point-delete, actual cleanup for range-delete)
+	if cleaner, ok := p.dlqManager.(interface {
+		CleanupProcessedTasks(context.Context) error
+	}); ok {
+		err := cleaner.CleanupProcessedTasks(ctx)
+		if err != nil {
+			p.logger.Error("Failed to cleanup processed DLQ tasks", tag.Error(err))
+		}
+	}
 }
 
 // deserializeTask converts DLQ entry back to a persistence.Task

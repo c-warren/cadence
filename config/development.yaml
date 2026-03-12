@@ -7,7 +7,7 @@ persistence:
       nosql:
         pluginName: "cassandra"
         hosts: "127.0.0.1"
-        keyspace: "cadence_cluster0"
+        keyspace: "cadence_cluster1"
         connectTimeout: 2s # defaults to 2s if not defined
         timeout: 5s # defaults to 10s if not defined
         consistency: LOCAL_QUORUM # default value

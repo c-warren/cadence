@@ -55,6 +55,9 @@ func AdminReadStandbyDLQ(c *cli.Context) error {
 		return commoncli.Problem("Failed to get DLQ manager: ", err)
 	}
 
+	// Debug: Print the actual type of DLQ manager
+	fmt.Printf("DLQ Manager Type: %T\n", dlqManager)
+
 	request := &persistence.ReadStandbyTasksRequest{
 		ShardID:               shardID,
 		DomainID:              domainID,
@@ -63,12 +66,21 @@ func AdminReadStandbyDLQ(c *cli.Context) error {
 		PageSize:              pageSize,
 	}
 
+	// Debug output
+	fmt.Printf("Querying DLQ with:\n")
+	fmt.Printf("  ShardID: %d\n", shardID)
+	fmt.Printf("  DomainID: %s\n", domainID)
+	fmt.Printf("  ClusterAttributeScope: %s\n", clusterScope)
+	fmt.Printf("  ClusterAttributeName: %s\n", clusterName)
+	fmt.Printf("  PageSize: %d\n\n", pageSize)
+
 	response, err := dlqManager.ReadStandbyTasks(ctx, request)
 	if err != nil {
+		fmt.Printf("Error reading DLQ: %v\n", err)
 		return commoncli.Problem("Failed to read standby task DLQ: ", err)
 	}
 
-	fmt.Printf("Found %d tasks in standby task DLQ\n", len(response.Tasks))
+	fmt.Printf("\nFound %d tasks in standby task DLQ\n", len(response.Tasks))
 	for i, task := range response.Tasks {
 		fmt.Printf("\nTask %d:\n", i+1)
 		fmt.Printf("  ShardID: %d\n", task.ShardID)
@@ -77,6 +89,7 @@ func AdminReadStandbyDLQ(c *cli.Context) error {
 		fmt.Printf("  RunID: %s\n", task.RunID)
 		fmt.Printf("  TaskID: %d\n", task.TaskID)
 		fmt.Printf("  TaskType: %d\n", task.TaskType)
+		fmt.Printf("  VisibilityTimestamp: %d\n", task.VisibilityTimestamp)
 		fmt.Printf("  Version: %d\n", task.Version)
 	}
 

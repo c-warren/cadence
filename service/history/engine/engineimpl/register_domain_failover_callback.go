@@ -135,6 +135,11 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 
 	if len(failoverActiveActiveDomainIDs) > 0 {
 		e.logger.Info("Active-Active Domain updated", tag.WorkflowDomainIDs(failoverActiveActiveDomainIDs))
+
+		// Process DLQ and reschedule tasks for active-active domains
+		for _, processor := range e.queueProcessors {
+			processor.FailoverDomain(failoverActiveActiveDomainIDs)
+		}
 	}
 
 	// Notify queues for any domain update. (active-passive and active-active)
