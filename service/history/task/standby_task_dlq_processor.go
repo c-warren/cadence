@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/persistence"
@@ -20,6 +21,7 @@ type (
 		taskInitializer Initializer
 		logger          log.Logger
 		timeSource      clock.TimeSource
+		enableCleanup   dynamicproperties.BoolPropertyFn
 		cleanupTimer    clock.Timer
 		shutdownCh      chan struct{}
 		shutdownWG      sync.WaitGroup
@@ -40,6 +42,7 @@ func NewStandbyTaskDLQProcessor(
 	executor Executor,
 	taskInitializer Initializer,
 	timeSource clock.TimeSource,
+	enableCleanup dynamicproperties.BoolPropertyFn,
 	logger log.Logger,
 ) *StandbyTaskDLQProcessor {
 	return &StandbyTaskDLQProcessor{
@@ -47,6 +50,7 @@ func NewStandbyTaskDLQProcessor(
 		executor:        executor,
 		taskInitializer: taskInitializer,
 		timeSource:      timeSource,
+		enableCleanup:   enableCleanup,
 		logger:          logger,
 		shutdownCh:      make(chan struct{}),
 	}
@@ -61,7 +65,7 @@ func (p *StandbyTaskDLQProcessor) Start() {
 	p.shutdownWG.Add(1)
 	go p.cleanupLoop()
 
-	p.logger.Info("StandbyTaskDLQProcessor started with periodic cleanup")
+	p.logger.Warn("StandbyTaskDLQProcessor started with periodic cleanup")
 }
 
 // Stop gracefully shuts down the DLQ processor
@@ -72,7 +76,7 @@ func (p *StandbyTaskDLQProcessor) Stop() {
 	// Wait for cleanup loop to finish
 	p.shutdownWG.Wait()
 
-	p.logger.Info("StandbyTaskDLQProcessor stopped")
+	p.logger.Warn("StandbyTaskDLQProcessor stopped")
 }
 
 // ProcessFailover processes all DLQ tasks for a specific domain/cluster attribute combination
@@ -86,7 +90,7 @@ func (p *StandbyTaskDLQProcessor) ProcessFailover(
 
 	defer func() {
 		duration := time.Since(startTime)
-		p.logger.Info("DLQ failover processing completed",
+		p.logger.Warn("DLQ failover processing completed",
 			tag.ShardID(request.ShardID),
 			tag.WorkflowDomainID(request.DomainID),
 			tag.Dynamic("total_processed", totalProcessed),
@@ -94,7 +98,7 @@ func (p *StandbyTaskDLQProcessor) ProcessFailover(
 			tag.Dynamic("duration_ms", duration.Milliseconds()))
 	}()
 
-	p.logger.Info("Processing DLQ tasks for failover",
+	p.logger.Warn("Processing DLQ tasks for failover",
 		tag.ShardID(request.ShardID),
 		tag.WorkflowDomainID(request.DomainID),
 		tag.Value(request.ClusterAttributeScope),
@@ -183,13 +187,13 @@ func (p *StandbyTaskDLQProcessor) processTask(
 
 	// If executor or historyTask is nil (e.g., in tests), just log that we deserialized successfully
 	if p.executor == nil || historyTask == nil {
-		p.logger.Info("DLQ task deserialized successfully, would execute",
+		p.logger.Warn("DLQ task deserialized successfully, would execute",
 			tag.TaskID(persistenceTask.GetTaskID()),
 			tag.WorkflowDomainID(persistenceTask.GetDomainID()))
 		return nil
 	}
 
-	p.logger.Info("Executing DLQ task after failover",
+	p.logger.Warn("Executing DLQ task after failover",
 		tag.TaskID(persistenceTask.GetTaskID()),
 		tag.WorkflowDomainID(persistenceTask.GetDomainID()))
 
@@ -204,7 +208,7 @@ func (p *StandbyTaskDLQProcessor) processTask(
 		return err
 	}
 
-	p.logger.Info("DLQ task executed successfully",
+	p.logger.Warn("DLQ task executed successfully",
 		tag.TaskID(persistenceTask.GetTaskID()),
 		tag.WorkflowDomainID(persistenceTask.GetDomainID()),
 		tag.Dynamic("is_active_task", resp.IsActiveTask))
@@ -221,7 +225,12 @@ func (p *StandbyTaskDLQProcessor) cleanupLoop() {
 	for {
 		select {
 		case <-p.cleanupTimer.Chan():
-			p.cleanupProcessedTasks(context.Background())
+			// Only run cleanup if enabled via dynamic config
+			if p.enableCleanup() {
+				p.cleanupProcessedTasks(context.Background())
+			} else {
+				p.logger.Debug("DLQ periodic cleanup skipped (disabled via dynamic config)")
+			}
 			p.cleanupTimer.Reset(cleanupInterval)
 
 		case <-p.shutdownCh:

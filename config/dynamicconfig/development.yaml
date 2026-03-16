@@ -25,6 +25,9 @@ history.standbyTaskMissingEventsDiscardDelay:
 history.standbyTaskMissingEventsResendDelay:
   - value: 1s
     constraints: {}
+# Disable automated DLQ cleanup
+history.enableStandbyTaskDLQCleanup:
+  - value: false
 history.EnableConsistentQueryByDomain:
 - value: true
   constraints: {}

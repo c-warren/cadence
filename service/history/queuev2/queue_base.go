@@ -204,6 +204,7 @@ func newQueueBase(
 		taskExecutor,
 		taskInitializer,
 		timeSource,
+		shard.GetConfig().EnableStandbyTaskDLQCleanup,
 		logger,
 	)
 

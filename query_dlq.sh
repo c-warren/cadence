@@ -32,6 +32,7 @@ function show_usage() {
     echo "Options:"
     echo "  -h, --help              Show this help message"
     echo "  -c, --count             Show count of records in each table"
+    echo "  --tasks-only            Count only task rows (exclude ack level rows for range table)"
     echo "  -p, --point             Query history_task_dlq_point table only"
     echo "  -r, --range             Query history_task_dlq_range table only"
     echo "  -s, --shard SHARD_ID    Filter by shard_id"
@@ -46,12 +47,14 @@ function show_usage() {
     echo "Examples:"
     echo "  $0                      # Query both tables with default limit"
     echo "  $0 --count              # Show counts only"
+    echo "  $0 --count --tasks-only # Count only task rows (exclude ack levels)"
     echo "  $0 --point --limit 50   # Query point table with limit 50"
     echo "  $0 --shard 1            # Filter by shard_id = 1"
 }
 
 # Parse command line arguments
 COUNT_ONLY=false
+TASKS_ONLY=false
 POINT_ONLY=false
 RANGE_ONLY=false
 SHARD_FILTER=""
@@ -66,6 +69,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -c|--count)
             COUNT_ONLY=true
+            shift
+            ;;
+        --tasks-only)
+            TASKS_ONLY=true
             shift
             ;;
         -p|--point)
@@ -129,10 +136,34 @@ if [ "$COUNT_ONLY" = true ]; then
     fi
 
     if [ "$RANGE_ONLY" = true ]; then
-        print_header "Count: history_task_dlq_range"
-        QUERY="SELECT COUNT(*) FROM ${KEYSPACE}.history_task_dlq_range ${WHERE_CLAUSE};"
+        if [ "$TASKS_ONLY" = true ]; then
+            print_header "Count: history_task_dlq_range (task rows only, excluding ack levels)"
+            # Add row_type filter to WHERE clause
+            if [ -n "$WHERE_CLAUSE" ]; then
+                RANGE_WHERE="${WHERE_CLAUSE} AND row_type = 0"
+            else
+                RANGE_WHERE="WHERE row_type = 0"
+            fi
+            QUERY="SELECT COUNT(*) FROM ${KEYSPACE}.history_task_dlq_range ${RANGE_WHERE} ALLOW FILTERING;"
+        else
+            print_header "Count: history_task_dlq_range (all rows)"
+            QUERY="SELECT COUNT(*) FROM ${KEYSPACE}.history_task_dlq_range ${WHERE_CLAUSE};"
+        fi
         echo -e "${YELLOW}Query:${NC} $QUERY\n"
         run_cql "$QUERY"
+
+        # If tasks-only, also show ack level count separately
+        if [ "$TASKS_ONLY" = true ]; then
+            print_header "Count: history_task_dlq_range (ack level rows only)"
+            if [ -n "$WHERE_CLAUSE" ]; then
+                ACK_WHERE="${WHERE_CLAUSE} AND row_type = 1"
+            else
+                ACK_WHERE="WHERE row_type = 1"
+            fi
+            QUERY="SELECT COUNT(*) FROM ${KEYSPACE}.history_task_dlq_range ${ACK_WHERE} ALLOW FILTERING;"
+            echo -e "${YELLOW}Query:${NC} $QUERY\n"
+            run_cql "$QUERY"
+        fi
     fi
 
     exit 0

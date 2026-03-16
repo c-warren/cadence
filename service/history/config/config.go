@@ -90,6 +90,7 @@ type Config struct {
 	StandbyClusterDelay                  dynamicproperties.DurationPropertyFn
 	StandbyTaskMissingEventsResendDelay  dynamicproperties.DurationPropertyFn
 	StandbyTaskMissingEventsDiscardDelay dynamicproperties.DurationPropertyFn
+	EnableStandbyTaskDLQCleanup          dynamicproperties.BoolPropertyFn
 
 	// Task process settings
 	TaskProcessRPS                           dynamicproperties.IntPropertyFnWithDomainFilter
@@ -393,6 +394,7 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		StandbyClusterDelay:                  dc.GetDurationProperty(dynamicproperties.StandbyClusterDelay),
 		StandbyTaskMissingEventsResendDelay:  dc.GetDurationProperty(dynamicproperties.StandbyTaskMissingEventsResendDelay),
 		StandbyTaskMissingEventsDiscardDelay: dc.GetDurationProperty(dynamicproperties.StandbyTaskMissingEventsDiscardDelay),
+		EnableStandbyTaskDLQCleanup:          dc.GetBoolProperty(dynamicproperties.EnableStandbyTaskDLQCleanup),
 		WorkflowDeletionJitterRange:          dc.GetIntPropertyFilteredByDomain(dynamicproperties.WorkflowDeletionJitterRange),
 		DeleteHistoryEventContextTimeout:     dc.GetIntProperty(dynamicproperties.DeleteHistoryEventContextTimeout),
 		MaxResponseSize:                      maxMessageSize,

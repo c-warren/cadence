@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 )
@@ -61,6 +62,7 @@ func TestStandbyTaskDLQProcessor_ProcessOnFailover(t *testing.T) {
 		nil, // executor not needed for POC
 		mockInitializer,
 		clock.NewMockedTimeSource(),
+		func(opts ...dynamicproperties.FilterOption) bool { return true },
 		logger,
 	)
 

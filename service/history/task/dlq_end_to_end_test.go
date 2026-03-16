@@ -74,7 +74,7 @@ func TestDLQ_EndToEnd(t *testing.T) {
 	mockInitializer := func(t persistence.Task) Task {
 		return nil // For this test, we don't actually execute tasks
 	}
-	processor := NewStandbyTaskDLQProcessor(dlqManager, nil, mockInitializer, clock.NewMockedTimeSource(), logger)
+	processor := NewStandbyTaskDLQProcessor(dlqManager, nil, mockInitializer, clock.NewMockedTimeSource(), func() bool { return true }, logger)
 
 	err = processor.ProcessFailover(ctx, &ProcessFailoverRequest{
 		ShardID:               1,
@@ -159,7 +159,7 @@ func TestDLQ_MultipleClusterAttributes(t *testing.T) {
 	mockInitializer := func(t persistence.Task) Task {
 		return nil // For this test, we don't actually execute tasks
 	}
-	processor := NewStandbyTaskDLQProcessor(dlqManager, nil, mockInitializer, clock.NewMockedTimeSource(), logger)
+	processor := NewStandbyTaskDLQProcessor(dlqManager, nil, mockInitializer, clock.NewMockedTimeSource(), func() bool { return true }, logger)
 	err := processor.ProcessFailover(ctx, &ProcessFailoverRequest{
 		ShardID:               1,
 		DomainID:              "multi-domain",

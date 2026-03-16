@@ -1908,6 +1908,12 @@ const (
 	// Default value: false
 	// Allowed filters: N/A
 	EnableCleanupOrphanedHistoryBranchOnWorkflowCreation
+	// EnableStandbyTaskDLQCleanup enables periodic cleanup of processed tasks from standby task DLQ
+	// KeyName: history.enableStandbyTaskDLQCleanup
+	// Value type: Bool
+	// Default value: true
+	// Allowed filters: N/A
+	EnableStandbyTaskDLQCleanup
 	// AllowArchivingIncompleteHistory will continue on when seeing some error like history mutated(usually caused by database consistency issues)
 	// KeyName: worker.AllowArchivingIncompleteHistory
 	// Value type: Bool
@@ -4373,6 +4379,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 	EnableCleanupOrphanedHistoryBranchOnWorkflowCreation: {
 		KeyName:      "history.enableCleanupOrphanedHistoryBranchOnWorkflowCreation",
 		Description:  "EnableCleanupOrphanedHistoryBranchOnWorkflowCreation enables cleanup of orphaned history branches when CreateWorkflowExecution fails",
+		DefaultValue: true,
+	},
+	EnableStandbyTaskDLQCleanup: {
+		KeyName:      "history.enableStandbyTaskDLQCleanup",
+		Description:  "EnableStandbyTaskDLQCleanup enables periodic cleanup of processed tasks from standby task DLQ",
 		DefaultValue: true,
 	},
 	DisableListVisibilityByFilter: {

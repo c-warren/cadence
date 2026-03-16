@@ -86,7 +86,7 @@ func TestDLQ_Simulation_ShortDiscardDelay(t *testing.T) {
 	mockInitializer := func(t persistence.Task) Task {
 		return nil // For this test, executor is mocked
 	}
-	processor := NewStandbyTaskDLQProcessor(dlqManager, mockExecutor, mockInitializer, clock.NewMockedTimeSource(), logger)
+	processor := NewStandbyTaskDLQProcessor(dlqManager, mockExecutor, mockInitializer, clock.NewMockedTimeSource(), func() bool { return true }, logger)
 	err = processor.ProcessFailover(ctx, &ProcessFailoverRequest{
 		ShardID:               1,
 		DomainID:              "sim-domain",
@@ -162,7 +162,7 @@ func TestDLQ_Simulation_ChaosInjection(t *testing.T) {
 	mockInitializer := func(t persistence.Task) Task {
 		return nil // For this test, executor is mocked
 	}
-	processor := NewStandbyTaskDLQProcessor(dlqManager, mockExecutor, mockInitializer, clock.NewMockedTimeSource(), logger)
+	processor := NewStandbyTaskDLQProcessor(dlqManager, mockExecutor, mockInitializer, clock.NewMockedTimeSource(), func() bool { return true }, logger)
 	err := processor.ProcessFailover(ctx, &ProcessFailoverRequest{
 		ShardID:               1,
 		DomainID:              "chaos-domain",
@@ -243,7 +243,7 @@ func TestDLQ_Simulation_ConcurrentFailovers(t *testing.T) {
 	mockInitializer := func(t persistence.Task) Task {
 		return nil // For this test, executor is mocked
 	}
-	processor := NewStandbyTaskDLQProcessor(dlqManager, mockExecutor, mockInitializer, clock.NewMockedTimeSource(), logger)
+	processor := NewStandbyTaskDLQProcessor(dlqManager, mockExecutor, mockInitializer, clock.NewMockedTimeSource(), func() bool { return true }, logger)
 
 	for d := 0; d < numDomains; d++ {
 		for a := 0; a < numAttrs; a++ {
