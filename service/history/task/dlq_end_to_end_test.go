@@ -313,6 +313,7 @@ func TestDLQ_ComparisonPointVsRange(t *testing.T) {
 			ClusterAttributeScope: scope,
 			ClusterAttributeName:  attributeName,
 			TaskID:                allReadTasks[i].TaskID,
+			TaskType:              allReadTasks[i].TaskType,
 			VisibilityTimestamp:   allReadTasks[i].VisibilityTimestamp,
 		})
 		require.NoError(t, err)

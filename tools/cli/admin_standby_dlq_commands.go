@@ -180,6 +180,7 @@ func AdminDeleteStandbyDLQ(c *cli.Context) error {
 		ClusterAttributeScope: clusterScope,
 		ClusterAttributeName:  clusterName,
 		TaskID:                taskID,
+		TaskType:              0, // Default to transfer task type
 		VisibilityTimestamp:   visibilityTimestamp,
 	}
 

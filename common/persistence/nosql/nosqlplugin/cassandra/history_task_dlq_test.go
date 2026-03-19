@@ -231,6 +231,7 @@ func TestPointDeleteDLQ_DeleteStandbyTask(t *testing.T) {
 				ClusterAttributeScope: "cluster",
 				ClusterAttributeName:  "test-cluster",
 				TaskID:                100,
+				TaskType:              0, // Transfer task type
 				VisibilityTimestamp:   time.Now().UnixNano(),
 			},
 			queryMockFn: func(query *gocql.MockQuery) {

@@ -280,57 +280,35 @@ func (d *cassandraPointDeleteDLQ) DeleteStandbyTask(ctx context.Context, request
 	d.logger.Warn("[POINT-DELETE-DLQ] Deleting standby task",
 		tag.ShardID(request.ShardID),
 		tag.TaskID(request.TaskID),
+		tag.Value(fmt.Sprintf("taskType=%d", request.TaskType)),
 	)
 
 	visibilityTS := time.Unix(0, request.VisibilityTimestamp)
 
-	// Determine task type - we need this from the request or we need to query first
-	// For now, I'll iterate through possible task types since the delete request doesn't include it
-	// This is a limitation we'll need to address, but for the POC we can make assumptions
+	query := d.session.Query(templateDeleteStandbyTaskPoint,
+		request.ShardID,
+		request.DomainID,
+		request.ClusterAttributeScope,
+		request.ClusterAttributeName,
+		request.TaskType,
+		visibilityTS,
+		request.TaskID,
+	).WithContext(ctx)
 
-	// Actually, looking at the schema, we need task_type to delete. Let me check the request structure again.
-	// The DeleteStandbyTaskRequest doesn't have TaskType, so we need to delete across all types
-	// or modify the request. For now, let's iterate through known task types.
-
-	// Common task types from the codebase
-	taskTypes := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9} // Transfer, Timer, Replication, etc.
-
-	deleted := false
-	for _, taskType := range taskTypes {
-		query := d.session.Query(templateDeleteStandbyTaskPoint,
-			request.ShardID,
-			request.DomainID,
-			request.ClusterAttributeScope,
-			request.ClusterAttributeName,
-			taskType,
-			visibilityTS,
-			request.TaskID,
-		).WithContext(ctx)
-
-		if err := query.Exec(); err != nil {
-			d.logger.Error("Failed to delete standby task from point-delete DLQ",
-				tag.Error(err),
-				tag.ShardID(request.ShardID),
-				tag.WorkflowDomainID(request.DomainID),
-				tag.TaskID(request.TaskID),
-				tag.Value(taskType),
-			)
-			// Continue trying other task types
-			continue
-		}
-		deleted = true
+	if err := query.Exec(); err != nil {
+		d.logger.Error("Failed to delete standby task from point-delete DLQ",
+			tag.Error(err),
+			tag.ShardID(request.ShardID),
+			tag.WorkflowDomainID(request.DomainID),
+			tag.TaskID(request.TaskID),
+			tag.Value(request.TaskType),
+		)
+		return err
 	}
 
-	if !deleted {
-		// Not an error if task doesn't exist (idempotent delete)
-		d.logger.Warn("[POINT-DELETE-DLQ] Task not found (idempotent delete)",
-			tag.TaskID(request.TaskID),
-		)
-	} else {
-		d.logger.Warn("[POINT-DELETE-DLQ] Successfully deleted task",
-			tag.TaskID(request.TaskID),
-		)
-	}
+	d.logger.Warn("[POINT-DELETE-DLQ] Successfully deleted task",
+		tag.TaskID(request.TaskID),
+	)
 
 	return nil
 }
@@ -580,58 +558,56 @@ func (d *cassandraRangeDeleteDLQ) DeleteStandbyTask(ctx context.Context, request
 	d.logger.Warn("[RANGE-DELETE-DLQ] Deleting standby task (advancing ack level)",
 		tag.ShardID(request.ShardID),
 		tag.TaskID(request.TaskID),
+		tag.Value(fmt.Sprintf("taskType=%d", request.TaskType)),
 	)
 
 	// Update ack level to this task's visibility timestamp
 	// This effectively "deletes" all tasks up to and including this one
 
-	// First check if ack level row exists
-	taskTypes := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+	// Check if ack level row exists for this specific task type
+	exists, err := d.ackLevelExists(ctx, request.ShardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName, request.TaskType)
+	if err != nil {
+		d.logger.Warn("[RANGE-DELETE-DLQ] Error checking ack level existence",
+			tag.Error(err),
+			tag.ShardID(request.ShardID),
+			tag.WorkflowDomainID(request.DomainID),
+		)
+		// If we can't check, try to insert (it will fail gracefully if exists)
+		exists = false
+	}
 
-	for _, taskType := range taskTypes {
-		exists, err := d.ackLevelExists(ctx, request.ShardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName, taskType)
+	if exists {
+		// Update existing ack level
+		err = d.updateAckLevel(ctx, request.ShardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName, request.TaskType, request.VisibilityTimestamp)
 		if err != nil {
-			d.logger.Warn("[RANGE-DELETE-DLQ] Error checking ack level existence",
+			d.logger.Error("[RANGE-DELETE-DLQ] Failed to update ack level",
 				tag.Error(err),
 				tag.ShardID(request.ShardID),
 				tag.WorkflowDomainID(request.DomainID),
-			)
-			continue
-		}
-
-		if exists {
-			// Update existing ack level
-			err = d.updateAckLevel(ctx, request.ShardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName, taskType, request.VisibilityTimestamp)
-			if err != nil {
-				d.logger.Error("[RANGE-DELETE-DLQ] Failed to update ack level",
-					tag.Error(err),
-					tag.ShardID(request.ShardID),
-					tag.WorkflowDomainID(request.DomainID),
-					tag.TaskID(request.TaskID),
-				)
-				continue
-			}
-			d.logger.Warn("[RANGE-DELETE-DLQ] Successfully updated ack level",
 				tag.TaskID(request.TaskID),
-				tag.Value(fmt.Sprintf("taskType=%d", taskType)),
 			)
-		} else {
-			// Insert new ack level
-			err = d.insertAckLevel(ctx, request.ShardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName, taskType, request.VisibilityTimestamp)
-			if err != nil {
-				d.logger.Error("[RANGE-DELETE-DLQ] Failed to insert ack level",
-					tag.Error(err),
-					tag.ShardID(request.ShardID),
-					tag.WorkflowDomainID(request.DomainID),
-					tag.TaskID(request.TaskID),
-				)
-				continue
-			}
-			d.logger.Warn("[RANGE-DELETE-DLQ] Successfully inserted ack level",
-				tag.TaskID(request.TaskID),
-				tag.Value(fmt.Sprintf("taskType=%d", taskType)),
-			)
+			return err
 		}
+		d.logger.Warn("[RANGE-DELETE-DLQ] Successfully updated ack level",
+			tag.TaskID(request.TaskID),
+			tag.Value(fmt.Sprintf("taskType=%d", request.TaskType)),
+		)
+	} else {
+		// Insert new ack level
+		err = d.insertAckLevel(ctx, request.ShardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName, request.TaskType, request.VisibilityTimestamp)
+		if err != nil {
+			d.logger.Error("[RANGE-DELETE-DLQ] Failed to insert ack level",
+				tag.Error(err),
+				tag.ShardID(request.ShardID),
+				tag.WorkflowDomainID(request.DomainID),
+				tag.TaskID(request.TaskID),
+			)
+			return err
+		}
+		d.logger.Warn("[RANGE-DELETE-DLQ] Successfully inserted ack level",
+			tag.TaskID(request.TaskID),
+			tag.Value(fmt.Sprintf("taskType=%d", request.TaskType)),
+		)
 	}
 
 	d.logger.Warn("[RANGE-DELETE-DLQ] Successfully deleted task (via ack level)",
@@ -688,6 +664,7 @@ func (d *cassandraRangeDeleteDLQ) getAckLevel(ctx context.Context, shardID int, 
 		taskType,
 		rowTypeDLQAckLevel,
 		time.Unix(0, 0), // visibility_timestamp = 0 for ack level rows
+		-1,              // task_id = -1 (sentinel value for ack level rows)
 	).WithContext(ctx)
 
 	var ackLevel int64
@@ -709,7 +686,7 @@ func (d *cassandraRangeDeleteDLQ) ackLevelExists(ctx context.Context, shardID in
 
 func (d *cassandraRangeDeleteDLQ) updateAckLevel(ctx context.Context, shardID int, domainID, scope, name string, taskType int, newAckLevel int64) error {
 	query := d.session.Query(templateUpdateAckLevelRange,
-		newAckLevel,
+		newAckLevel, // ack_level_value = new ack level
 		shardID,
 		domainID,
 		scope,
@@ -717,6 +694,7 @@ func (d *cassandraRangeDeleteDLQ) updateAckLevel(ctx context.Context, shardID in
 		taskType,
 		rowTypeDLQAckLevel,
 		time.Unix(0, 0),
+		-1, // task_id = -1 (sentinel value for ack level rows)
 	).WithContext(ctx)
 
 	return query.Exec()
@@ -732,7 +710,8 @@ func (d *cassandraRangeDeleteDLQ) insertAckLevel(ctx context.Context, shardID in
 		taskType,
 		rowTypeDLQAckLevel,
 		time.Unix(0, 0), // visibility_timestamp = 0 for ack level rows
-		ackLevel,
+		-1,              // task_id = -1 (sentinel value for ack level rows)
+		ackLevel,        // ack_level_value = actual ack level
 		now,
 		now,
 	).WithContext(ctx)

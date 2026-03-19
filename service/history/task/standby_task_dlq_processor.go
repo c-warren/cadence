@@ -150,6 +150,7 @@ func (p *StandbyTaskDLQProcessor) ProcessFailover(
 				ClusterAttributeScope: dlqTask.ClusterAttributeScope,
 				ClusterAttributeName:  dlqTask.ClusterAttributeName,
 				TaskID:                dlqTask.TaskID,
+				TaskType:              dlqTask.TaskType,
 				VisibilityTimestamp:   dlqTask.VisibilityTimestamp,
 			}); err != nil {
 				p.logger.Error("Failed to delete DLQ task after processing",

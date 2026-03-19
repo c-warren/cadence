@@ -170,6 +170,7 @@ func testDelete(t *testing.T, manager StandbyTaskDLQManager) {
 		ClusterAttributeScope: "scope1",
 		ClusterAttributeName:  "attr1",
 		TaskID:                100,
+		TaskType:              TransferTaskTypeActivityTask,
 		VisibilityTimestamp:   3000000000,
 	})
 	require.NoError(t, err)

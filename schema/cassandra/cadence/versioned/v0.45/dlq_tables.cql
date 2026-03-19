@@ -39,6 +39,7 @@ CREATE TABLE history_task_dlq_range (
     task_payload              blob,         -- Serialized task data
     encoding_type             text,         -- "json", "thrift", "proto", "thriftrw"
     version                   bigint,       -- Task version
+    ack_level_value           bigint,       -- Ack level value for ack_level rows (task_id=-1)
     created_at                timestamp,    -- When added to DLQ
     updated_at                timestamp,    -- Last update time
     PRIMARY KEY ((shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name), task_type, row_type, visibility_timestamp, task_id)

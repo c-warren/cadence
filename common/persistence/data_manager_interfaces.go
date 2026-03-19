@@ -2662,6 +2662,7 @@ type DeleteStandbyTaskRequest struct {
 	ClusterAttributeScope string
 	ClusterAttributeName  string
 	TaskID                int64
+	TaskType              int
 	VisibilityTimestamp   int64 // Unix timestamp in nanoseconds
 }
 

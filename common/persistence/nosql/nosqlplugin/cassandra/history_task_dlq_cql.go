@@ -88,7 +88,7 @@ const (
 		AND visibility_timestamp > ?
 		LIMIT ?`
 
-	templateGetAckLevelRange = `SELECT task_id
+	templateGetAckLevelRange = `SELECT ack_level_value
 		FROM history_task_dlq_range
 		WHERE shard_id = ?
 		AND domain_id = ?
@@ -96,22 +96,24 @@ const (
 		AND cluster_attribute_name = ?
 		AND task_type = ?
 		AND row_type = ?
-		AND visibility_timestamp = ?`
+		AND visibility_timestamp = ?
+		AND task_id = ?`
 
 	templateUpdateAckLevelRange = `UPDATE history_task_dlq_range
-		SET task_id = ?
+		SET ack_level_value = ?
 		WHERE shard_id = ?
 		AND domain_id = ?
 		AND cluster_attribute_scope = ?
 		AND cluster_attribute_name = ?
 		AND task_type = ?
 		AND row_type = ?
-		AND visibility_timestamp = ?`
+		AND visibility_timestamp = ?
+		AND task_id = ?`
 
 	templateInsertAckLevelRange = `INSERT INTO history_task_dlq_range (
 		shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name,
-		task_type, row_type, visibility_timestamp, task_id, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS`
+		task_type, row_type, visibility_timestamp, task_id, ack_level_value, created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS`
 
 	templateGetStandbyTaskDLQSizeRange = `SELECT COUNT(*) as count
 		FROM history_task_dlq_range
