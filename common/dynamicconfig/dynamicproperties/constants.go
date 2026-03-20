@@ -2637,6 +2637,13 @@ const (
 	// Allowed filters: namespace
 	ShardDistributorLoadBalancingMode
 
+	// StandbyTaskDLQMode is the mode of standby task DLQ
+	// KeyName: history.standbyTaskDLQMode
+	// Value type: String, allowed values: "simplified", "comparison", "point-delete"
+	// Default value: "simplified"
+	// Allowed filters: N/A
+	StandbyTaskDLQMode
+
 	// LastStringKey must be the last one in this const group
 	LastStringKey
 )

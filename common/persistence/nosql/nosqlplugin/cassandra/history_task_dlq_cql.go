@@ -23,11 +23,7 @@ package cassandra
 const (
 	// Table names for DLQ comparison
 	tableHistoryTaskDLQPoint = "history_task_dlq_point"
-	tableHistoryTaskDLQRange = "history_task_dlq_range"
-
-	// Row types for range-delete table
-	rowTypeDLQTask     = 0
-	rowTypeDLQAckLevel = 1
+	tableHistoryTaskDLQ      = "history_task_dlq"
 )
 
 const (
@@ -68,86 +64,62 @@ const (
 		AND cluster_attribute_name = ?`
 
 	// Range-Delete queries
-	templateEnqueueStandbyTaskRange = `INSERT INTO history_task_dlq_range (
+	templateEnqueueStandbyTaskRange = `INSERT INTO history_task_dlq (
 		shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name,
-		task_type, row_type, visibility_timestamp, task_id, workflow_id, run_id,
-		task_payload, encoding_type, version, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS`
+		task_type, task_id, visibility_timestamp, workflow_id, run_id,
+		task_payload, encoding_type, version, created_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS`
 
 	templateReadStandbyTasksRange = `SELECT
 		shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name,
-		task_type, visibility_timestamp, task_id, workflow_id, run_id,
+		task_type, task_id, visibility_timestamp, workflow_id, run_id,
 		task_payload, encoding_type, version, created_at
-		FROM history_task_dlq_range
+		FROM history_task_dlq
 		WHERE shard_id = ?
 		AND domain_id = ?
 		AND cluster_attribute_scope = ?
 		AND cluster_attribute_name = ?
 		AND task_type = ?
-		AND row_type = ?
-		AND visibility_timestamp > ?
+		AND task_id > ?
 		LIMIT ?`
 
-	templateGetAckLevelRange = `SELECT ack_level_value
-		FROM history_task_dlq_range
+	templateGetAckLevelRange = `SELECT visibility_timestamp
+		FROM history_task_dlq
 		WHERE shard_id = ?
 		AND domain_id = ?
 		AND cluster_attribute_scope = ?
 		AND cluster_attribute_name = ?
 		AND task_type = ?
-		AND row_type = ?
-		AND visibility_timestamp = ?
-		AND task_id = ?`
+		AND task_id = -1`
 
-	templateUpdateAckLevelRange = `UPDATE history_task_dlq_range
-		SET ack_level_value = ?
-		WHERE shard_id = ?
-		AND domain_id = ?
-		AND cluster_attribute_scope = ?
-		AND cluster_attribute_name = ?
-		AND task_type = ?
-		AND row_type = ?
-		AND visibility_timestamp = ?
-		AND task_id = ?`
-
-	templateInsertAckLevelRange = `INSERT INTO history_task_dlq_range (
+	templateUpdateAckLevelRange = `INSERT INTO history_task_dlq (
 		shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name,
-		task_type, row_type, visibility_timestamp, task_id, ack_level_value, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS`
+		task_type, task_id, visibility_timestamp, workflow_id, run_id,
+		task_payload, encoding_type, version, created_at
+	) VALUES (?, ?, ?, ?, ?, -1, ?, '', '', null, '', 0, ?)`
 
 	templateGetStandbyTaskDLQSizeRange = `SELECT COUNT(*) as count
-		FROM history_task_dlq_range
-		WHERE shard_id = ?
-		AND domain_id = ?
-		AND cluster_attribute_scope = ?
-		AND cluster_attribute_name = ?
-		AND row_type = ?
-		AND visibility_timestamp > ?`
-
-	// Cleanup queries for range-delete
-	templateReadAllAckLevelsRange = `SELECT
-		shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name,
-		task_type, task_id
-		FROM history_task_dlq_range
-		WHERE row_type = ?
-		ALLOW FILTERING`
-
-	templateRangeDeleteTasksRange = `DELETE FROM history_task_dlq_range
+		FROM history_task_dlq
 		WHERE shard_id = ?
 		AND domain_id = ?
 		AND cluster_attribute_scope = ?
 		AND cluster_attribute_name = ?
 		AND task_type = ?
-		AND row_type = ?
-		AND visibility_timestamp <= ?`
+		AND task_id > -1`
 
-	templateDeleteStandbyTaskRange = `DELETE FROM history_task_dlq_range
+	templateRangeDeleteTasksRange = `DELETE FROM history_task_dlq
 		WHERE shard_id = ?
 		AND domain_id = ?
 		AND cluster_attribute_scope = ?
 		AND cluster_attribute_name = ?
 		AND task_type = ?
-		AND row_type = ?
-		AND visibility_timestamp = ?
+		AND task_id <= ?`
+
+	templateDeleteStandbyTaskRange = `DELETE FROM history_task_dlq
+		WHERE shard_id = ?
+		AND domain_id = ?
+		AND cluster_attribute_scope = ?
+		AND cluster_attribute_name = ?
+		AND task_type = ?
 		AND task_id = ?`
 )

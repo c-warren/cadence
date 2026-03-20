@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 )
@@ -74,7 +75,7 @@ func TestDLQ_EndToEnd(t *testing.T) {
 	mockInitializer := func(t persistence.Task) Task {
 		return nil // For this test, we don't actually execute tasks
 	}
-	processor := NewStandbyTaskDLQProcessor(dlqManager, nil, mockInitializer, clock.NewMockedTimeSource(), func() bool { return true }, logger)
+	processor := NewStandbyTaskDLQProcessor(dlqManager, nil, mockInitializer, clock.NewMockedTimeSource(), func(opts ...dynamicproperties.FilterOption) bool { return true }, logger)
 
 	err = processor.ProcessFailover(ctx, &ProcessFailoverRequest{
 		ShardID:               1,
@@ -159,7 +160,7 @@ func TestDLQ_MultipleClusterAttributes(t *testing.T) {
 	mockInitializer := func(t persistence.Task) Task {
 		return nil // For this test, we don't actually execute tasks
 	}
-	processor := NewStandbyTaskDLQProcessor(dlqManager, nil, mockInitializer, clock.NewMockedTimeSource(), func() bool { return true }, logger)
+	processor := NewStandbyTaskDLQProcessor(dlqManager, nil, mockInitializer, clock.NewMockedTimeSource(), func(opts ...dynamicproperties.FilterOption) bool { return true }, logger)
 	err := processor.ProcessFailover(ctx, &ProcessFailoverRequest{
 		ShardID:               1,
 		DomainID:              "multi-domain",

@@ -3,6 +3,7 @@ package task
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 
@@ -88,6 +89,9 @@ func (p *StandbyTaskDLQProcessor) ProcessFailover(
 	totalProcessed := 0
 	totalFailed := 0
 
+	// Track max processed task ID per task type for range deletion
+	maxProcessedTaskID := make(map[int]int64)
+
 	defer func() {
 		duration := time.Since(startTime)
 		p.logger.Warn("DLQ failover processing completed",
@@ -143,19 +147,9 @@ func (p *StandbyTaskDLQProcessor) ProcessFailover(
 				continue
 			}
 
-			// Delete task from DLQ after successful processing
-			if err := p.dlqManager.DeleteStandbyTask(ctx, &persistence.DeleteStandbyTaskRequest{
-				ShardID:               dlqTask.ShardID,
-				DomainID:              dlqTask.DomainID,
-				ClusterAttributeScope: dlqTask.ClusterAttributeScope,
-				ClusterAttributeName:  dlqTask.ClusterAttributeName,
-				TaskID:                dlqTask.TaskID,
-				TaskType:              dlqTask.TaskType,
-				VisibilityTimestamp:   dlqTask.VisibilityTimestamp,
-			}); err != nil {
-				p.logger.Error("Failed to delete DLQ task after processing",
-					tag.TaskID(dlqTask.TaskID),
-					tag.Error(err))
+			// Track max task ID for this task type (only for successfully processed tasks)
+			if current, exists := maxProcessedTaskID[dlqTask.TaskType]; !exists || dlqTask.TaskID > current {
+				maxProcessedTaskID[dlqTask.TaskType] = dlqTask.TaskID
 			}
 		}
 
@@ -163,6 +157,60 @@ func (p *StandbyTaskDLQProcessor) ProcessFailover(
 			break
 		}
 		nextPageToken = resp.NextPageToken
+	}
+
+	// After processing all tasks, update ack level and range delete per task type
+	for taskType, maxTaskID := range maxProcessedTaskID {
+		p.logger.Warn("Updating ack level for processed DLQ tasks",
+			tag.ShardID(request.ShardID),
+			tag.WorkflowDomainID(request.DomainID),
+			tag.Dynamic("task_type", taskType),
+			tag.Dynamic("max_task_id", maxTaskID))
+
+		// Update ack level first (stores in task_id=-1 row)
+		// This ensures that on restart, ReadStandbyTasks won't re-read processed tasks
+		if updater, ok := p.dlqManager.(interface {
+			UpdateAckLevel(ctx context.Context, shardID int, domainID, scope, name string, taskType int, newAckLevel int64) error
+		}); ok {
+			if err := updater.UpdateAckLevel(ctx, request.ShardID, request.DomainID,
+				request.ClusterAttributeScope, request.ClusterAttributeName,
+				taskType, maxTaskID); err != nil {
+				p.logger.Error("Failed to update ack level",
+					tag.Error(err),
+					tag.Dynamic("task_type", taskType))
+				// Continue with range delete anyway
+			} else {
+				p.logger.Warn("Successfully updated ack level",
+					tag.Dynamic("task_type", taskType),
+					tag.Dynamic("max_task_id", maxTaskID))
+			}
+		} else {
+			p.logger.Warn("DLQ manager does not support updateAckLevel (type assertion failed) - ack levels will not be tracked",
+				tag.Dynamic("dlq_manager_type", fmt.Sprintf("%T", p.dlqManager)))
+		}
+
+		p.logger.Warn("Range deleting processed DLQ tasks",
+			tag.ShardID(request.ShardID),
+			tag.WorkflowDomainID(request.DomainID),
+			tag.Dynamic("task_type", taskType),
+			tag.Dynamic("max_task_id", maxTaskID))
+
+		err := p.dlqManager.RangeDeleteStandbyTasks(ctx, &persistence.RangeDeleteStandbyTasksRequest{
+			ShardID:               request.ShardID,
+			DomainID:              request.DomainID,
+			ClusterAttributeScope: request.ClusterAttributeScope,
+			ClusterAttributeName:  request.ClusterAttributeName,
+			TaskType:              taskType,
+			MaxTaskID:             maxTaskID,
+		})
+
+		if err != nil {
+			p.logger.Error("Failed to range delete DLQ tasks",
+				tag.Error(err),
+				tag.Dynamic("task_type", taskType),
+				tag.Dynamic("max_task_id", maxTaskID))
+			// Continue with other task types
+		}
 	}
 
 	return nil
@@ -240,40 +288,44 @@ func (p *StandbyTaskDLQProcessor) cleanupLoop() {
 	}
 }
 
-// cleanupProcessedTasks performs range delete for tasks below ack level
+// cleanupProcessedTasks is now a no-op since cleanup happens during ProcessFailover
+// This method is kept for backward compatibility and as a safety net for periodic cleanup
 func (p *StandbyTaskDLQProcessor) cleanupProcessedTasks(ctx context.Context) {
-	p.logger.Debug("Running DLQ periodic cleanup")
-
-	// Call cleanup on the DLQ manager (will be no-op for point-delete, actual cleanup for range-delete)
-	if cleaner, ok := p.dlqManager.(interface {
-		CleanupProcessedTasks(context.Context) error
-	}); ok {
-		err := cleaner.CleanupProcessedTasks(ctx)
-		if err != nil {
-			p.logger.Error("Failed to cleanup processed DLQ tasks", tag.Error(err))
-		}
-	}
+	// Cleanup now happens immediately after ProcessFailover completes
+	// via range delete per task type. This periodic cleanup is no longer needed
+	// but kept as a placeholder for potential future use.
+	p.logger.Debug("DLQ periodic cleanup skipped (cleanup now happens during ProcessFailover)")
 }
 
 // deserializeTask converts DLQ entry back to a persistence.Task
 func (p *StandbyTaskDLQProcessor) deserializeTask(
 	dlqTask *persistence.StandbyTaskDLQEntry,
 ) (persistence.Task, error) {
-	// For POC, we only handle transfer tasks
-	// Timer tasks would require category-specific handling
-	var taskInfo persistence.TransferTaskInfo
-	if err := json.Unmarshal(dlqTask.TaskPayload, &taskInfo); err != nil {
-		return nil, err
+	// Try to deserialize as TransferTaskInfo first
+	var transferTaskInfo persistence.TransferTaskInfo
+	if err := json.Unmarshal(dlqTask.TaskPayload, &transferTaskInfo); err == nil {
+		// Restore the visibility timestamp from DLQ entry
+		transferTaskInfo.VisibilityTimestamp = time.Unix(0, dlqTask.VisibilityTimestamp)
+
+		// Convert to Task interface
+		task, err := transferTaskInfo.ToTask()
+		if err == nil {
+			return task, nil
+		}
 	}
 
-	// Restore the visibility timestamp from DLQ entry
-	taskInfo.VisibilityTimestamp = time.Unix(0, dlqTask.VisibilityTimestamp)
+	// Try to deserialize as TimerTaskInfo
+	var timerTaskInfo persistence.TimerTaskInfo
+	if err := json.Unmarshal(dlqTask.TaskPayload, &timerTaskInfo); err == nil {
+		// Restore the visibility timestamp from DLQ entry
+		timerTaskInfo.VisibilityTimestamp = time.Unix(0, dlqTask.VisibilityTimestamp)
 
-	// Convert to Task interface
-	task, err := taskInfo.ToTask()
-	if err != nil {
-		return nil, err
+		// Convert to Task interface
+		task, err := timerTaskInfo.ToTask()
+		if err == nil {
+			return task, nil
+		}
 	}
 
-	return task, nil
+	return nil, fmt.Errorf("failed to deserialize task: unsupported task type=%d", dlqTask.TaskType)
 }

@@ -2605,6 +2605,7 @@ type StandbyTaskDLQManager interface {
 	EnqueueStandbyTask(ctx context.Context, request *EnqueueStandbyTaskRequest) error
 	ReadStandbyTasks(ctx context.Context, request *ReadStandbyTasksRequest) (*ReadStandbyTasksResponse, error)
 	DeleteStandbyTask(ctx context.Context, request *DeleteStandbyTaskRequest) error
+	RangeDeleteStandbyTasks(ctx context.Context, request *RangeDeleteStandbyTasksRequest) error
 	GetStandbyTaskDLQSize(ctx context.Context, request *GetStandbyTaskDLQSizeRequest) (*GetStandbyTaskDLQSizeResponse, error)
 }
 
@@ -2629,6 +2630,7 @@ type ReadStandbyTasksRequest struct {
 	DomainID              string
 	ClusterAttributeScope string
 	ClusterAttributeName  string
+	TaskType              int // TaskType filters tasks by type (Transfer, Timer, etc.)
 	PageSize              int
 	NextPageToken         []byte
 }
@@ -2664,6 +2666,16 @@ type DeleteStandbyTaskRequest struct {
 	TaskID                int64
 	TaskType              int
 	VisibilityTimestamp   int64 // Unix timestamp in nanoseconds
+}
+
+// RangeDeleteStandbyTasksRequest is the request to delete a range of standby tasks from DLQ
+type RangeDeleteStandbyTasksRequest struct {
+	ShardID               int
+	DomainID              string
+	ClusterAttributeScope string
+	ClusterAttributeName  string
+	TaskType              int   // Task type to delete
+	MaxTaskID             int64 // Delete all tasks <= this ID
 }
 
 // GetStandbyTaskDLQSizeRequest is the request to get DLQ size

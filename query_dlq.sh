@@ -35,6 +35,7 @@ function show_usage() {
     echo "  --tasks-only            Count only task rows (exclude ack level rows for range table)"
     echo "  -p, --point             Query history_task_dlq_point table only"
     echo "  -r, --range             Query history_task_dlq_range table only"
+    echo "  -simp, --simplified     Query history_task_dlq table only"
     echo "  -s, --shard SHARD_ID    Filter by shard_id"
     echo "  -d, --domain DOMAIN_ID  Filter by domain_id"
     echo "  -t, --task-type TYPE    Filter by task_type"
@@ -57,6 +58,7 @@ COUNT_ONLY=false
 TASKS_ONLY=false
 POINT_ONLY=false
 RANGE_ONLY=false
+SIMPLIFIED_ONLY=false
 SHARD_FILTER=""
 DOMAIN_FILTER=""
 TASK_TYPE_FILTER=""
@@ -81,6 +83,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -r|--range)
             RANGE_ONLY=true
+            shift
+            ;;
+        -simp|--simplified)
+            SIMPLIFIED_ONLY=true
             shift
             ;;
         -s|--shard)
@@ -113,9 +119,10 @@ while [[ $# -gt 0 ]]; do
 done
 
 # If neither point nor range specified, query both
-if [ "$POINT_ONLY" = false ] && [ "$RANGE_ONLY" = false ]; then
+if [ "$POINT_ONLY" = false ] && [ "$RANGE_ONLY" = false ] && [ "$SIMPLIFIED_ONLY" = false ]; then
     POINT_ONLY=true
     RANGE_ONLY=true
+    SIMPLIFIED_ONLY=true
 fi
 
 # Build WHERE clause for filters
@@ -166,6 +173,37 @@ if [ "$COUNT_ONLY" = true ]; then
         fi
     fi
 
+    if [ "$SIMPLIFIED_ONLY" = true ]; then
+        if [ "$TASKS_ONLY" = true ]; then
+            print_header "Count: history_task_dlq (task rows only, excluding ack levels)"
+            # Add task_id filter to WHERE clause (task_id != -1 for task rows)
+            if [ -n "$WHERE_CLAUSE" ]; then
+                SIMPLIFIED_WHERE="${WHERE_CLAUSE} AND task_id != -1"
+            else
+                SIMPLIFIED_WHERE="WHERE task_id != -1"
+            fi
+            QUERY="SELECT COUNT(*) FROM ${KEYSPACE}.history_task_dlq ${SIMPLIFIED_WHERE} ALLOW FILTERING;"
+        else
+            print_header "Count: history_task_dlq (all rows)"
+            QUERY="SELECT COUNT(*) FROM ${KEYSPACE}.history_task_dlq ${WHERE_CLAUSE};"
+        fi
+        echo -e "${YELLOW}Query:${NC} $QUERY\n"
+        run_cql "$QUERY"
+
+        # If tasks-only, also show ack level count separately
+        if [ "$TASKS_ONLY" = true ]; then
+            print_header "Count: history_task_dlq (ack level rows only)"
+            if [ -n "$WHERE_CLAUSE" ]; then
+                ACK_WHERE="${WHERE_CLAUSE} AND task_id = -1"
+            else
+                ACK_WHERE="WHERE task_id = -1"
+            fi
+            QUERY="SELECT COUNT(*) FROM ${KEYSPACE}.history_task_dlq ${ACK_WHERE} ALLOW FILTERING;"
+            echo -e "${YELLOW}Query:${NC} $QUERY\n"
+            run_cql "$QUERY"
+        fi
+    fi
+
     exit 0
 fi
 
@@ -184,6 +222,16 @@ if [ "$RANGE_ONLY" = true ]; then
     print_header "Query: history_task_dlq_range"
 
     QUERY="SELECT shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name, task_type, row_type, visibility_timestamp, task_id, workflow_id, run_id, encoding_type, version, created_at, updated_at FROM ${KEYSPACE}.history_task_dlq_range ${WHERE_CLAUSE} LIMIT ${LIMIT};"
+
+    echo -e "${YELLOW}Query:${NC} $QUERY\n"
+    run_cql "EXPAND ON; $QUERY"
+fi
+#
+# Query history_task_dlq_range
+if [ "$SIMPLIFIED_ONLY" = true ]; then
+    print_header "Query: history_task_dlq"
+
+    QUERY="SELECT shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name, task_type, task_id, visibility_timestamp, workflow_id, run_id, encoding_type, version, created_at FROM ${KEYSPACE}.history_task_dlq ${WHERE_CLAUSE} LIMIT ${LIMIT};"
 
     echo -e "${YELLOW}Query:${NC} $QUERY\n"
     run_cql "EXPAND ON; $QUERY"

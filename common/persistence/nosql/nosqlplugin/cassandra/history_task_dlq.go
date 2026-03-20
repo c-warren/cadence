@@ -313,6 +313,11 @@ func (d *cassandraPointDeleteDLQ) DeleteStandbyTask(ctx context.Context, request
 	return nil
 }
 
+func (d *cassandraPointDeleteDLQ) RangeDeleteStandbyTasks(ctx context.Context, request *persistence.RangeDeleteStandbyTasksRequest) error {
+	// Point-delete doesn't support range delete - tasks are deleted individually
+	return fmt.Errorf("range delete not supported for point-delete DLQ implementation")
+}
+
 func (d *cassandraPointDeleteDLQ) GetStandbyTaskDLQSize(ctx context.Context, request *persistence.GetStandbyTaskDLQSizeRequest) (*persistence.GetStandbyTaskDLQSizeResponse, error) {
 	query := d.session.Query(templateGetStandbyTaskDLQSizePoint,
 		request.ShardID,
@@ -343,7 +348,7 @@ func (d *cassandraPointDeleteDLQ) Close() {
 // ========================= Range-Delete Implementation =========================
 
 func (d *cassandraRangeDeleteDLQ) EnqueueStandbyTask(ctx context.Context, request *persistence.EnqueueStandbyTaskRequest) error {
-	d.logger.Warn("[RANGE-DELETE-DLQ] Enqueuing standby task",
+	d.logger.Warn("[DLQ] Enqueuing standby task",
 		tag.ShardID(request.ShardID),
 		tag.WorkflowDomainID(request.DomainID),
 		tag.TaskID(request.TaskID),
@@ -360,22 +365,20 @@ func (d *cassandraRangeDeleteDLQ) EnqueueStandbyTask(ctx context.Context, reques
 		request.ClusterAttributeScope,
 		request.ClusterAttributeName,
 		request.TaskType,
-		rowTypeDLQTask, // row_type = 0 for task rows
-		visibilityTS,
 		request.TaskID,
+		visibilityTS,
 		request.WorkflowID,
 		request.RunID,
 		request.TaskPayload,
 		encodingType,
 		request.Version,
 		now,
-		now,
 	).WithContext(ctx)
 
 	previous := make(map[string]interface{})
 	applied, err := query.MapScanCAS(previous)
 	if err != nil {
-		d.logger.Error("[RANGE-DELETE-DLQ] Failed to enqueue standby task",
+		d.logger.Error("[DLQ] Failed to enqueue standby task",
 			tag.Error(err),
 			tag.ShardID(request.ShardID),
 			tag.WorkflowDomainID(request.DomainID),
@@ -387,7 +390,7 @@ func (d *cassandraRangeDeleteDLQ) EnqueueStandbyTask(ctx context.Context, reques
 	}
 
 	if !applied {
-		d.logger.Warn("[RANGE-DELETE-DLQ] Task already exists",
+		d.logger.Warn("[DLQ] Task already exists",
 			tag.TaskID(request.TaskID),
 			tag.Value(fmt.Sprintf("visibilityTimestamp=%d", request.VisibilityTimestamp)),
 		)
@@ -397,7 +400,7 @@ func (d *cassandraRangeDeleteDLQ) EnqueueStandbyTask(ctx context.Context, reques
 		}
 	}
 
-	d.logger.Warn("[RANGE-DELETE-DLQ] Successfully enqueued task",
+	d.logger.Warn("[DLQ] Successfully enqueued task",
 		tag.TaskID(request.TaskID),
 		tag.WorkflowDomainID(request.DomainID),
 	)
@@ -407,40 +410,38 @@ func (d *cassandraRangeDeleteDLQ) EnqueueStandbyTask(ctx context.Context, reques
 func (d *cassandraRangeDeleteDLQ) ReadStandbyTasks(ctx context.Context, request *persistence.ReadStandbyTasksRequest) (resp *persistence.ReadStandbyTasksResponse, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			d.logger.Error("[RANGE-DELETE-DLQ] PANIC RECOVERED",
+			d.logger.Error("[DLQ] PANIC RECOVERED",
 				tag.Value(fmt.Sprintf("panic: %v", r)))
 			err = fmt.Errorf("panic during range-delete DLQ read: %v", r)
 			resp = nil
 		}
 	}()
 
-	d.logger.Warn("[RANGE-DELETE-DLQ] Reading standby tasks - START",
+	d.logger.Warn("[DLQ] Reading standby tasks - START",
 		tag.ShardID(request.ShardID),
 		tag.WorkflowDomainID(request.DomainID),
 		tag.Value(request.ClusterAttributeScope+"/"+request.ClusterAttributeName),
 		tag.Value(fmt.Sprintf("pageSize=%d", request.PageSize)),
 	)
 
-	// Get ack level for filtering
-	d.logger.Warn("[RANGE-DELETE-DLQ] Getting ack level...")
-	ackLevel, err := d.getAckLevel(ctx, request.ShardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName, 0)
+	// Get ack level for filtering (task_id based)
+	d.logger.Warn("[DLQ] Getting ack level...")
+	ackLevel, err := d.GetAckLevel(ctx, request.ShardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName, request.TaskType)
 	if err != nil {
-		// If no ack level exists, start from 0
-		d.logger.Warn("[RANGE-DELETE-DLQ] No ack level found, starting from 0",
+		// If no ack level exists, start from -1
+		d.logger.Warn("[DLQ] No ack level found, starting from -1",
 			tag.Error(err))
-		ackLevel = 0
+		ackLevel = -1
 	} else {
-		d.logger.Warn("[RANGE-DELETE-DLQ] Found ack level",
+		d.logger.Warn("[DLQ] Found ack level",
 			tag.Value(fmt.Sprintf("ackLevel=%d", ackLevel)))
 	}
 
-	ackLevelTS := time.Unix(0, ackLevel)
-
-	d.logger.Warn("[RANGE-DELETE-DLQ] Executing query",
+	d.logger.Warn("[DLQ] Executing query",
 		tag.ShardID(request.ShardID),
 		tag.WorkflowDomainID(request.DomainID),
-		tag.Value(fmt.Sprintf("scope=%s, name=%s, task_type=0, row_type=0, ackLevel=%d",
-			request.ClusterAttributeScope, request.ClusterAttributeName, ackLevel)),
+		tag.Value(fmt.Sprintf("scope=%s, name=%s, task_type=%d, ackLevel=%d",
+			request.ClusterAttributeScope, request.ClusterAttributeName, request.TaskType, ackLevel)),
 	)
 
 	query := d.session.Query(templateReadStandbyTasksRange,
@@ -448,23 +449,22 @@ func (d *cassandraRangeDeleteDLQ) ReadStandbyTasks(ctx context.Context, request 
 		request.DomainID,
 		request.ClusterAttributeScope,
 		request.ClusterAttributeName,
-		0,              // task_type
-		rowTypeDLQTask, // row_type = 0 (tasks only, not ack-level rows)
-		ackLevelTS,
+		request.TaskType,
+		ackLevel,
 		request.PageSize+1,
 	).WithContext(ctx).Consistency(gocql.One)
 
-	d.logger.Warn("[RANGE-DELETE-DLQ] Creating iterator...")
+	d.logger.Warn("[DLQ] Creating iterator...")
 	iter := query.Iter()
 	if iter == nil {
-		d.logger.Error("[RANGE-DELETE-DLQ] Query failed to create iterator")
+		d.logger.Error("[DLQ] Query failed to create iterator")
 		return nil, fmt.Errorf("failed to create query iterator for range-delete DLQ read")
 	}
-	d.logger.Warn("[RANGE-DELETE-DLQ] Iterator created successfully")
+	d.logger.Warn("[DLQ] Iterator created successfully")
 
 	defer func() {
 		if closeErr := iter.Close(); closeErr != nil {
-			d.logger.Error("[RANGE-DELETE-DLQ] Error closing iterator",
+			d.logger.Error("[DLQ] Error closing iterator",
 				tag.Error(closeErr),
 			)
 		}
@@ -472,23 +472,21 @@ func (d *cassandraRangeDeleteDLQ) ReadStandbyTasks(ctx context.Context, request 
 
 	var allTasks []*persistence.StandbyTaskDLQEntry
 	count := 0
-	var lastVisibilityTS int64
 	var lastTaskID int64
 	rowsScanned := 0
 
-	d.logger.Warn("[RANGE-DELETE-DLQ] Starting to scan rows...")
+	d.logger.Warn("[DLQ] Starting to scan rows...")
 
-	// Try using Scan instead of MapScan for debugging
 	for count < request.PageSize {
 		var shardID int
 		var domainID, scope, name, workflowID, runID, encodingType string
 		var taskType int
-		var visibilityTS time.Time
 		var taskID, version int64
+		var visibilityTS time.Time
 		var taskPayload []byte
 		var createdAt time.Time
 
-		if !iter.Scan(&shardID, &domainID, &scope, &name, &taskType, &visibilityTS, &taskID, &workflowID, &runID, &taskPayload, &encodingType, &version, &createdAt) {
+		if !iter.Scan(&shardID, &domainID, &scope, &name, &taskType, &taskID, &visibilityTS, &workflowID, &runID, &taskPayload, &encodingType, &version, &createdAt) {
 			break
 		}
 		rowsScanned++
@@ -508,16 +506,12 @@ func (d *cassandraRangeDeleteDLQ) ReadStandbyTasks(ctx context.Context, request 
 			EnqueuedAt:            createdAt.Unix(),
 		}
 
-		if d.logger != nil {
-			d.logger.Warn("[RANGE-DELETE-DLQ] Scanned row",
-				tag.TaskID(entry.TaskID),
-				tag.Value(fmt.Sprintf("task_type=%d, visTS=%d", entry.TaskType, entry.VisibilityTimestamp)),
-			)
-		} else {
-		}
+		d.logger.Warn("[DLQ] Scanned row",
+			tag.TaskID(entry.TaskID),
+			tag.Value(fmt.Sprintf("task_type=%d, visTS=%d", entry.TaskType, entry.VisibilityTimestamp)),
+		)
 
 		allTasks = append(allTasks, entry)
-		lastVisibilityTS = entry.VisibilityTimestamp
 		lastTaskID = entry.TaskID
 		count++
 	}
@@ -531,7 +525,7 @@ func (d *cassandraRangeDeleteDLQ) ReadStandbyTasks(ctx context.Context, request 
 		return nil, err
 	}
 
-	d.logger.Warn("[RANGE-DELETE-DLQ] Query complete",
+	d.logger.Warn("[DLQ] Query complete",
 		tag.Value(fmt.Sprintf("rowsScanned=%d, tasksReturned=%d", rowsScanned, len(allTasks))),
 	)
 
@@ -542,8 +536,8 @@ func (d *cassandraRangeDeleteDLQ) ReadStandbyTasks(ctx context.Context, request 
 		// Remove the extra row we fetched
 		allTasks = allTasks[:request.PageSize]
 		token := &pageToken{
-			VisibilityTimestamp: lastVisibilityTS,
-			TaskID:              lastTaskID + 1,
+			VisibilityTimestamp: 0, // Not used in range-delete pagination
+			TaskID:              lastTaskID,
 		}
 		nextPageToken = d.serializePageToken(token)
 	}
@@ -555,19 +549,20 @@ func (d *cassandraRangeDeleteDLQ) ReadStandbyTasks(ctx context.Context, request 
 }
 
 func (d *cassandraRangeDeleteDLQ) DeleteStandbyTask(ctx context.Context, request *persistence.DeleteStandbyTaskRequest) error {
-	d.logger.Warn("[RANGE-DELETE-DLQ] Deleting standby task (advancing ack level)",
+	d.logger.Warn("[DLQ] Deleting standby task (advancing ack level)",
 		tag.ShardID(request.ShardID),
 		tag.TaskID(request.TaskID),
 		tag.Value(fmt.Sprintf("taskType=%d", request.TaskType)),
 	)
 
-	// Update ack level to this task's visibility timestamp
+	// Update ack level to this task's TaskID
 	// This effectively "deletes" all tasks up to and including this one
+	// Note: We store the TaskID as nanoseconds in the visibility_timestamp field
 
 	// Check if ack level row exists for this specific task type
 	exists, err := d.ackLevelExists(ctx, request.ShardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName, request.TaskType)
 	if err != nil {
-		d.logger.Warn("[RANGE-DELETE-DLQ] Error checking ack level existence",
+		d.logger.Warn("[DLQ] Error checking ack level existence",
 			tag.Error(err),
 			tag.ShardID(request.ShardID),
 			tag.WorkflowDomainID(request.DomainID),
@@ -578,9 +573,9 @@ func (d *cassandraRangeDeleteDLQ) DeleteStandbyTask(ctx context.Context, request
 
 	if exists {
 		// Update existing ack level
-		err = d.updateAckLevel(ctx, request.ShardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName, request.TaskType, request.VisibilityTimestamp)
+		err = d.UpdateAckLevel(ctx, request.ShardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName, request.TaskType, request.TaskID)
 		if err != nil {
-			d.logger.Error("[RANGE-DELETE-DLQ] Failed to update ack level",
+			d.logger.Error("[DLQ] Failed to update ack level",
 				tag.Error(err),
 				tag.ShardID(request.ShardID),
 				tag.WorkflowDomainID(request.DomainID),
@@ -588,15 +583,15 @@ func (d *cassandraRangeDeleteDLQ) DeleteStandbyTask(ctx context.Context, request
 			)
 			return err
 		}
-		d.logger.Warn("[RANGE-DELETE-DLQ] Successfully updated ack level",
+		d.logger.Warn("[DLQ] Successfully updated ack level",
 			tag.TaskID(request.TaskID),
 			tag.Value(fmt.Sprintf("taskType=%d", request.TaskType)),
 		)
 	} else {
 		// Insert new ack level
-		err = d.insertAckLevel(ctx, request.ShardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName, request.TaskType, request.VisibilityTimestamp)
+		err = d.insertAckLevel(ctx, request.ShardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName, request.TaskType, request.TaskID)
 		if err != nil {
-			d.logger.Error("[RANGE-DELETE-DLQ] Failed to insert ack level",
+			d.logger.Error("[DLQ] Failed to insert ack level",
 				tag.Error(err),
 				tag.ShardID(request.ShardID),
 				tag.WorkflowDomainID(request.DomainID),
@@ -604,34 +599,55 @@ func (d *cassandraRangeDeleteDLQ) DeleteStandbyTask(ctx context.Context, request
 			)
 			return err
 		}
-		d.logger.Warn("[RANGE-DELETE-DLQ] Successfully inserted ack level",
+		d.logger.Warn("[DLQ] Successfully inserted ack level",
 			tag.TaskID(request.TaskID),
 			tag.Value(fmt.Sprintf("taskType=%d", request.TaskType)),
 		)
 	}
 
-	d.logger.Warn("[RANGE-DELETE-DLQ] Successfully deleted task (via ack level)",
+	d.logger.Warn("[DLQ] Successfully deleted task (via ack level)",
 		tag.TaskID(request.TaskID),
 	)
 	return nil
 }
 
-func (d *cassandraRangeDeleteDLQ) GetStandbyTaskDLQSize(ctx context.Context, request *persistence.GetStandbyTaskDLQSizeRequest) (*persistence.GetStandbyTaskDLQSizeResponse, error) {
-	// Get ack level
-	ackLevel, err := d.getAckLevel(ctx, request.ShardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName, 0)
-	if err != nil {
-		ackLevel = 0
+func (d *cassandraRangeDeleteDLQ) RangeDeleteStandbyTasks(ctx context.Context, request *persistence.RangeDeleteStandbyTasksRequest) error {
+	d.logger.Warn("[DLQ] Range deleting tasks",
+		tag.ShardID(request.ShardID),
+		tag.Value(fmt.Sprintf("taskType=%d, maxTaskID=%d", request.TaskType, request.MaxTaskID)))
+
+	query := d.session.Query(templateRangeDeleteTasksRange,
+		request.ShardID,
+		request.DomainID,
+		request.ClusterAttributeScope,
+		request.ClusterAttributeName,
+		request.TaskType,
+		request.MaxTaskID,
+	).WithContext(ctx).Consistency(gocql.All)
+
+	if err := query.Exec(); err != nil {
+		d.logger.Error("[DLQ] Failed to range delete tasks",
+			tag.Error(err))
+		return err
 	}
 
-	ackLevelTS := time.Unix(0, ackLevel)
+	d.logger.Warn("[DLQ] Successfully range deleted tasks",
+		tag.Value(fmt.Sprintf("taskType=%d, maxTaskID=%d", request.TaskType, request.MaxTaskID)))
+	return nil
+}
+
+func (d *cassandraRangeDeleteDLQ) GetStandbyTaskDLQSize(ctx context.Context, request *persistence.GetStandbyTaskDLQSizeRequest) (*persistence.GetStandbyTaskDLQSizeResponse, error) {
+	// TODO: GetStandbyTaskDLQSizeRequest should have TaskType field
+	// For now, hardcode to 0 (transfer tasks) as a POC limitation
+	// This should be fixed when the interface is updated to include TaskType
+	taskType := 0
 
 	query := d.session.Query(templateGetStandbyTaskDLQSizeRange,
 		request.ShardID,
 		request.DomainID,
 		request.ClusterAttributeScope,
 		request.ClusterAttributeName,
-		rowTypeDLQTask,
-		ackLevelTS,
+		taskType,
 	).WithContext(ctx)
 
 	var count int64
@@ -655,28 +671,26 @@ func (d *cassandraRangeDeleteDLQ) Close() {
 
 // Helper methods for range-delete
 
-func (d *cassandraRangeDeleteDLQ) getAckLevel(ctx context.Context, shardID int, domainID, scope, name string, taskType int) (int64, error) {
+func (d *cassandraRangeDeleteDLQ) GetAckLevel(ctx context.Context, shardID int, domainID, scope, name string, taskType int) (int64, error) {
 	query := d.session.Query(templateGetAckLevelRange,
 		shardID,
 		domainID,
 		scope,
 		name,
 		taskType,
-		rowTypeDLQAckLevel,
-		time.Unix(0, 0), // visibility_timestamp = 0 for ack level rows
-		-1,              // task_id = -1 (sentinel value for ack level rows)
 	).WithContext(ctx)
 
-	var ackLevel int64
-	if err := query.Scan(&ackLevel); err != nil {
-		return 0, err
+	var visibilityTS time.Time
+	if err := query.Scan(&visibilityTS); err != nil {
+		return -1, err
 	}
 
-	return ackLevel, nil
+	// Ack level is stored as nanoseconds in the visibility_timestamp field
+	return visibilityTS.UnixNano(), nil
 }
 
 func (d *cassandraRangeDeleteDLQ) ackLevelExists(ctx context.Context, shardID int, domainID, scope, name string, taskType int) (bool, error) {
-	_, err := d.getAckLevel(ctx, shardID, domainID, scope, name, taskType)
+	_, err := d.GetAckLevel(ctx, shardID, domainID, scope, name, taskType)
 	if err != nil {
 		// If not found, return false
 		return false, nil
@@ -684,192 +698,81 @@ func (d *cassandraRangeDeleteDLQ) ackLevelExists(ctx context.Context, shardID in
 	return true, nil
 }
 
-func (d *cassandraRangeDeleteDLQ) updateAckLevel(ctx context.Context, shardID int, domainID, scope, name string, taskType int, newAckLevel int64) error {
-	query := d.session.Query(templateUpdateAckLevelRange,
-		newAckLevel, // ack_level_value = new ack level
-		shardID,
-		domainID,
-		scope,
-		name,
-		taskType,
-		rowTypeDLQAckLevel,
-		time.Unix(0, 0),
-		-1, // task_id = -1 (sentinel value for ack level rows)
-	).WithContext(ctx)
-
-	return query.Exec()
-}
-
-func (d *cassandraRangeDeleteDLQ) insertAckLevel(ctx context.Context, shardID int, domainID, scope, name string, taskType int, ackLevel int64) error {
+func (d *cassandraRangeDeleteDLQ) UpdateAckLevel(ctx context.Context, shardID int, domainID, scope, name string, taskType int, newAckLevel int64) error {
 	now := time.Now()
-	query := d.session.Query(templateInsertAckLevelRange,
+	ackLevelTS := time.Unix(0, newAckLevel)
+
+	d.logger.Warn("[DLQ] UpdateAckLevel called",
+		tag.ShardID(shardID),
+		tag.WorkflowDomainID(domainID),
+		tag.Value(fmt.Sprintf("scope='%s', name='%s', taskType=%d, newAckLevel=%d, ackLevelTS=%v",
+			scope, name, taskType, newAckLevel, ackLevelTS)),
+	)
+
+	d.logger.Warn("[DLQ] CQL template",
+		tag.Value(templateUpdateAckLevelRange))
+
+	query := d.session.Query(templateUpdateAckLevelRange,
 		shardID,
 		domainID,
 		scope,
 		name,
 		taskType,
-		rowTypeDLQAckLevel,
-		time.Unix(0, 0), // visibility_timestamp = 0 for ack level rows
-		-1,              // task_id = -1 (sentinel value for ack level rows)
-		ackLevel,        // ack_level_value = actual ack level
+		ackLevelTS,
 		now,
-		now,
-	).WithContext(ctx)
+	).WithContext(ctx).Consistency(gocql.LocalQuorum)
 
-	previous := make(map[string]interface{})
-	applied, err := query.MapScanCAS(previous)
+	d.logger.Warn("[DLQ] About to execute query...")
+
+	err := query.Exec()
 	if err != nil {
+		d.logger.Error("[DLQ] UpdateAckLevel FAILED",
+			tag.Error(err),
+			tag.ShardID(shardID),
+			tag.WorkflowDomainID(domainID),
+		)
 		return err
 	}
 
-	if !applied {
-		// Already exists, try update instead
-		return d.updateAckLevel(ctx, shardID, domainID, scope, name, taskType, ackLevel)
-	}
-
+	d.logger.Warn("[DLQ] UpdateAckLevel succeeded - query executed",
+		tag.ShardID(shardID),
+		tag.WorkflowDomainID(domainID),
+		tag.Value(fmt.Sprintf("taskType=%d, newAckLevel=%d", taskType, newAckLevel)),
+	)
 	return nil
+}
+
+func (d *cassandraRangeDeleteDLQ) insertAckLevel(ctx context.Context, shardID int, domainID, scope, name string, taskType int, ackLevel int64) error {
+	// insertAckLevel and updateAckLevel are now the same - both use INSERT
+	// This is safe because we're using task_id = -1 which is a unique key
+	return d.UpdateAckLevel(ctx, shardID, domainID, scope, name, taskType, ackLevel)
 }
 
 // CleanupProcessedTasks performs range delete for tasks below ack level
 // This runs periodically (similar to queuev2's updateQueueState timer)
-func (d *cassandraRangeDeleteDLQ) CleanupProcessedTasks(ctx context.Context) error {
-	d.logger.Warn("[RANGE-DELETE-DLQ] Starting periodic cleanup of processed tasks")
+// NOTE: In the simplified schema, this requires knowing which partitions to clean up.
+// This should be called per-partition by the background processor, not globally.
+func (d *cassandraRangeDeleteDLQ) CleanupProcessedTasks(ctx context.Context, request *persistence.RangeDeleteStandbyTasksRequest) error {
+	d.logger.Warn("[DLQ] Starting cleanup of processed tasks",
+		tag.ShardID(request.ShardID),
+		tag.WorkflowDomainID(request.DomainID),
+		tag.Value(fmt.Sprintf("scope=%s, name=%s, taskType=%d, maxTaskID=%d",
+			request.ClusterAttributeScope, request.ClusterAttributeName, request.TaskType, request.MaxTaskID)))
 
-	// Read all ack levels (this query scans all partitions - expensive but necessary)
-	type ackLevelKey struct {
-		ShardID    int
-		DomainID   string
-		Scope      string
-		Name       string
-		TaskType   int
-		AckLevelTS int64
-	}
-
-	query := d.session.Query(templateReadAllAckLevelsRange, rowTypeDLQAckLevel).WithContext(ctx)
-	iter := query.Iter()
-
-	var ackLevels []ackLevelKey
-	var shardID int
-	var domainID, scope, name string
-	var taskType int
-	var ackLevelTaskID int64
-
-	for iter.Scan(&shardID, &domainID, &scope, &name, &taskType, &ackLevelTaskID) {
-		ackLevels = append(ackLevels, ackLevelKey{
-			ShardID:    shardID,
-			DomainID:   domainID,
-			Scope:      scope,
-			Name:       name,
-			TaskType:   taskType,
-			AckLevelTS: ackLevelTaskID,
-		})
-	}
-
-	if err := iter.Close(); err != nil {
-		d.logger.Error("[RANGE-DELETE-DLQ] Failed to read ack levels", tag.Error(err))
+	// Use the new RangeDeleteStandbyTasks method which creates a single tombstone
+	err := d.RangeDeleteStandbyTasks(ctx, request)
+	if err != nil {
+		d.logger.Error("[DLQ] Failed to cleanup processed tasks",
+			tag.Error(err),
+			tag.ShardID(request.ShardID),
+			tag.WorkflowDomainID(request.DomainID))
 		return err
 	}
 
-	d.logger.Warn("[RANGE-DELETE-DLQ] Found ack levels for cleanup",
-		tag.Dynamic("count", len(ackLevels)))
-
-	// For each ack level, read and delete tasks with visibility_timestamp <= ack_level
-	for _, ack := range ackLevels {
-		// The ack level value is a visibility_timestamp (stored in task_id column of ack level row)
-		ackTime := time.Unix(0, ack.AckLevelTS)
-
-		d.logger.Warn("[RANGE-DELETE-DLQ] Deleting tasks below ack level",
-			tag.ShardID(ack.ShardID),
-			tag.WorkflowDomainID(ack.DomainID),
-			tag.Dynamic("ack_level_ts", ackTime))
-
-		// Read all tasks with visibility_timestamp <= ack_level
-		// Note: We can't use WHERE visibility_timestamp <= ? in DELETE because it's not the last clustering column
-		// Instead, we read tasks and delete them individually
-		readQuery := d.session.Query(templateReadStandbyTasksRange,
-			ack.ShardID,
-			ack.DomainID,
-			ack.Scope,
-			ack.Name,
-			ack.TaskType,
-			rowTypeDLQTask,
-			time.Unix(0, 0), // Start from beginning
-			10000,           // Large page size for cleanup
-		).WithContext(ctx)
-
-		iter := readQuery.Iter()
-		var shardID int
-		var domainID, scope, name string
-		var taskType int
-		var visibilityTS time.Time
-		var taskID int64
-		var workflowID, runID string
-		var taskPayload []byte
-		var encodingType string
-		var version int64
-		var createdAt time.Time
-
-		deletedCount := 0
-		readCount := 0
-		skippedCount := 0
-		for iter.Scan(&shardID, &domainID, &scope, &name, &taskType, &visibilityTS, &taskID, &workflowID, &runID, &taskPayload, &encodingType, &version, &createdAt) {
-			readCount++
-
-			// Only delete if visibility_timestamp <= ack_level
-			if visibilityTS.UnixNano() > ack.AckLevelTS {
-				skippedCount++
-				continue
-			}
-
-			d.logger.Warn("[RANGE-DELETE-DLQ] Deleting individual task",
-				tag.TaskID(taskID),
-				tag.Dynamic("visibility_ts", visibilityTS),
-				tag.Dynamic("ack_level_ts", ackTime))
-
-			// Delete this specific task by full primary key
-			deleteQuery := d.session.Query(templateDeleteStandbyTaskRange,
-				shardID,
-				domainID,
-				scope,
-				name,
-				taskType,
-				rowTypeDLQTask,
-				visibilityTS,
-				taskID,
-			).WithContext(ctx)
-
-			if err := deleteQuery.Exec(); err != nil {
-				d.logger.Error("[RANGE-DELETE-DLQ] Failed to delete individual task",
-					tag.Error(err),
-					tag.TaskID(taskID),
-					tag.WorkflowDomainID(domainID))
-				// Continue with other tasks
-				continue
-			}
-			deletedCount++
-		}
-
-		d.logger.Warn("[RANGE-DELETE-DLQ] Cleanup scan complete",
-			tag.ShardID(ack.ShardID),
-			tag.WorkflowDomainID(ack.DomainID),
-			tag.Dynamic("read_count", readCount),
-			tag.Dynamic("skipped_count", skippedCount),
-			tag.Dynamic("deleted_count", deletedCount))
-
-		if err := iter.Close(); err != nil {
-			d.logger.Error("[RANGE-DELETE-DLQ] Failed to read tasks for cleanup",
-				tag.Error(err),
-				tag.ShardID(ack.ShardID),
-				tag.WorkflowDomainID(ack.DomainID))
-			continue
-		}
-
-		d.logger.Warn("[RANGE-DELETE-DLQ] Deleted tasks below ack level",
-			tag.ShardID(ack.ShardID),
-			tag.WorkflowDomainID(ack.DomainID),
-			tag.Dynamic("ack_level_ts", ackTime),
-			tag.Dynamic("deleted_count", deletedCount))
-	}
+	d.logger.Warn("[DLQ] Successfully cleaned up processed tasks",
+		tag.ShardID(request.ShardID),
+		tag.WorkflowDomainID(request.DomainID),
+		tag.Value(fmt.Sprintf("maxTaskID=%d", request.MaxTaskID)))
 
 	return nil
 }
@@ -988,10 +891,15 @@ func (d *cassandraComparisonDLQ) GetStandbyTaskDLQSize(ctx context.Context, requ
 	return respPoint, nil
 }
 
-func (d *cassandraComparisonDLQ) CleanupProcessedTasks(ctx context.Context) error {
+func (d *cassandraComparisonDLQ) RangeDeleteStandbyTasks(ctx context.Context, request *persistence.RangeDeleteStandbyTasksRequest) error {
+	// Only range-delete implementation uses this
+	return d.rangeImpl.RangeDeleteStandbyTasks(ctx, request)
+}
+
+func (d *cassandraComparisonDLQ) CleanupProcessedTasks(ctx context.Context, request *persistence.RangeDeleteStandbyTasksRequest) error {
 	// Point-delete doesn't need cleanup (tasks are deleted immediately)
 	// Only range-delete needs periodic cleanup
-	return d.rangeImpl.CleanupProcessedTasks(ctx)
+	return d.rangeImpl.CleanupProcessedTasks(ctx, request)
 }
 
 func (d *cassandraComparisonDLQ) Close() {

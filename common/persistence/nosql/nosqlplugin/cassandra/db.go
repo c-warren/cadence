@@ -136,10 +136,30 @@ func (db *CDB) executeBatchWithConsistencyAll(b gocql.Batch) error {
 }
 
 // NewStandbyTaskDLQManager creates a new standby task DLQ manager for Cassandra
-// This returns a comparison wrapper that delegates to both point-delete and range-delete implementations
+// DLQ implementation can be selected via dynamic config property "history.standbyTaskDLQMode"
+// Supported values: "simplified" (v0.46 schema with true range deletes), "comparison" (dual-write for testing), "point-delete"
+// Default: "simplified"
 func (db *CDB) NewStandbyTaskDLQManager() persistence.StandbyTaskDLQManager {
-	return NewCassandraComparisonDLQ(
-		db.session,
-		db.logger.WithTags(tag.Value("standby-task-dlq")),
-	)
+	mode := "simplified" // Default to v0.46 simplified schema
+	if db.dc != nil {
+		if configMode := db.dc.StandbyTaskDLQMode(); configMode != "" {
+			mode = configMode
+		}
+	}
+
+	logger := db.logger.WithTags(tag.Value("standby-task-dlq"), tag.Value("mode:"+mode))
+
+	switch mode {
+	case "point-delete":
+		logger.Info("Using point-delete DLQ implementation")
+		return NewCassandraPointDeleteDLQ(db.session, logger)
+	case "comparison":
+		logger.Info("Using comparison DLQ implementation (dual-write)")
+		return NewCassandraComparisonDLQ(db.session, logger)
+	case "simplified":
+		fallthrough
+	default:
+		logger.Info("Using simplified DLQ implementation (v0.46 schema with range deletes)")
+		return NewCassandraRangeDeleteDLQ(db.session, logger)
+	}
 }

@@ -28,6 +28,9 @@ history.standbyTaskMissingEventsResendDelay:
 # Disable automated DLQ cleanup
 history.enableStandbyTaskDLQCleanup:
   - value: false
+history.standbyTaskDLQMode:
+  - value: "simplified"
+    constraints: {}
 history.EnableConsistentQueryByDomain:
 - value: true
   constraints: {}

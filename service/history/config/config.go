@@ -91,6 +91,7 @@ type Config struct {
 	StandbyTaskMissingEventsResendDelay  dynamicproperties.DurationPropertyFn
 	StandbyTaskMissingEventsDiscardDelay dynamicproperties.DurationPropertyFn
 	EnableStandbyTaskDLQCleanup          dynamicproperties.BoolPropertyFn
+	StandbyTaskDLQMode                   dynamicproperties.StringPropertyFn
 
 	// Task process settings
 	TaskProcessRPS                           dynamicproperties.IntPropertyFnWithDomainFilter

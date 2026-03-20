@@ -161,6 +161,37 @@ func (m *inMemoryStandbyTaskDLQManager) DeleteStandbyTask(
 	return nil
 }
 
+func (m *inMemoryStandbyTaskDLQManager) RangeDeleteStandbyTasks(
+	ctx context.Context,
+	request *RangeDeleteStandbyTasksRequest,
+) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	key := m.getKey(
+		request.ShardID,
+		request.DomainID,
+		request.ClusterAttributeScope,
+		request.ClusterAttributeName,
+	)
+
+	tasks := m.tasks[key]
+	if len(tasks) == 0 {
+		return nil
+	}
+
+	// Filter out tasks with TaskID <= MaxTaskID and matching TaskType
+	var remainingTasks []*StandbyTaskDLQEntry
+	for _, task := range tasks {
+		if task.TaskType != request.TaskType || task.TaskID > request.MaxTaskID {
+			remainingTasks = append(remainingTasks, task)
+		}
+	}
+
+	m.tasks[key] = remainingTasks
+	return nil
+}
+
 func (m *inMemoryStandbyTaskDLQManager) GetStandbyTaskDLQSize(
 	ctx context.Context,
 	request *GetStandbyTaskDLQSizeRequest,
