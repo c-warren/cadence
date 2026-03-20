@@ -83,7 +83,7 @@ const (
 		AND task_id > ?
 		LIMIT ?`
 
-	templateGetAckLevelRange = `SELECT visibility_timestamp
+	templateGetAckLevelRange = `SELECT version
 		FROM history_task_dlq
 		WHERE shard_id = ?
 		AND domain_id = ?
@@ -96,7 +96,7 @@ const (
 		shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name,
 		task_type, task_id, visibility_timestamp, workflow_id, run_id,
 		task_payload, encoding_type, version, created_at
-	) VALUES (?, ?, ?, ?, ?, -1, ?, '', '', null, '', 0, ?)`
+	) VALUES (?, ?, ?, ?, ?, -1, toTimestamp(now()), '', '', null, '', ?, ?)`
 
 	templateGetStandbyTaskDLQSizeRange = `SELECT COUNT(*) as count
 		FROM history_task_dlq
@@ -113,6 +113,7 @@ const (
 		AND cluster_attribute_scope = ?
 		AND cluster_attribute_name = ?
 		AND task_type = ?
+		AND task_id >= 0
 		AND task_id <= ?`
 
 	templateDeleteStandbyTaskRange = `DELETE FROM history_task_dlq

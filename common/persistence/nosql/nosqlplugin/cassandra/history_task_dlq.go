@@ -680,13 +680,12 @@ func (d *cassandraRangeDeleteDLQ) GetAckLevel(ctx context.Context, shardID int, 
 		taskType,
 	).WithContext(ctx)
 
-	var visibilityTS time.Time
-	if err := query.Scan(&visibilityTS); err != nil {
+	var ackLevel int64
+	if err := query.Scan(&ackLevel); err != nil {
 		return -1, err
 	}
 
-	// Ack level is stored as nanoseconds in the visibility_timestamp field
-	return visibilityTS.UnixNano(), nil
+	return ackLevel, nil
 }
 
 func (d *cassandraRangeDeleteDLQ) ackLevelExists(ctx context.Context, shardID int, domainID, scope, name string, taskType int) (bool, error) {
@@ -700,17 +699,13 @@ func (d *cassandraRangeDeleteDLQ) ackLevelExists(ctx context.Context, shardID in
 
 func (d *cassandraRangeDeleteDLQ) UpdateAckLevel(ctx context.Context, shardID int, domainID, scope, name string, taskType int, newAckLevel int64) error {
 	now := time.Now()
-	ackLevelTS := time.Unix(0, newAckLevel)
 
 	d.logger.Warn("[DLQ] UpdateAckLevel called",
 		tag.ShardID(shardID),
 		tag.WorkflowDomainID(domainID),
-		tag.Value(fmt.Sprintf("scope='%s', name='%s', taskType=%d, newAckLevel=%d, ackLevelTS=%v",
-			scope, name, taskType, newAckLevel, ackLevelTS)),
+		tag.Value(fmt.Sprintf("scope='%s', name='%s', taskType=%d, newAckLevel=%d",
+			scope, name, taskType, newAckLevel)),
 	)
-
-	d.logger.Warn("[DLQ] CQL template",
-		tag.Value(templateUpdateAckLevelRange))
 
 	query := d.session.Query(templateUpdateAckLevelRange,
 		shardID,
@@ -718,11 +713,9 @@ func (d *cassandraRangeDeleteDLQ) UpdateAckLevel(ctx context.Context, shardID in
 		scope,
 		name,
 		taskType,
-		ackLevelTS,
+		newAckLevel, // Store directly in version column (bigint)
 		now,
 	).WithContext(ctx).Consistency(gocql.LocalQuorum)
-
-	d.logger.Warn("[DLQ] About to execute query...")
 
 	err := query.Exec()
 	if err != nil {
