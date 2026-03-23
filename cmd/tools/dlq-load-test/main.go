@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/signal"
 	"sync"
@@ -43,6 +44,9 @@ var (
 	workerOnly  = flag.Bool("worker-only", false, "Only run worker, don't start workflows")
 	clientOnly  = flag.Bool("client-only", false, "Only start workflows, don't run worker")
 	workerDelay = flag.Duration("worker-delay", 0, "Delay before worker starts polling (e.g., 15s, 30s)")
+
+	clusterAttributeScope = "cluster"
+	clusterAttributeNames = []string{"cluster0", "cluster1", "cluster2"}
 )
 
 type (
@@ -242,11 +246,20 @@ func startWorkflows(ctx context.Context, ch client.Client) {
 			ActivityDelay: *activityDelay,
 		}
 
+		// Randomly select cluster attribute
+		selectedCluster := clusterAttributeNames[rand.Intn(len(clusterAttributeNames))]
+
 		options := client.StartWorkflowOptions{
 			ID:                              workflowID,
 			TaskList:                        *taskList,
 			ExecutionStartToCloseTimeout:    5 * time.Minute,
 			DecisionTaskStartToCloseTimeout: 1 * time.Minute,
+			ActiveClusterSelectionPolicy: &client.ActiveClusterSelectionPolicy{
+				ClusterAttribute: &client.ClusterAttribute{
+					Scope: clusterAttributeScope,
+					Name:  selectedCluster,
+				},
+			},
 		}
 
 		_, err := ch.StartWorkflow(ctx, options, "TestWorkflow", input)
@@ -258,10 +271,18 @@ func startWorkflows(ctx context.Context, ch client.Client) {
 		}
 
 		workflowsStarted.Add(1)
-		logger.Info("Started workflow",
-			zap.String("workflow-id", workflowID),
-			zap.Int("num", i+1),
-			zap.Int("total", *workflowCount))
+		if *verbose {
+			logger.Info("Started workflow",
+				zap.String("workflow-id", workflowID),
+				zap.String("cluster-attribute-name", selectedCluster),
+				zap.Int("num", i+1),
+				zap.Int("total", *workflowCount))
+		} else {
+			logger.Info("Started workflow",
+				zap.String("workflow-id", workflowID),
+				zap.Int("num", i+1),
+				zap.Int("total", *workflowCount))
+		}
 
 		// Batch delay
 		if (i+1)%*batchSize == 0 && i+1 < *workflowCount {

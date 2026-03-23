@@ -685,6 +685,13 @@ func (d *cassandraRangeDeleteDLQ) GetAckLevel(ctx context.Context, shardID int, 
 		return -1, err
 	}
 
+	d.logger.Warn("[DLQ] GetAckLevel retrieved",
+		tag.ShardID(shardID),
+		tag.WorkflowDomainID(domainID),
+		tag.Value(fmt.Sprintf("scope='%s', name='%s', taskType=%d, ackLevel=%d",
+			scope, name, taskType, ackLevel)),
+	)
+
 	return ackLevel, nil
 }
 
@@ -713,7 +720,8 @@ func (d *cassandraRangeDeleteDLQ) UpdateAckLevel(ctx context.Context, shardID in
 		scope,
 		name,
 		taskType,
-		newAckLevel, // Store directly in version column (bigint)
+		newAckLevel, // Store in ack_level_value column (bigint)
+		now,
 		now,
 	).WithContext(ctx).Consistency(gocql.LocalQuorum)
 

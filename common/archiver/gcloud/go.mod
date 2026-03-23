@@ -12,7 +12,8 @@ toolchain go1.23.4
 replace github.com/uber/cadence => ../../..
 
 // ringpop-go and tchannel-go depends on older version of thrift, yarpc brings up newer version
-replace github.com/apache/thrift => github.com/apache/thrift v0.0.0-20161221203622-b2a4d4ae21c7
+// Updated to v0.16.0 for Cadence client v1.3.1-rc.20 compatibility
+replace github.com/apache/thrift => github.com/apache/thrift v0.16.0
 
 require (
 	github.com/aws/aws-sdk-go v1.54.12 // indirect

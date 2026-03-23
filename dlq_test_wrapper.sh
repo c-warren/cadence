@@ -12,7 +12,7 @@ echo "Domain registered, waiting 60 seconds"
 
 sleep 60
 
-./cadence --transport grpc --ad localhost:7833 --domain dlq-test domain update --active_clusters 'location.london:cluster0'
+./cadence --transport grpc --ad localhost:7833 --domain dlq-test domain update --active_clusters 'cluster.cluster0:cluster0,cluster.cluster1:cluster1,cluster.cluster2:cluster2'
 
 echo "Domain updated"
 

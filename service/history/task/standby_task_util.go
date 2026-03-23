@@ -36,6 +36,12 @@ import (
 	"github.com/uber/cadence/service/history/execution"
 )
 
+const (
+	// ClusterAttributeScopeDefault is used for traditional active-standby domains
+	// where there is no cluster attribute-based selection
+	ClusterAttributeScopeDefault = "cluster"
+)
+
 type (
 	standbyActionFn     func(context.Context, execution.Context, execution.MutableState) (interface{}, error)
 	standbyPostActionFn func(context.Context, persistence.Task, interface{}, log.Logger) error
@@ -53,8 +59,10 @@ func standbyTaskPostActionNoOp(
 	postActionInfo interface{},
 	logger log.Logger,
 ) error {
+	// Unwrap if needed
+	originalInfo := unwrapPostActionInfo(postActionInfo)
 
-	if postActionInfo == nil {
+	if originalInfo == nil {
 		return nil
 	}
 
@@ -67,7 +75,7 @@ func standbyTaskPostActionNoOp(
 		tag.TaskType(taskInfo.GetTaskType()),
 		tag.FailoverVersion(taskInfo.GetVersion()),
 		tag.Timestamp(taskInfo.GetVisibilityTimestamp()))
-	return &redispatchError{Reason: fmt.Sprintf("post action is %T", postActionInfo)}
+	return &redispatchError{Reason: fmt.Sprintf("post action is %T", originalInfo)}
 }
 
 func standbyTaskPostActionTaskDiscarded(
@@ -96,8 +104,6 @@ func standbyTaskPostActionTaskDiscarded(
 func standbyTaskPostActionEnqueueToDLQ(
 	dlqManager persistence.StandbyTaskDLQManager,
 	shardID int,
-	clusterAttributeScope string,
-	clusterAttributeName string,
 ) standbyPostActionFn {
 	return func(
 		ctx context.Context,
@@ -111,6 +117,13 @@ func standbyTaskPostActionEnqueueToDLQ(
 			return nil
 		}
 
+		// Extract cluster attributes from postActionInfo
+		clusterScope, clusterName, err := extractClusterAttributes(postActionInfo, logger)
+		if err != nil {
+			logger.Error("Failed to extract cluster attributes for DLQ", tag.Error(err))
+			return fmt.Errorf("missing cluster attributes in post-action info: %w", err)
+		}
+
 		logger.Warn("Enqueuing standby task to DLQ due to task being pending for too long",
 			tag.WorkflowID(task.GetWorkflowID()),
 			tag.WorkflowRunID(task.GetRunID()),
@@ -118,7 +131,8 @@ func standbyTaskPostActionEnqueueToDLQ(
 			tag.TaskID(task.GetTaskID()),
 			tag.TaskType(task.GetTaskType()),
 			tag.FailoverVersion(task.GetVersion()),
-			tag.Timestamp(task.GetVisibilityTimestamp()))
+			tag.Timestamp(task.GetVisibilityTimestamp()),
+			tag.Value(fmt.Sprintf("clusterScope=%s, clusterName=%s", clusterScope, clusterName)))
 
 		// Serialize the task
 		taskPayload, err := serializeTask(task)
@@ -131,8 +145,8 @@ func standbyTaskPostActionEnqueueToDLQ(
 		err = dlqManager.EnqueueStandbyTask(ctx, &persistence.EnqueueStandbyTaskRequest{
 			ShardID:               shardID,
 			DomainID:              task.GetDomainID(),
-			ClusterAttributeScope: clusterAttributeScope,
-			ClusterAttributeName:  clusterAttributeName,
+			ClusterAttributeScope: clusterScope,
+			ClusterAttributeName:  clusterName,
 			WorkflowID:            task.GetWorkflowID(),
 			RunID:                 task.GetRunID(),
 			TaskID:                task.GetTaskID(),
@@ -155,6 +169,37 @@ func standbyTaskPostActionEnqueueToDLQ(
 		// Return ErrTaskDiscarded to remove from execution queue
 		return ErrTaskDiscarded
 	}
+}
+
+// extractClusterAttributes extracts cluster attributes from postActionInfo
+func extractClusterAttributes(postActionInfo interface{}, logger log.Logger) (scope, name string, err error) {
+	// Check if it's wrapped with cluster attributes
+	if wrapped, ok := postActionInfo.(*postActionInfoWithCluster); ok {
+		if wrapped.clusterAttributeScope == "" || wrapped.clusterAttributeName == "" {
+			return "", "", fmt.Errorf("cluster attributes not set in wrapped postActionInfo")
+		}
+		return wrapped.clusterAttributeScope, wrapped.clusterAttributeName, nil
+	}
+
+	// Check if it's a transferPostActionInfo with cluster attributes
+	if info, ok := postActionInfo.(*transferPostActionInfo); ok {
+		if info.clusterAttributeScope == "" || info.clusterAttributeName == "" {
+			return "", "", fmt.Errorf("cluster attributes not set in transferPostActionInfo")
+		}
+		return info.clusterAttributeScope, info.clusterAttributeName, nil
+	}
+
+	// For other postActionInfo types (like historyResendInfo), we can't extract cluster attributes
+	// This is expected - those types will trigger history resend, not DLQ enqueue
+	return "", "", fmt.Errorf("postActionInfo type %T does not contain cluster attributes", postActionInfo)
+}
+
+// unwrapPostActionInfo extracts the original postActionInfo from a wrapped struct
+func unwrapPostActionInfo(postActionInfo interface{}) interface{} {
+	if wrapped, ok := postActionInfo.(*postActionInfoWithCluster); ok {
+		return wrapped.originalInfo
+	}
+	return postActionInfo
 }
 
 // serializeTask converts a task to bytes for storage
@@ -192,6 +237,19 @@ type (
 		decisionScheduleToStartTimeout int32
 		tasklist                       types.TaskList
 		partitionConfig                map[string]string
+	}
+
+	// transferPostActionInfo carries cluster attributes through the post-action flow
+	transferPostActionInfo struct {
+		clusterAttributeScope string
+		clusterAttributeName  string
+	}
+
+	// postActionInfoWithCluster wraps the original postActionInfo with cluster attributes
+	postActionInfoWithCluster struct {
+		originalInfo          interface{} // historyResendInfo, pushActivityToMatchingInfo, etc.
+		clusterAttributeScope string
+		clusterAttributeName  string
 	}
 )
 

@@ -660,33 +660,70 @@ func (t *transferStandbyTaskExecutor) processTransfer(
 		return nil
 	}
 
+	// Extract cluster attributes BEFORE releasing mutable state
+	clusterScope, clusterName, err := t.getClusterAttributesFromMutableState(mutableState)
+	if err != nil {
+		t.logger.Error("transfer flow: failed to extract cluster attributes for DLQ",
+			tag.Error(err),
+			tag.WorkflowID(transferTask.GetWorkflowID()),
+			tag.WorkflowRunID(transferTask.GetRunID()))
+		return fmt.Errorf("failed to extract cluster attributes for DLQ: %w", err)
+	}
+
 	t.logger.Info("transfer flow: calling actionFn")
-	historyResendInfo, err := actionFn(ctx, wfContext, mutableState)
+	originalPostActionInfo, err := actionFn(ctx, wfContext, mutableState)
 	if err != nil {
 		t.logger.Info("transfer flow: error calling actionFn", tag.Error(err))
 		return err
 	}
 
-	t.logger.Info("transfer flow: calling postActionFn", tag.WorkflowID(transferTask.GetWorkflowID()), tag.WorkflowRunID(transferTask.GetRunID()), tag.Value(historyResendInfo))
+	// Wrap the original postActionInfo with cluster attributes
+	wrappedPostActionInfo := &postActionInfoWithCluster{
+		originalInfo:          originalPostActionInfo,
+		clusterAttributeScope: clusterScope,
+		clusterAttributeName:  clusterName,
+	}
+
+	t.logger.Info("transfer flow: calling postActionFn",
+		tag.WorkflowID(transferTask.GetWorkflowID()),
+		tag.WorkflowRunID(transferTask.GetRunID()),
+		tag.Value(fmt.Sprintf("originalInfo=%v, cluster=%s/%s", originalPostActionInfo, clusterScope, clusterName)))
 	release(nil)
-	return postActionFn(ctx, transferTask, historyResendInfo, t.logger)
+	return postActionFn(ctx, transferTask, wrappedPostActionInfo, t.logger)
 }
 
 func (t *transferStandbyTaskExecutor) getDiscardTaskFn() standbyPostActionFn {
 	// If DLQ manager is configured, enqueue to DLQ instead of discarding
 	if t.dlqManager != nil {
 		t.logger.Info("transfer flow setup: DLQ manager is configured", tag.ShardID(t.shard.GetShardID()))
-		// For POC, use empty cluster attribute scope/name
-		// In production, this would be determined from the workflow's cluster attribute
 		return standbyTaskPostActionEnqueueToDLQ(
 			t.dlqManager,
 			t.shard.GetShardID(),
-			"", // clusterAttributeScope - TODO: get from workflow
-			"", // clusterAttributeName - TODO: get from workflow
 		)
 	}
 	// Fallback to old behavior if DLQ not configured
 	return standbyTaskPostActionTaskDiscarded
+}
+
+// getClusterAttributesFromMutableState extracts cluster attributes from workflow execution info
+func (t *transferStandbyTaskExecutor) getClusterAttributesFromMutableState(
+	mutableState execution.MutableState,
+) (scope, name string, err error) {
+	executionInfo := mutableState.GetExecutionInfo()
+
+	// Check if workflow uses active-active cluster selection
+	if policy := executionInfo.ActiveClusterSelectionPolicy; policy != nil {
+		if attr := policy.GetClusterAttribute(); attr != nil {
+			scope := attr.GetScope()
+			name := attr.GetName()
+			if scope != "" && name != "" {
+				return scope, name, nil
+			}
+		}
+	}
+
+	// For traditional active-standby domains, use constants
+	return ClusterAttributeScopeDefault, t.shard.GetClusterMetadata().GetCurrentClusterName(), nil
 }
 
 func (t *transferStandbyTaskExecutor) pushActivity(
@@ -695,15 +732,17 @@ func (t *transferStandbyTaskExecutor) pushActivity(
 	postActionInfo interface{},
 	logger log.Logger,
 ) error {
+	// Unwrap if needed
+	originalInfo := unwrapPostActionInfo(postActionInfo)
 
-	if postActionInfo == nil {
+	if originalInfo == nil {
 		return nil
 	}
 
 	return t.transferTaskExecutorBase.pushActivity(
 		ctx,
 		task.(*persistence.ActivityTask),
-		postActionInfo.(*pushActivityToMatchingInfo),
+		originalInfo.(*pushActivityToMatchingInfo),
 	)
 }
 
@@ -713,15 +752,17 @@ func (t *transferStandbyTaskExecutor) pushDecision(
 	postActionInfo interface{},
 	logger log.Logger,
 ) error {
+	// Unwrap if needed
+	originalInfo := unwrapPostActionInfo(postActionInfo)
 
-	if postActionInfo == nil {
+	if originalInfo == nil {
 		return nil
 	}
 
 	return t.transferTaskExecutorBase.pushDecision(
 		ctx,
 		task.(*persistence.DecisionTask),
-		postActionInfo.(*pushDecisionToMatchingInfo),
+		originalInfo.(*pushDecisionToMatchingInfo),
 	)
 }
 
@@ -731,12 +772,14 @@ func (t *transferStandbyTaskExecutor) fetchHistoryFromRemote(
 	postActionInfo interface{},
 	_ log.Logger,
 ) error {
+	// Unwrap if needed
+	originalInfo := unwrapPostActionInfo(postActionInfo)
 
-	if postActionInfo == nil {
+	if originalInfo == nil {
 		return nil
 	}
 
-	resendInfo := postActionInfo.(*historyResendInfo)
+	resendInfo := originalInfo.(*historyResendInfo)
 
 	t.metricsClient.IncCounter(metrics.HistoryRereplicationByTransferTaskScope, metrics.CadenceClientRequests)
 	stopwatch := t.metricsClient.StartTimer(metrics.HistoryRereplicationByTransferTaskScope, metrics.CadenceClientLatency)
