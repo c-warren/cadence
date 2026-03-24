@@ -22,6 +22,7 @@ CREATE TABLE history_task_dlq (
     encoding_type             text,             -- "json", "thrift", "proto", "thriftrw"
     version                   bigint,           -- Task version
     created_at                timestamp,        -- When added to DLQ
+    ack_level_value           bigint,       -- Ack level value for ack_level rows (task_id=-1)
     PRIMARY KEY ((shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name), task_type, task_id)
 ) WITH CLUSTERING ORDER BY (task_type ASC, task_id ASC)
     AND compaction = {

@@ -41,6 +41,7 @@ function show_usage() {
     echo "  -t, --task-type TYPE    Filter by task_type"
     echo "  -l, --limit LIMIT       Limit number of results (default: 100)"
     echo "  -a, --all               Query all tables (default)"
+    echo "  -k, --keyspace KEYSPACE Filter by cassandra keyspace (default: cadence_cluster1)"
     echo ""
     echo "Environment variables:"
     echo "  LIMIT                   Default limit for queries (default: 100)"
@@ -103,6 +104,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -l|--limit)
             LIMIT="$2"
+            shift 2
+            ;;
+        -k|--keyspace)
+            KEYSPACE="$2"
             shift 2
             ;;
         -a|--all)
@@ -231,7 +236,7 @@ fi
 if [ "$SIMPLIFIED_ONLY" = true ]; then
     print_header "Query: history_task_dlq"
 
-    QUERY="SELECT shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name, task_type, task_id, visibility_timestamp, workflow_id, run_id, encoding_type, version, created_at FROM ${KEYSPACE}.history_task_dlq ${WHERE_CLAUSE} LIMIT ${LIMIT};"
+    QUERY="SELECT shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name, task_type, task_id, visibility_timestamp, workflow_id, run_id, encoding_type, version, ack_level_value, created_at FROM ${KEYSPACE}.history_task_dlq ${WHERE_CLAUSE} LIMIT ${LIMIT};"
 
     echo -e "${YELLOW}Query:${NC} $QUERY\n"
     run_cql "EXPAND ON; $QUERY"

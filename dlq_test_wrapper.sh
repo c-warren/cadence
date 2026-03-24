@@ -19,5 +19,6 @@ echo "Domain updated"
 sleep 2
 
 echo "Done\!"
-
-# ./dlq-load-test --domain dlq-test --count 10 --worker-delay 1m
+echo "Run the following commands to failover the domain:"
+echo "./cadence --transport grpc --ad localhost:7833 --domain dlq-test domain failover --active_clusters 'cluster.cluster0:cluster1,cluster.cluster1:cluster1,cluster.cluster2:cluster1'"
+echo "./cadence --transport grpc --ad localhost:7833 --domain dlq-test domain failover --active_clusters 'cluster.cluster0:cluster0,cluster.cluster1:cluster1,cluster.cluster2:cluster2'"

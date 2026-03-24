@@ -278,7 +278,7 @@ func (p *StandbyTaskDLQProcessor) cleanupLoop() {
 			if p.enableCleanup() {
 				p.cleanupProcessedTasks(context.Background())
 			} else {
-				p.logger.Debug("DLQ periodic cleanup skipped (disabled via dynamic config)")
+				p.logger.Warn("DLQ periodic cleanup skipped (disabled via dynamic config)")
 			}
 			p.cleanupTimer.Reset(cleanupInterval)
 

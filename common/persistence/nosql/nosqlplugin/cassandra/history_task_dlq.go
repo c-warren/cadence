@@ -720,9 +720,9 @@ func (d *cassandraRangeDeleteDLQ) UpdateAckLevel(ctx context.Context, shardID in
 		scope,
 		name,
 		taskType,
-		newAckLevel, // Store in ack_level_value column (bigint)
-		now,
-		now,
+		0,           // version (not used for ack level rows)
+		newAckLevel, // ack_level_value
+		now,         // created_at
 	).WithContext(ctx).Consistency(gocql.LocalQuorum)
 
 	err := query.Exec()

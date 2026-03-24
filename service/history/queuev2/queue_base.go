@@ -268,7 +268,8 @@ func (q *queueBase) Category() persistence.HistoryTaskCategory {
 }
 
 func (q *queueBase) FailoverDomain(domainIDs map[string]struct{}) {
-	// Process DLQ tasks BEFORE rescheduling
+	// For traditional active-passive domains, process DLQ without cluster attributes
+	// Active-active domains should call FailoverDomainWithClusterAttribute instead
 	q.processDLQForFailover(context.Background(), domainIDs, nil)
 
 	// Reschedule tasks

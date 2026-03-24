@@ -23,7 +23,9 @@ package engineimpl
 
 import (
 	"context"
+	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
@@ -31,6 +33,7 @@ import (
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
 	hcommon "github.com/uber/cadence/service/history/common"
+	"github.com/uber/cadence/service/history/queuev2"
 )
 
 func (e *historyEngineImpl) registerDomainFailoverCallback() {
@@ -136,10 +139,9 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 	if len(failoverActiveActiveDomainIDs) > 0 {
 		e.logger.Info("Active-Active Domain updated", tag.WorkflowDomainIDs(failoverActiveActiveDomainIDs))
 
-		// Process DLQ and reschedule tasks for active-active domains
-		for _, processor := range e.queueProcessors {
-			processor.FailoverDomain(failoverActiveActiveDomainIDs)
-		}
+		// For active-active domains, we need to process DLQ for each cluster attribute
+		// that is now active on the current cluster
+		e.processActiveActiveDomainFailover(nextDomains, failoverActiveActiveDomainIDs)
 	}
 
 	// Notify queues for any domain update. (active-passive and active-active)
@@ -224,6 +226,89 @@ func (e *historyEngineImpl) generateGracefulFailoverTasksForDomainUpdateCallback
 		}
 	}
 	return failoverMarkerTasks
+}
+
+func (e *historyEngineImpl) processActiveActiveDomainFailover(
+	nextDomains []*cache.DomainCacheEntry,
+	failoverActiveActiveDomainIDs map[string]struct{},
+) {
+	// Group domains by cluster attribute to process DLQ efficiently
+	// Map: cluster attribute key (scope.name) -> domain IDs
+	clusterAttrToDomains := make(map[string]map[string]struct{})
+
+	for _, domain := range nextDomains {
+		if _, ok := failoverActiveActiveDomainIDs[domain.GetInfo().ID]; !ok {
+			continue
+		}
+
+		// Extract cluster attributes that are active on the current cluster
+		replicationConfig := domain.GetReplicationConfig()
+		if replicationConfig.ActiveClusters == nil || replicationConfig.ActiveClusters.AttributeScopes == nil {
+			continue
+		}
+
+		for scopeName, scope := range replicationConfig.ActiveClusters.AttributeScopes {
+			for attrName, clusterInfo := range scope.ClusterAttributes {
+				// Only process cluster attributes that are active on the current cluster
+				if clusterInfo.ActiveClusterName == e.currentClusterName {
+					key := scopeName + "." + attrName
+					if _, exists := clusterAttrToDomains[key]; !exists {
+						clusterAttrToDomains[key] = make(map[string]struct{})
+					}
+					clusterAttrToDomains[key][domain.GetInfo().ID] = struct{}{}
+
+					e.logger.Info("Active-active domain cluster attribute active on current cluster",
+						tag.WorkflowDomainID(domain.GetInfo().ID),
+						tag.Dynamic("scope", scopeName),
+						tag.Dynamic("name", attrName),
+						tag.Dynamic("active_cluster", clusterInfo.ActiveClusterName))
+				}
+			}
+		}
+	}
+
+	// Process DLQ for each cluster attribute
+	for clusterAttrKey, domainIDs := range clusterAttrToDomains {
+		// Parse the key back to scope and name
+		parts := splitOnFirst(clusterAttrKey, ".")
+		if len(parts) != 2 {
+			e.logger.Error("Invalid cluster attribute key", tag.Dynamic("key", clusterAttrKey))
+			continue
+		}
+
+		scope := parts[0]
+		name := parts[1]
+
+		e.logger.Info("Processing DLQ for active-active cluster attribute",
+			tag.Dynamic("scope", scope),
+			tag.Dynamic("name", name),
+			tag.Dynamic("domain_count", len(domainIDs)))
+
+		// Create cluster attribute key
+		clusterAttr := &queuev2.ClusterAttributeKey{
+			Scope: scope,
+			Name:  name,
+		}
+
+		// Call FailoverDomainWithClusterAttribute for each processor
+		for _, processor := range e.queueProcessors {
+			// Check if processor is a queuev2.Queue
+			if qv2Processor, ok := processor.(queuev2.Queue); ok {
+				qv2Processor.FailoverDomainWithClusterAttribute(domainIDs, clusterAttr)
+			} else {
+				// Fallback to regular FailoverDomain for processors that don't support cluster attributes
+				e.logger.Warn("Processor does not support cluster attribute failover, falling back to regular failover",
+					tag.Dynamic("processor_type", fmt.Sprintf("%T", processor)))
+				processor.FailoverDomain(domainIDs)
+			}
+		}
+	}
+}
+
+// splitOnFirst splits a string on the first occurrence of sep
+func splitOnFirst(s, sep string) []string {
+	parts := strings.SplitN(s, sep, 2)
+	return parts
 }
 
 func (e *historyEngineImpl) lockTaskProcessingForDomainUpdate() {

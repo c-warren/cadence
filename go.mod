@@ -40,7 +40,7 @@ require (
 	github.com/stretchr/testify v1.10.0
 	github.com/uber-go/tally v3.3.15+incompatible
 	github.com/uber/cadence-idl v0.0.0-20260219170204-8b3ad9e7091e
-	github.com/uber/ringpop-go v0.8.5
+	github.com/uber/ringpop-go v0.10.0
 	github.com/uber/tchannel-go v1.32.1
 	github.com/urfave/cli/v2 v2.27.4
 	github.com/valyala/fastjson v1.4.1
