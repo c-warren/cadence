@@ -2674,6 +2674,13 @@ const (
 	// Allowed filters: namespace
 	ShardDistributorLoadBalancingMode
 
+	// EnableHistoryTaskDeadLetterQueue is the key to enable history task dead letter queue
+	// KeyName: history.enableHistoryTaskDeadLetterQueue
+	// Value type: string ["disabled","shadow","enabled"]
+	// Default value: "disabled"
+	// Allowed filters: domainName
+	EnableHistoryTaskDeadLetterQueue
+
 	// LastStringKey must be the last one in this const group
 	LastStringKey
 )
@@ -5292,6 +5299,12 @@ var StringKeys = map[StringKey]DynamicString{
 		KeyName:      "shardDistributor.loadBalancingMode",
 		Description:  "ShardDistributorLoadBalancingMode is the load balancing mode for the shard distributor. Depending on the mode, the shard distributor will use different ways to distribute the shards",
 		DefaultValue: "naive",
+	},
+	EnableHistoryTaskDeadLetterQueue: {
+		KeyName:      "history.enableHistoryTaskDeadLetterQueue",
+		Description:  "EnableHistoryTaskDeadLetterQueue is the key to enable history task dead letter queue. When enabled, the history task will be sent to a dead letter queue if it fails to be processed after a certain number of retries.",
+		DefaultValue: "disabled", // available options: "disabled","shadow","enabled"
+		Filters:      []Filter{DomainName},
 	},
 }
 
