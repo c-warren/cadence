@@ -947,3 +947,300 @@ func TestHistoryEngine_registerDomainFailoverCallback_ClosureBehavior(t *testing
 		}
 	})
 }
+
+type domainEntryParams struct {
+	domainID              string
+	activeCluster         string // for active-passive domains
+	isActiveActive        bool
+	attributeScopes       map[string]types.ClusterAttributeScope // for active-active
+	nilActiveClusters     bool                                   // simulate missing ActiveClusters
+	nilAttributeScopes    bool                                   // simulate nil AttributeScopes
+	emptyAttributeScopes  bool                                   // empty map
+}
+
+func createDomainEntry(p domainEntryParams) *cache.DomainCacheEntry {
+	replConfig := &persistence.DomainReplicationConfig{
+		Clusters: []*persistence.ClusterReplicationConfig{
+			{ClusterName: "cluster0"},
+			{ClusterName: "cluster1"},
+		},
+	}
+
+	if p.isActiveActive {
+		if !p.nilActiveClusters {
+			replConfig.ActiveClusters = &types.ActiveClusters{}
+			if !p.nilAttributeScopes {
+				if p.emptyAttributeScopes {
+					replConfig.ActiveClusters.AttributeScopes = map[string]types.ClusterAttributeScope{}
+				} else if p.attributeScopes != nil {
+					replConfig.ActiveClusters.AttributeScopes = p.attributeScopes
+				} else {
+					// Default active-active config
+					replConfig.ActiveClusters.AttributeScopes = map[string]types.ClusterAttributeScope{
+						"region": {
+							ClusterAttributes: map[string]types.ActiveClusterInfo{
+								"us-east": {
+									ActiveClusterName: p.activeCluster,
+									FailoverVersion:   1,
+								},
+							},
+						},
+					}
+				}
+			}
+		}
+	} else {
+		// Active-passive domain
+		replConfig.ActiveClusterName = p.activeCluster
+	}
+
+	return cache.NewDomainCacheEntryForTest(
+		&persistence.DomainInfo{
+			ID:   p.domainID,
+			Name: "test-" + p.domainID,
+		},
+		nil,
+		true,
+		replConfig,
+		1,
+		nil,
+		2,
+		0,
+		5,
+	)
+}
+
+func TestProcessActiveActiveDomainFailover(t *testing.T) {
+	tests := []struct {
+		name               string
+		domainID           string
+		domainCacheEntry   *cache.DomainCacheEntry
+		currentClusterName string
+		expectedError      error
+		errorContains      string
+	}{
+		{
+			name:               "active cluster matches current cluster",
+			domainID:           "domain-1",
+			domainCacheEntry:   createDomainEntry(domainEntryParams{domainID: "domain-1", isActiveActive: true, activeCluster: "cluster0"}),
+			currentClusterName: "cluster0",
+			expectedError:      NotImplementedError,
+		},
+		{
+			name:               "no active cluster matches current cluster",
+			domainID:           "domain-2",
+			domainCacheEntry:   createDomainEntry(domainEntryParams{domainID: "domain-2", isActiveActive: true, activeCluster: "cluster1"}),
+			currentClusterName: "cluster0",
+			expectedError:      NotImplementedError,
+		},
+		{
+			name:               "missing ActiveClusters field",
+			domainID:           "domain-3",
+			domainCacheEntry:   createDomainEntry(domainEntryParams{domainID: "domain-3", isActiveActive: true, nilActiveClusters: true}),
+			currentClusterName: "cluster0",
+			errorContains:      "active clusters not found for domain domain-3",
+		},
+		{
+			name:               "missing AttributeScopes field",
+			domainID:           "domain-4",
+			domainCacheEntry:   createDomainEntry(domainEntryParams{domainID: "domain-4", isActiveActive: true, nilAttributeScopes: true}),
+			currentClusterName: "cluster0",
+			errorContains:      "active clusters not found for domain domain-4",
+		},
+		{
+			name:     "multiple scopes and attributes - match in region scope",
+			domainID: "domain-5",
+			domainCacheEntry: createDomainEntry(domainEntryParams{
+				domainID:       "domain-5",
+				isActiveActive: true,
+				attributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-east": {ActiveClusterName: "cluster0", FailoverVersion: 1},
+							"us-west": {ActiveClusterName: "cluster1", FailoverVersion: 2},
+						},
+					},
+					"datacenter": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"dc1": {ActiveClusterName: "cluster1", FailoverVersion: 3},
+						},
+					},
+				},
+			}),
+			currentClusterName: "cluster0",
+			expectedError:      NotImplementedError,
+		},
+		{
+			name:     "multiple scopes and attributes - match in datacenter scope",
+			domainID: "domain-6",
+			domainCacheEntry: createDomainEntry(domainEntryParams{
+				domainID:       "domain-6",
+				isActiveActive: true,
+				attributeScopes: map[string]types.ClusterAttributeScope{
+					"region": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"us-east": {ActiveClusterName: "cluster1", FailoverVersion: 1},
+						},
+					},
+					"datacenter": {
+						ClusterAttributes: map[string]types.ActiveClusterInfo{
+							"dc1": {ActiveClusterName: "cluster0", FailoverVersion: 3},
+						},
+					},
+				},
+			}),
+			currentClusterName: "cluster0",
+			expectedError:      NotImplementedError,
+		},
+		{
+			name:               "empty AttributeScopes map",
+			domainID:           "domain-7",
+			domainCacheEntry:   createDomainEntry(domainEntryParams{domainID: "domain-7", isActiveActive: true, emptyAttributeScopes: true}),
+			currentClusterName: "cluster0",
+			expectedError:      NotImplementedError,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			he := &historyEngineImpl{
+				logger:             log.NewNoop(),
+				currentClusterName: tc.currentClusterName,
+			}
+
+			err := he.processActiveActiveDomainFailover(tc.domainID, tc.domainCacheEntry)
+
+			if tc.expectedError != nil {
+				assert.Equal(t, tc.expectedError, err)
+			} else if tc.errorContains != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errorContains)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestProcessActiveActiveDomainFailovers(t *testing.T) {
+	tests := []struct {
+		name                  string
+		nextDomains           map[string]*cache.DomainCacheEntry
+		currentClusterName    string
+		expectError           bool
+		expectedErrorContains []string
+		shouldNotContainError []string
+	}{
+		{
+			name: "all active-active domains succeed - no error accumulated",
+			nextDomains: map[string]*cache.DomainCacheEntry{
+				"domain-1": createDomainEntry(domainEntryParams{domainID: "domain-1", isActiveActive: true, activeCluster: "cluster0"}),
+				"domain-2": createDomainEntry(domainEntryParams{domainID: "domain-2", isActiveActive: true, activeCluster: "cluster0"}),
+			},
+			currentClusterName: "cluster0",
+			expectError:        false,
+		},
+		{
+			name: "mixed active-active and non-active-active domains",
+			nextDomains: map[string]*cache.DomainCacheEntry{
+				"domain-active-1":  createDomainEntry(domainEntryParams{domainID: "domain-active-1", isActiveActive: true, activeCluster: "cluster0"}),
+				"domain-passive-2": createDomainEntry(domainEntryParams{domainID: "domain-passive-2", isActiveActive: false, activeCluster: "cluster0"}),
+				"domain-active-3":  createDomainEntry(domainEntryParams{domainID: "domain-active-3", isActiveActive: true, activeCluster: "cluster0"}),
+			},
+			currentClusterName: "cluster0",
+			expectError:        true,
+			expectedErrorContains: []string{
+				"domain domain-passive-2 is not active-active",
+			},
+			shouldNotContainError: []string{
+				"domain-active-1",
+				"domain-active-3",
+			},
+		},
+		{
+			name: "all non-active-active domains",
+			nextDomains: map[string]*cache.DomainCacheEntry{
+				"domain-passive-1": createDomainEntry(domainEntryParams{domainID: "domain-passive-1", isActiveActive: false, activeCluster: "cluster0"}),
+				"domain-passive-2": createDomainEntry(domainEntryParams{domainID: "domain-passive-2", isActiveActive: false, activeCluster: "cluster0"}),
+				"domain-passive-3": createDomainEntry(domainEntryParams{domainID: "domain-passive-3", isActiveActive: false, activeCluster: "cluster0"}),
+			},
+			currentClusterName: "cluster0",
+			expectError:        true,
+			expectedErrorContains: []string{
+				"domain domain-passive-1 is not active-active",
+				"domain domain-passive-2 is not active-active",
+				"domain domain-passive-3 is not active-active",
+			},
+		},
+		{
+			name:               "empty map",
+			nextDomains:        map[string]*cache.DomainCacheEntry{},
+			currentClusterName: "cluster0",
+			expectError:        false,
+		},
+		{
+			name: "active-active domain with missing ActiveClusters",
+			nextDomains: map[string]*cache.DomainCacheEntry{
+				"domain-missing-clusters": createDomainEntry(domainEntryParams{domainID: "domain-missing-clusters", isActiveActive: true, nilActiveClusters: true}),
+			},
+			currentClusterName: "cluster0",
+			expectError:        true,
+			expectedErrorContains: []string{
+				"domain domain-missing-clusters is not active-active",
+			},
+		},
+		{
+			name: "active-active domain with nil AttributeScopes",
+			nextDomains: map[string]*cache.DomainCacheEntry{
+				"domain-nil-scopes": createDomainEntry(domainEntryParams{domainID: "domain-nil-scopes", isActiveActive: true, nilAttributeScopes: true}),
+			},
+			currentClusterName: "cluster0",
+			expectError:        true,
+			expectedErrorContains: []string{
+				"domain domain-nil-scopes is not active-active",
+			},
+		},
+		{
+			name: "mixed success and configuration errors",
+			nextDomains: map[string]*cache.DomainCacheEntry{
+				"domain-success":    createDomainEntry(domainEntryParams{domainID: "domain-success", isActiveActive: true, activeCluster: "cluster0"}),
+				"domain-nil-scopes": createDomainEntry(domainEntryParams{domainID: "domain-nil-scopes", isActiveActive: true, nilAttributeScopes: true}),
+				"domain-passive":    createDomainEntry(domainEntryParams{domainID: "domain-passive", isActiveActive: false, activeCluster: "cluster0"}),
+				"domain-success-2":  createDomainEntry(domainEntryParams{domainID: "domain-success-2", isActiveActive: true, activeCluster: "cluster0"}),
+			},
+			currentClusterName: "cluster0",
+			expectError:        true,
+			expectedErrorContains: []string{
+				"domain domain-nil-scopes is not active-active",
+				"domain domain-passive is not active-active",
+			},
+			shouldNotContainError: []string{
+				"domain-success",
+				"domain-success-2",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			he := &historyEngineImpl{
+				logger:             log.NewNoop(),
+				currentClusterName: tc.currentClusterName,
+			}
+
+			err := he.processActiveActiveDomainFailovers(tc.nextDomains)
+
+			if tc.expectError {
+				assert.NotNil(t, err)
+				for _, expectedMsg := range tc.expectedErrorContains {
+					assert.Contains(t, err.Error(), expectedMsg)
+				}
+				for _, shouldNotContain := range tc.shouldNotContainError {
+					assert.NotContains(t, err.Error(), shouldNotContain)
+				}
+			} else {
+				assert.Nil(t, err)
+			}
+		})
+	}
+}
