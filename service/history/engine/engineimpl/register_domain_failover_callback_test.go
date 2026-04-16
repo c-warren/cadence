@@ -949,13 +949,13 @@ func TestHistoryEngine_registerDomainFailoverCallback_ClosureBehavior(t *testing
 }
 
 type domainEntryParams struct {
-	domainID              string
-	activeCluster         string // for active-passive domains
-	isActiveActive        bool
-	attributeScopes       map[string]types.ClusterAttributeScope // for active-active
-	nilActiveClusters     bool                                   // simulate missing ActiveClusters
-	nilAttributeScopes    bool                                   // simulate nil AttributeScopes
-	emptyAttributeScopes  bool                                   // empty map
+	domainID             string
+	activeCluster        string // for active-passive domains
+	isActiveActive       bool
+	attributeScopes      map[string]types.ClusterAttributeScope // for active-active
+	nilActiveClusters    bool                                   // simulate missing ActiveClusters
+	nilAttributeScopes   bool                                   // simulate nil AttributeScopes
+	emptyAttributeScopes bool                                   // empty map
 }
 
 func createDomainEntry(p domainEntryParams) *cache.DomainCacheEntry {
@@ -1024,14 +1024,14 @@ func TestProcessActiveActiveDomainFailover(t *testing.T) {
 			domainID:           "domain-1",
 			domainCacheEntry:   createDomainEntry(domainEntryParams{domainID: "domain-1", isActiveActive: true, activeCluster: "cluster0"}),
 			currentClusterName: "cluster0",
-			expectedError:      NotImplementedError,
+			expectedError:      ErrNotImplemented,
 		},
 		{
 			name:               "no active cluster matches current cluster",
 			domainID:           "domain-2",
 			domainCacheEntry:   createDomainEntry(domainEntryParams{domainID: "domain-2", isActiveActive: true, activeCluster: "cluster1"}),
 			currentClusterName: "cluster0",
-			expectedError:      NotImplementedError,
+			expectedError:      ErrNotImplemented,
 		},
 		{
 			name:               "missing ActiveClusters field",
@@ -1068,7 +1068,7 @@ func TestProcessActiveActiveDomainFailover(t *testing.T) {
 				},
 			}),
 			currentClusterName: "cluster0",
-			expectedError:      NotImplementedError,
+			expectedError:      ErrNotImplemented,
 		},
 		{
 			name:     "multiple scopes and attributes - match in datacenter scope",
@@ -1090,14 +1090,14 @@ func TestProcessActiveActiveDomainFailover(t *testing.T) {
 				},
 			}),
 			currentClusterName: "cluster0",
-			expectedError:      NotImplementedError,
+			expectedError:      ErrNotImplemented,
 		},
 		{
 			name:               "empty AttributeScopes map",
 			domainID:           "domain-7",
 			domainCacheEntry:   createDomainEntry(domainEntryParams{domainID: "domain-7", isActiveActive: true, emptyAttributeScopes: true}),
 			currentClusterName: "cluster0",
-			expectedError:      NotImplementedError,
+			expectedError:      ErrNotImplemented,
 		},
 	}
 

@@ -28,6 +28,7 @@ import (
 	"sort"
 
 	"github.com/hashicorp/go-multierror"
+
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
@@ -37,7 +38,7 @@ import (
 	hcommon "github.com/uber/cadence/service/history/common"
 )
 
-var NotImplementedError = errors.New("history task dead letter queue is not implemented")
+var ErrNotImplemented = errors.New("history task dead letter queue is not implemented")
 
 func (e *historyEngineImpl) registerDomainFailoverCallback() {
 
@@ -267,7 +268,7 @@ func (e *historyEngineImpl) processActiveActiveDomainFailovers(nextDomains map[s
 		}
 
 		err := e.processActiveActiveDomainFailover(domainID, nextDomain)
-		if err != nil && err != NotImplementedError {
+		if err != nil && err != ErrNotImplemented {
 			failedDomains = multierror.Append(failedDomains, err)
 		}
 	}
@@ -294,10 +295,10 @@ func (e *historyEngineImpl) processActiveActiveDomainFailover(domainID string, n
 				// Pass domainID, clusterAttribute to history queue v2 to process failover
 				e.logger.Debug(fmt.Sprintf("Would process failover for domain and cluster attribute, %s, %s, %s", domainID, clusterAttribute.GetScope(), clusterAttribute.GetName()), tag.WorkflowDomainID(domainID))
 
-				return NotImplementedError
+				return ErrNotImplemented
 			}
 		}
 	}
 
-	return NotImplementedError
+	return ErrNotImplemented
 }
