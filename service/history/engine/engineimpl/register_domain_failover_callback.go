@@ -23,15 +23,22 @@ package engineimpl
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sort"
+
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/uber/cadence/common/cache"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/persistence"
+	"github.com/uber/cadence/common/types"
 	hcommon "github.com/uber/cadence/service/history/common"
 )
+
+var ErrNotImplemented = errors.New("history task dead letter queue is not implemented")
 
 func (e *historyEngineImpl) registerDomainFailoverCallback() {
 
@@ -102,7 +109,7 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 
 	shardNotificationVersion := e.shard.GetDomainNotificationVersion()
 	failoverActivePassiveDomainIDs := map[string]struct{}{}
-	failoverActiveActiveDomainIDs := map[string]struct{}{}
+	failoverActiveActiveDomainIDs := map[string]*cache.DomainCacheEntry{}
 
 	for _, nextDomain := range nextDomains {
 		domainFailoverNotificationVersion := nextDomain.GetFailoverNotificationVersion()
@@ -120,7 +127,7 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 		if nextDomain.GetReplicationConfig().IsActiveActive() &&
 			domainFailoverNotificationVersion >= shardNotificationVersion &&
 			nextDomain.IsActiveIn(e.currentClusterName) {
-			failoverActiveActiveDomainIDs[nextDomain.GetInfo().ID] = struct{}{}
+			failoverActiveActiveDomainIDs[nextDomain.GetInfo().ID] = nextDomain
 		}
 	}
 
@@ -135,6 +142,10 @@ func (e *historyEngineImpl) domainChangeCB(nextDomains []*cache.DomainCacheEntry
 
 	if len(failoverActiveActiveDomainIDs) > 0 {
 		e.logger.Info("Active-Active Domain updated", tag.WorkflowDomainIDs(failoverActiveActiveDomainIDs))
+
+		if err := e.processActiveActiveDomainFailovers(failoverActiveActiveDomainIDs); err != nil {
+			e.logger.Error("Failed to process active-active domain failover", tag.Error(err))
+		}
 	}
 
 	// Notify queues for any domain update. (active-passive and active-active)
@@ -245,4 +256,49 @@ func (e *historyEngineImpl) failoverPredicate(shardNotificationVersion int64, ne
 		domainActiveCluster == e.currentClusterName {
 		action()
 	}
+}
+
+func (e *historyEngineImpl) processActiveActiveDomainFailovers(nextDomains map[string]*cache.DomainCacheEntry) error {
+	var failedDomains error
+
+	for domainID, nextDomain := range nextDomains {
+		if !nextDomain.GetReplicationConfig().IsActiveActive() {
+			failedDomains = multierror.Append(failedDomains, fmt.Errorf("domain %s is not active-active", nextDomain.GetInfo().ID))
+			continue
+		}
+
+		err := e.processActiveActiveDomainFailover(domainID, nextDomain)
+		if err != nil && err != ErrNotImplemented {
+			failedDomains = multierror.Append(failedDomains, err)
+		}
+	}
+
+	return failedDomains
+}
+
+func (e *historyEngineImpl) processActiveActiveDomainFailover(domainID string, nextDomain *cache.DomainCacheEntry) error {
+	replicationConfig := nextDomain.GetReplicationConfig()
+	if replicationConfig.ActiveClusters == nil || replicationConfig.ActiveClusters.AttributeScopes == nil {
+		return fmt.Errorf("active clusters not found for domain %s", domainID)
+	}
+
+	for scopeName, scopeData := range replicationConfig.ActiveClusters.AttributeScopes {
+		for attributeName, clusterInfo := range scopeData.ClusterAttributes {
+			activeClusterName := clusterInfo.ActiveClusterName
+			if activeClusterName == e.currentClusterName {
+				// ignore this not being used for now
+				clusterAttribute := &types.ClusterAttribute{
+					Scope: scopeName,
+					Name:  attributeName,
+				}
+
+				// Pass domainID, clusterAttribute to history queue v2 to process failover
+				e.logger.Debug(fmt.Sprintf("Would process failover for domain and cluster attribute, %s, %s, %s", domainID, clusterAttribute.GetScope(), clusterAttribute.GetName()), tag.WorkflowDomainID(domainID))
+
+				return ErrNotImplemented
+			}
+		}
+	}
+
+	return ErrNotImplemented
 }
