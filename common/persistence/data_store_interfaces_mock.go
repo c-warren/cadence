@@ -195,6 +195,21 @@ func (mr *MockExecutionStoreMockRecorder) GetCurrentExecution(ctx, request any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCurrentExecution", reflect.TypeOf((*MockExecutionStore)(nil).GetCurrentExecution), ctx, request)
 }
 
+// GetHistoryTaskDLQAckLevels mocks base method.
+func (m *MockExecutionStore) GetHistoryTaskDLQAckLevels(ctx context.Context, request *GetHistoryTaskDLQAckLevelsRequest) (*GetHistoryTaskDLQAckLevelsResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHistoryTaskDLQAckLevels", ctx, request)
+	ret0, _ := ret[0].(*GetHistoryTaskDLQAckLevelsResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHistoryTaskDLQAckLevels indicates an expected call of GetHistoryTaskDLQAckLevels.
+func (mr *MockExecutionStoreMockRecorder) GetHistoryTaskDLQAckLevels(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryTaskDLQAckLevels", reflect.TypeOf((*MockExecutionStore)(nil).GetHistoryTaskDLQAckLevels), ctx, request)
+}
+
 // GetHistoryTasks mocks base method.
 func (m *MockExecutionStore) GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error) {
 	m.ctrl.T.Helper()
@@ -208,6 +223,21 @@ func (m *MockExecutionStore) GetHistoryTasks(ctx context.Context, request *GetHi
 func (mr *MockExecutionStoreMockRecorder) GetHistoryTasks(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryTasks", reflect.TypeOf((*MockExecutionStore)(nil).GetHistoryTasks), ctx, request)
+}
+
+// GetHistoryTasksFromDLQ mocks base method.
+func (m *MockExecutionStore) GetHistoryTasksFromDLQ(ctx context.Context, request *GetHistoryTasksFromDLQRequest) (*GetHistoryTasksFromDLQResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetHistoryTasksFromDLQ", ctx, request)
+	ret0, _ := ret[0].(*GetHistoryTasksFromDLQResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetHistoryTasksFromDLQ indicates an expected call of GetHistoryTasksFromDLQ.
+func (mr *MockExecutionStoreMockRecorder) GetHistoryTasksFromDLQ(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetHistoryTasksFromDLQ", reflect.TypeOf((*MockExecutionStore)(nil).GetHistoryTasksFromDLQ), ctx, request)
 }
 
 // GetName mocks base method.
@@ -328,6 +358,20 @@ func (mr *MockExecutionStoreMockRecorder) ListCurrentExecutions(ctx, request any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCurrentExecutions", reflect.TypeOf((*MockExecutionStore)(nil).ListCurrentExecutions), ctx, request)
 }
 
+// PutHistoryTaskToDLQ mocks base method.
+func (m *MockExecutionStore) PutHistoryTaskToDLQ(ctx context.Context, request *InternalPutHistoryTaskToDLQRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PutHistoryTaskToDLQ", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// PutHistoryTaskToDLQ indicates an expected call of PutHistoryTaskToDLQ.
+func (mr *MockExecutionStoreMockRecorder) PutHistoryTaskToDLQ(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PutHistoryTaskToDLQ", reflect.TypeOf((*MockExecutionStore)(nil).PutHistoryTaskToDLQ), ctx, request)
+}
+
 // PutReplicationTaskToDLQ mocks base method.
 func (m *MockExecutionStore) PutReplicationTaskToDLQ(ctx context.Context, request *InternalPutReplicationTaskToDLQRequest) error {
 	m.ctrl.T.Helper()
@@ -357,6 +401,20 @@ func (mr *MockExecutionStoreMockRecorder) RangeCompleteHistoryTask(ctx, request 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeCompleteHistoryTask", reflect.TypeOf((*MockExecutionStore)(nil).RangeCompleteHistoryTask), ctx, request)
 }
 
+// RangeDeleteHistoryTasksFromDLQ mocks base method.
+func (m *MockExecutionStore) RangeDeleteHistoryTasksFromDLQ(ctx context.Context, request *RangeDeleteHistoryTasksFromDLQRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RangeDeleteHistoryTasksFromDLQ", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RangeDeleteHistoryTasksFromDLQ indicates an expected call of RangeDeleteHistoryTasksFromDLQ.
+func (mr *MockExecutionStoreMockRecorder) RangeDeleteHistoryTasksFromDLQ(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteHistoryTasksFromDLQ", reflect.TypeOf((*MockExecutionStore)(nil).RangeDeleteHistoryTasksFromDLQ), ctx, request)
+}
+
 // RangeDeleteReplicationTaskFromDLQ mocks base method.
 func (m *MockExecutionStore) RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *RangeDeleteReplicationTaskFromDLQRequest) (*RangeDeleteReplicationTaskFromDLQResponse, error) {
 	m.ctrl.T.Helper()
@@ -370,6 +428,20 @@ func (m *MockExecutionStore) RangeDeleteReplicationTaskFromDLQ(ctx context.Conte
 func (mr *MockExecutionStoreMockRecorder) RangeDeleteReplicationTaskFromDLQ(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RangeDeleteReplicationTaskFromDLQ", reflect.TypeOf((*MockExecutionStore)(nil).RangeDeleteReplicationTaskFromDLQ), ctx, request)
+}
+
+// UpdateHistoryTaskDLQAckLevel mocks base method.
+func (m *MockExecutionStore) UpdateHistoryTaskDLQAckLevel(ctx context.Context, request *UpdateHistoryTaskDLQAckLevelRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateHistoryTaskDLQAckLevel", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateHistoryTaskDLQAckLevel indicates an expected call of UpdateHistoryTaskDLQAckLevel.
+func (mr *MockExecutionStoreMockRecorder) UpdateHistoryTaskDLQAckLevel(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateHistoryTaskDLQAckLevel", reflect.TypeOf((*MockExecutionStore)(nil).UpdateHistoryTaskDLQAckLevel), ctx, request)
 }
 
 // UpdateWorkflowExecution mocks base method.

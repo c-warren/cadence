@@ -974,6 +974,15 @@ type (
 		DomainName        string
 	}
 
+	// PutHistoryTaskToDLQRequest writes a history task to the history task DLQ.
+	PutHistoryTaskToDLQRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		Task                  *HistoryDLQTask
+	}
+
 	// GetReplicationTasksFromDLQRequest is used to get replication tasks from dlq
 	GetReplicationTasksFromDLQRequest struct {
 		ShardID           ShardID
@@ -1657,6 +1666,13 @@ type (
 		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
+
+		// History task DLQ methods
+		PutHistoryTaskToDLQ(ctx context.Context, request *PutHistoryTaskToDLQRequest) error
+		GetHistoryTasksFromDLQ(ctx context.Context, request *GetHistoryTasksFromDLQRequest) (*GetHistoryTasksFromDLQResponse, error)
+		RangeDeleteHistoryTasksFromDLQ(ctx context.Context, request *RangeDeleteHistoryTasksFromDLQRequest) error
+		GetHistoryTaskDLQAckLevels(ctx context.Context, request *GetHistoryTaskDLQAckLevelsRequest) (*GetHistoryTaskDLQAckLevelsResponse, error)
+		UpdateHistoryTaskDLQAckLevel(ctx context.Context, request *UpdateHistoryTaskDLQAckLevelRequest) error
 
 		// Scan operations
 

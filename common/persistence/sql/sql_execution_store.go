@@ -1434,3 +1434,23 @@ func (m *sqlExecutionStore) DeleteActiveClusterSelectionPolicy(
 	// It requires creating a new table in the database to store the active cluster selection policy
 	return nil
 }
+
+func (m *sqlExecutionStore) PutHistoryTaskToDLQ(_ context.Context, _ *p.InternalPutHistoryTaskToDLQRequest) error {
+	return &types.InternalServiceError{Message: "history task DLQ is not supported for SQL stores"}
+}
+
+func (m *sqlExecutionStore) GetHistoryTasksFromDLQ(_ context.Context, _ *p.GetHistoryTasksFromDLQRequest) (*p.GetHistoryTasksFromDLQResponse, error) {
+	return nil, &types.InternalServiceError{Message: "history task DLQ is not supported for SQL stores"}
+}
+
+func (m *sqlExecutionStore) RangeDeleteHistoryTasksFromDLQ(_ context.Context, _ *p.RangeDeleteHistoryTasksFromDLQRequest) error {
+	return &types.InternalServiceError{Message: "history task DLQ is not supported for SQL stores"}
+}
+
+func (m *sqlExecutionStore) GetHistoryTaskDLQAckLevels(_ context.Context, _ *p.GetHistoryTaskDLQAckLevelsRequest) (*p.GetHistoryTaskDLQAckLevelsResponse, error) {
+	return nil, &types.InternalServiceError{Message: "history task DLQ is not supported for SQL stores"}
+}
+
+func (m *sqlExecutionStore) UpdateHistoryTaskDLQAckLevel(_ context.Context, _ *p.UpdateHistoryTaskDLQAckLevelRequest) error {
+	return &types.InternalServiceError{Message: "history task DLQ is not supported for SQL stores"}
+}
