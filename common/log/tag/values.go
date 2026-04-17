@@ -236,6 +236,11 @@ var (
 	StoreOperationGetHistoryTasks                    = storeOperation("get-history-tasks")
 	StoreOperationCompleteHistoryTask                = storeOperation("complete-history-task")
 	StoreOperationRangeCompleteHistoryTask           = storeOperation("range-complete-history-task")
+	StoreOperationPutHistoryTaskToDLQ               = storeOperation("put-history-task-to-dlq")
+	StoreOperationGetHistoryTasksFromDLQ            = storeOperation("get-history-tasks-from-dlq")
+	StoreOperationRangeDeleteHistoryTasksFromDLQ    = storeOperation("range-delete-history-tasks-from-dlq")
+	StoreOperationGetHistoryTaskDLQAckLevels        = storeOperation("get-history-task-dlq-ack-levels")
+	StoreOperationUpdateHistoryTaskDLQAckLevel      = storeOperation("update-history-task-dlq-ack-level")
 	StoreOperationGetActiveClusterSelectionPolicy    = storeOperation("get-active-cluster-selection-policy")
 	StoreOperationDeleteActiveClusterSelectionPolicy = storeOperation("delete-active-cluster-selection-policy")
 

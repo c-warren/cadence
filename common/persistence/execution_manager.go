@@ -940,6 +940,47 @@ func (m *executionManagerImpl) DeleteActiveClusterSelectionPolicy(
 	return m.persistence.DeleteActiveClusterSelectionPolicy(ctx, request)
 }
 
+func (m *executionManagerImpl) PutHistoryTaskToDLQ(
+	ctx context.Context,
+	request *PutHistoryTaskToDLQRequest,
+) error {
+	return m.persistence.PutHistoryTaskToDLQ(ctx, &InternalPutHistoryTaskToDLQRequest{
+		ShardID:               request.ShardID,
+		DomainID:              request.DomainID,
+		ClusterAttributeScope: request.ClusterAttributeScope,
+		ClusterAttributeName:  request.ClusterAttributeName,
+		Task:                  request.Task,
+	})
+}
+
+func (m *executionManagerImpl) GetHistoryTasksFromDLQ(
+	ctx context.Context,
+	request *GetHistoryTasksFromDLQRequest,
+) (*GetHistoryTasksFromDLQResponse, error) {
+	return m.persistence.GetHistoryTasksFromDLQ(ctx, request)
+}
+
+func (m *executionManagerImpl) RangeDeleteHistoryTasksFromDLQ(
+	ctx context.Context,
+	request *RangeDeleteHistoryTasksFromDLQRequest,
+) error {
+	return m.persistence.RangeDeleteHistoryTasksFromDLQ(ctx, request)
+}
+
+func (m *executionManagerImpl) GetHistoryTaskDLQAckLevels(
+	ctx context.Context,
+	request *GetHistoryTaskDLQAckLevelsRequest,
+) (*GetHistoryTaskDLQAckLevelsResponse, error) {
+	return m.persistence.GetHistoryTaskDLQAckLevels(ctx, request)
+}
+
+func (m *executionManagerImpl) UpdateHistoryTaskDLQAckLevel(
+	ctx context.Context,
+	request *UpdateHistoryTaskDLQAckLevelRequest,
+) error {
+	return m.persistence.UpdateHistoryTaskDLQAckLevel(ctx, request)
+}
+
 func (m *executionManagerImpl) Close() {
 	m.persistence.Close()
 }

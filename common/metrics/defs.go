@@ -213,6 +213,16 @@ const (
 	PersistenceCompleteHistoryTaskScope
 	// PersistenceRangeCompleteHistoryTaskScope tracks RangeCompleteHistoryTask calls made by service to persistence layer
 	PersistenceRangeCompleteHistoryTaskScope
+	// PersistencePutHistoryTaskToDLQScope tracks PutHistoryTaskToDLQ calls made by service to persistence layer
+	PersistencePutHistoryTaskToDLQScope
+	// PersistenceGetHistoryTasksFromDLQScope tracks GetHistoryTasksFromDLQ calls made by service to persistence layer
+	PersistenceGetHistoryTasksFromDLQScope
+	// PersistenceRangeDeleteHistoryTasksFromDLQScope tracks RangeDeleteHistoryTasksFromDLQ calls made by service to persistence layer
+	PersistenceRangeDeleteHistoryTasksFromDLQScope
+	// PersistenceGetHistoryTaskDLQAckLevelsScope tracks GetHistoryTaskDLQAckLevels calls made by service to persistence layer
+	PersistenceGetHistoryTaskDLQAckLevelsScope
+	// PersistenceUpdateHistoryTaskDLQAckLevelScope tracks UpdateHistoryTaskDLQAckLevel calls made by service to persistence layer
+	PersistenceUpdateHistoryTaskDLQAckLevelScope
 	// PersistenceCreateTasksScope tracks CreateTask calls made by service to persistence layer
 	PersistenceCreateTasksScope
 	// PersistenceGetTasksScope tracks GetTasks calls made by service to persistence layer
@@ -1587,6 +1597,11 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		PersistenceGetHistoryTasksScope:                          {operation: "GetHistoryTasks"},
 		PersistenceCompleteHistoryTaskScope:                      {operation: "CompleteHistoryTask"},
 		PersistenceRangeCompleteHistoryTaskScope:                 {operation: "RangeCompleteHistoryTask"},
+		PersistencePutHistoryTaskToDLQScope:                      {operation: "PutHistoryTaskToDLQ"},
+		PersistenceGetHistoryTasksFromDLQScope:                   {operation: "GetHistoryTasksFromDLQ"},
+		PersistenceRangeDeleteHistoryTasksFromDLQScope:           {operation: "RangeDeleteHistoryTasksFromDLQ"},
+		PersistenceGetHistoryTaskDLQAckLevelsScope:               {operation: "GetHistoryTaskDLQAckLevels"},
+		PersistenceUpdateHistoryTaskDLQAckLevelScope:             {operation: "UpdateHistoryTaskDLQAckLevel"},
 		PersistenceCreateTasksScope:                              {operation: "CreateTask"},
 		PersistenceGetTasksScope:                                 {operation: "GetTasks"},
 		PersistenceCompleteTaskScope:                             {operation: "CompleteTask"},

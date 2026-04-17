@@ -262,6 +262,16 @@ func executionManagerTags(op string) *tag.Tag {
 		return &tag.StoreOperationGetActiveClusterSelectionPolicy
 	case "ExecutionManager.DeleteActiveClusterSelectionPolicy":
 		return &tag.StoreOperationDeleteActiveClusterSelectionPolicy
+	case "ExecutionManager.PutHistoryTaskToDLQ":
+		return &tag.StoreOperationPutHistoryTaskToDLQ
+	case "ExecutionManager.GetHistoryTasksFromDLQ":
+		return &tag.StoreOperationGetHistoryTasksFromDLQ
+	case "ExecutionManager.RangeDeleteHistoryTasksFromDLQ":
+		return &tag.StoreOperationRangeDeleteHistoryTasksFromDLQ
+	case "ExecutionManager.GetHistoryTaskDLQAckLevels":
+		return &tag.StoreOperationGetHistoryTaskDLQAckLevels
+	case "ExecutionManager.UpdateHistoryTaskDLQAckLevel":
+		return &tag.StoreOperationUpdateHistoryTaskDLQAckLevel
 	}
 	return nil
 }

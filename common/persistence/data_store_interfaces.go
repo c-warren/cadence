@@ -131,6 +131,13 @@ type (
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
 
+		// History task DLQ methods
+		PutHistoryTaskToDLQ(ctx context.Context, request *InternalPutHistoryTaskToDLQRequest) error
+		GetHistoryTasksFromDLQ(ctx context.Context, request *GetHistoryTasksFromDLQRequest) (*GetHistoryTasksFromDLQResponse, error)
+		RangeDeleteHistoryTasksFromDLQ(ctx context.Context, request *RangeDeleteHistoryTasksFromDLQRequest) error
+		GetHistoryTaskDLQAckLevels(ctx context.Context, request *GetHistoryTaskDLQAckLevelsRequest) (*GetHistoryTaskDLQAckLevelsResponse, error)
+		UpdateHistoryTaskDLQAckLevel(ctx context.Context, request *UpdateHistoryTaskDLQAckLevelRequest) error
+
 		// Scan related methods
 		ListConcreteExecutions(ctx context.Context, request *ListConcreteExecutionsRequest) (*InternalListConcreteExecutionsResponse, error)
 		ListCurrentExecutions(ctx context.Context, request *ListCurrentExecutionsRequest) (*ListCurrentExecutionsResponse, error)
@@ -326,6 +333,92 @@ type (
 		ShardID           ShardID
 		SourceClusterName string
 		TaskInfo          *InternalReplicationTaskInfo
+	}
+
+	// HistoryDLQTask is a row from the history_task_dlq table.
+	HistoryDLQTask struct {
+		TaskType            int
+		VisibilityTimestamp time.Time // epoch for immediate tasks (transfer/replication)
+		TaskID              int64
+		DomainID            string
+		WorkflowID          string
+		RunID               string
+		TaskPayload         *DataBlob
+		Version             int64
+		CreatedAt           time.Time
+	}
+
+	// HistoryDLQAckLevelRow is a row from the history_task_dlq_ack_level table.
+	HistoryDLQAckLevelRow struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskType              int
+		AckLevelVisibilityTS  time.Time // epoch for immediate tasks
+		AckLevelTaskID        int64
+		LastUpdatedAt         time.Time
+	}
+
+	// InternalPutHistoryTaskToDLQRequest is used to write a history task to the history task DLQ.
+	InternalPutHistoryTaskToDLQRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		Task                  *HistoryDLQTask
+	}
+
+	// GetHistoryTasksFromDLQRequest reads history task DLQ entries from one partition.
+	GetHistoryTasksFromDLQRequest struct {
+		ShardID                  int
+		DomainID                 string
+		ClusterAttributeScope    string
+		ClusterAttributeName     string
+		TaskType                 int
+		ExclusiveMinVisibilityTS time.Time
+		ExclusiveMinTaskID       int64
+		InclusiveMaxVisibilityTS time.Time
+		InclusiveMaxTaskID       int64
+		PageSize                 int
+		NextPageToken            []byte
+	}
+
+	// GetHistoryTasksFromDLQResponse is the response for GetHistoryTasksFromDLQRequest.
+	GetHistoryTasksFromDLQResponse struct {
+		Tasks         []*HistoryDLQTask
+		NextPageToken []byte
+	}
+
+	// RangeDeleteHistoryTasksFromDLQRequest deletes history task DLQ entries up to the given
+	// (AckLevelVisibilityTS, AckLevelTaskID) boundary using two range tombstones.
+	RangeDeleteHistoryTasksFromDLQRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskType              int
+		AckLevelVisibilityTS  time.Time
+		AckLevelTaskID        int64
+	}
+
+	// GetHistoryTaskDLQAckLevelsRequest reads ack level rows for a shard.
+	// DomainID, ClusterAttributeScope, and ClusterAttributeName are optional filters.
+	GetHistoryTaskDLQAckLevelsRequest struct {
+		ShardID               int
+		DomainID              string // empty = all domains
+		ClusterAttributeScope string // empty = all cluster attributes
+		ClusterAttributeName  string // empty = all cluster attributes
+	}
+
+	// GetHistoryTaskDLQAckLevelsResponse is the response for GetHistoryTaskDLQAckLevelsRequest.
+	GetHistoryTaskDLQAckLevelsResponse struct {
+		AckLevels []*HistoryDLQAckLevelRow
+	}
+
+	// UpdateHistoryTaskDLQAckLevelRequest upserts a single ack level row.
+	UpdateHistoryTaskDLQAckLevelRequest struct {
+		Row HistoryDLQAckLevelRow
 	}
 
 	// InternalReplicationTaskInfo describes the replication task created for replication of history events

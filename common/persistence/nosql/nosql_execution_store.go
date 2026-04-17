@@ -970,3 +970,103 @@ func (d *nosqlExecutionStore) GetActiveClusterSelectionPolicy(
 
 	return row.Policy, nil
 }
+
+func (d *nosqlExecutionStore) PutHistoryTaskToDLQ(
+	ctx context.Context,
+	request *persistence.InternalPutHistoryTaskToDLQRequest,
+) error {
+	task := &nosqlplugin.HistoryDLQTask{
+		TaskType:            request.Task.TaskType,
+		VisibilityTimestamp: request.Task.VisibilityTimestamp,
+		TaskID:              request.Task.TaskID,
+		DomainID:            request.DomainID,
+		WorkflowID:          request.Task.WorkflowID,
+		RunID:               request.Task.RunID,
+		TaskPayload:         request.Task.TaskPayload,
+		Version:             request.Task.Version,
+		CreatedAt:           request.Task.CreatedAt,
+	}
+	if err := d.db.InsertHistoryDLQTask(ctx, d.shardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName, task); err != nil {
+		return convertCommonErrors(d.db, "PutHistoryTaskToDLQ", err)
+	}
+	return nil
+}
+
+func (d *nosqlExecutionStore) GetHistoryTasksFromDLQ(
+	ctx context.Context,
+	request *persistence.GetHistoryTasksFromDLQRequest,
+) (*persistence.GetHistoryTasksFromDLQResponse, error) {
+	tasks, nextPageToken, err := d.db.SelectHistoryDLQTasksOrderByKey(
+		ctx,
+		d.shardID,
+		request.DomainID,
+		request.ClusterAttributeScope,
+		request.ClusterAttributeName,
+		request.TaskType,
+		request.PageSize,
+		request.NextPageToken,
+		request.ExclusiveMinVisibilityTS,
+		request.ExclusiveMinTaskID,
+		request.InclusiveMaxVisibilityTS,
+		request.InclusiveMaxTaskID,
+	)
+	if err != nil {
+		return nil, convertCommonErrors(d.db, "GetHistoryTasksFromDLQ", err)
+	}
+	return &persistence.GetHistoryTasksFromDLQResponse{
+		Tasks:         tasks,
+		NextPageToken: nextPageToken,
+	}, nil
+}
+
+func (d *nosqlExecutionStore) RangeDeleteHistoryTasksFromDLQ(
+	ctx context.Context,
+	request *persistence.RangeDeleteHistoryTasksFromDLQRequest,
+) error {
+	// Use two range tombstones to cleanly delete up to the (visibility_ts, task_id) boundary.
+	if err := d.db.RangeDeleteHistoryDLQTasksBefore(
+		ctx,
+		d.shardID,
+		request.DomainID,
+		request.ClusterAttributeScope,
+		request.ClusterAttributeName,
+		request.TaskType,
+		request.AckLevelVisibilityTS,
+	); err != nil {
+		return convertCommonErrors(d.db, "RangeDeleteHistoryTasksFromDLQ", err)
+	}
+	if err := d.db.RangeDeleteHistoryDLQTasksAtTS(
+		ctx,
+		d.shardID,
+		request.DomainID,
+		request.ClusterAttributeScope,
+		request.ClusterAttributeName,
+		request.TaskType,
+		request.AckLevelVisibilityTS,
+		request.AckLevelTaskID,
+	); err != nil {
+		return convertCommonErrors(d.db, "RangeDeleteHistoryTasksFromDLQ", err)
+	}
+	return nil
+}
+
+func (d *nosqlExecutionStore) GetHistoryTaskDLQAckLevels(
+	ctx context.Context,
+	request *persistence.GetHistoryTaskDLQAckLevelsRequest,
+) (*persistence.GetHistoryTaskDLQAckLevelsResponse, error) {
+	rows, err := d.db.SelectHistoryDLQAckLevels(ctx, d.shardID, request.DomainID, request.ClusterAttributeScope, request.ClusterAttributeName)
+	if err != nil {
+		return nil, convertCommonErrors(d.db, "GetHistoryTaskDLQAckLevels", err)
+	}
+	return &persistence.GetHistoryTaskDLQAckLevelsResponse{AckLevels: rows}, nil
+}
+
+func (d *nosqlExecutionStore) UpdateHistoryTaskDLQAckLevel(
+	ctx context.Context,
+	request *persistence.UpdateHistoryTaskDLQAckLevelRequest,
+) error {
+	if err := d.db.UpsertHistoryDLQAckLevel(ctx, &request.Row); err != nil {
+		return convertCommonErrors(d.db, "UpdateHistoryTaskDLQAckLevel", err)
+	}
+	return nil
+}

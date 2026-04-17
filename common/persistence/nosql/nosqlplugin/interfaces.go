@@ -511,6 +511,27 @@ type (
 		SelectActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, wfID, rID string) (*ActiveClusterSelectionPolicyRow, error)
 		// delete the active cluster selection policy row
 		DeleteActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, workflowID, runID string) error
+
+		// history_task_dlq
+		// Insert a task into the DLQ; IF NOT EXISTS makes it idempotent on retry.
+		InsertHistoryDLQTask(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string, task *HistoryDLQTask) error
+		// Page through DLQ tasks for one (partition, taskType), ordered by (visibility_ts, task_id) ASC.
+		// (exclusiveMinVisibilityTS, exclusiveMinTaskID) and (inclusiveMaxVisibilityTS, inclusiveMaxTaskID) bound the scan.
+		SelectHistoryDLQTasksOrderByKey(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string, taskType int, pageSize int, pageToken []byte, exclusiveMinVisibilityTS time.Time, exclusiveMinTaskID int64, inclusiveMaxVisibilityTS time.Time, inclusiveMaxTaskID int64) ([]*HistoryDLQTask, []byte, error)
+		// Delete all tasks with visibility_ts < exclusiveMaxVisibilityTS (single range tombstone).
+		// Pair with RangeDeleteHistoryDLQTasksAtTS to cleanly delete up to a (visibility_ts, task_id) boundary.
+		RangeDeleteHistoryDLQTasksBefore(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string, taskType int, exclusiveMaxVisibilityTS time.Time) error
+		// Delete tasks at exactly visibilityTS with task_id <= inclusiveMaxTaskID (single range tombstone).
+		RangeDeleteHistoryDLQTasksAtTS(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string, taskType int, visibilityTS time.Time, inclusiveMaxTaskID int64) error
+
+		// history_task_dlq_ack_level
+		// Return ack levels for a shard.
+		// If domainID is non-empty, restrict to that domain.
+		// If clusterAttributeScope and clusterAttributeName are also non-empty, further restrict to that cluster attribute.
+		// If all filter args are empty, return all ack levels for the shard.
+		SelectHistoryDLQAckLevels(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string) ([]*HistoryDLQAckLevelRow, error)
+		// Upsert an ack level row (INSERT with Cassandra upsert semantics).
+		UpsertHistoryDLQAckLevel(ctx context.Context, row *HistoryDLQAckLevelRow) error
 	}
 
 	/***
