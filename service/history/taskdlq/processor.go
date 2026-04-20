@@ -75,10 +75,11 @@ type (
 		timeSource clock.TimeSource
 		logger     log.Logger
 
-		status int32
-		ctx    context.Context
-		cancel context.CancelFunc
-		wg     sync.WaitGroup
+		status    int32
+		ctx       context.Context
+		cancel    context.CancelFunc
+		wg        sync.WaitGroup
+		processMu sync.Mutex // serializes ProcessShard and ProcessPartition
 	}
 )
 
@@ -89,6 +90,8 @@ func DefaultProcessingInterval() dynamicproperties.DurationPropertyFn {
 		return defaultProcessingInterval
 	}
 }
+
+var _ Processor = (*processorImpl)(nil)
 
 // NewProcessor creates a Processor that reads from the history task DLQ for shardID.
 //
@@ -106,9 +109,9 @@ func NewProcessor(
 	interval dynamicproperties.DurationPropertyFn,
 	timeSource clock.TimeSource,
 	logger log.Logger,
-) processorImpl {
+) *processorImpl {
 	ctx, cancel := context.WithCancel(context.Background())
-	return processorImpl{
+	return &processorImpl{
 		shardID:    shardID,
 		store:      store,
 		executors:  executors,
@@ -171,6 +174,8 @@ func (p *processorImpl) processLoop() {
 }
 
 func (p *processorImpl) ProcessShard(ctx context.Context) error {
+	p.processMu.Lock()
+	defer p.processMu.Unlock()
 	ackLevels, err := p.store.GetAckLevels(ctx, p.shardID)
 	if err != nil {
 		return fmt.Errorf("get DLQ ack levels for shard %d: %w", p.shardID, err)
@@ -179,6 +184,8 @@ func (p *processorImpl) ProcessShard(ctx context.Context) error {
 }
 
 func (p *processorImpl) ProcessPartition(ctx context.Context, domainID, clusterAttributeScope, clusterAttributeName string) error {
+	p.processMu.Lock()
+	defer p.processMu.Unlock()
 	ackLevels, err := p.store.GetAckLevelsForPartition(ctx, p.shardID, domainID, clusterAttributeScope, clusterAttributeName)
 	if err != nil {
 		return fmt.Errorf("get DLQ ack levels for partition (shard=%d domain=%s scope=%s name=%s): %w",
@@ -257,7 +264,7 @@ func (p *processorImpl) processAckLevel(ctx context.Context, al AckLevel) error 
 
 	if lastGoodKey != nil {
 		if err := p.advanceAckLevel(ctx, al, *lastGoodKey); err != nil {
-			return err
+			return multierr.Append(err, firstErr)
 		}
 	}
 	return firstErr
@@ -286,7 +293,7 @@ func (p *processorImpl) advanceAckLevel(ctx context.Context, al AckLevel, newKey
 		TaskType:              al.TaskType,
 		InclusiveMaxTaskKey:   newKey,
 	}); err != nil {
-		p.logger.Error("failed to delete acknowledged DLQ tasks (will retry on next run)",
+		p.logger.Error("failed to delete acknowledged DLQ tasks",
 			tag.WorkflowDomainID(al.DomainID),
 			tag.Error(err),
 		)
