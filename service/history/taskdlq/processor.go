@@ -66,7 +66,7 @@ type (
 		ProcessPartition(ctx context.Context, domainID, clusterAttributeScope, clusterAttributeName string) error
 	}
 
-	processorImpl struct {
+	ProcessorImpl struct {
 		shardID    int
 		store      HistoryTaskDLQStore
 		executors  map[int]TaskExecutor // persistence.HistoryTaskCategoryID* → executor
@@ -91,7 +91,7 @@ func DefaultProcessingInterval() dynamicproperties.DurationPropertyFn {
 	}
 }
 
-var _ Processor = (*processorImpl)(nil)
+var _ Processor = (*ProcessorImpl)(nil)
 
 // NewProcessor creates a Processor that reads from the history task DLQ for shardID.
 //
@@ -109,9 +109,9 @@ func NewProcessor(
 	interval dynamicproperties.DurationPropertyFn,
 	timeSource clock.TimeSource,
 	logger log.Logger,
-) *processorImpl {
+) *ProcessorImpl {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &processorImpl{
+	return &ProcessorImpl{
 		shardID:    shardID,
 		store:      store,
 		executors:  executors,
@@ -126,7 +126,7 @@ func NewProcessor(
 }
 
 // Start starts the processor and launches the background processing loop.
-func (p *processorImpl) Start() {
+func (p *ProcessorImpl) Start() {
 	if !atomic.CompareAndSwapInt32(&p.status, common.DaemonStatusInitialized, common.DaemonStatusStarted) {
 		return
 	}
@@ -137,7 +137,7 @@ func (p *processorImpl) Start() {
 }
 
 // Stop signals the background loop to exit and waits for it to finish. Idempotent.
-func (p *processorImpl) Stop() {
+func (p *ProcessorImpl) Stop() {
 	if !atomic.CompareAndSwapInt32(&p.status, common.DaemonStatusStarted, common.DaemonStatusStopped) {
 		return
 	}
@@ -150,7 +150,7 @@ func (p *processorImpl) Stop() {
 // processLoop is the background goroutine that periodically calls ProcessShard.
 // It reads the interval on every tick so that dynamic-config changes take effect
 // without a restart.
-func (p *processorImpl) processLoop() {
+func (p *ProcessorImpl) processLoop() {
 	defer p.wg.Done()
 	defer func() { log.CapturePanic(recover(), p.logger, nil) }()
 
@@ -173,7 +173,7 @@ func (p *processorImpl) processLoop() {
 	}
 }
 
-func (p *processorImpl) ProcessShard(ctx context.Context) error {
+func (p *ProcessorImpl) ProcessShard(ctx context.Context) error {
 	p.processMu.Lock()
 	defer p.processMu.Unlock()
 	ackLevels, err := p.store.GetAckLevels(ctx, p.shardID)
@@ -183,7 +183,7 @@ func (p *processorImpl) ProcessShard(ctx context.Context) error {
 	return p.processAckLevels(ctx, ackLevels)
 }
 
-func (p *processorImpl) ProcessPartition(ctx context.Context, domainID, clusterAttributeScope, clusterAttributeName string) error {
+func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterAttributeScope, clusterAttributeName string) error {
 	p.processMu.Lock()
 	defer p.processMu.Unlock()
 	ackLevels, err := p.store.GetAckLevelsForPartition(ctx, p.shardID, domainID, clusterAttributeScope, clusterAttributeName)
@@ -196,7 +196,7 @@ func (p *processorImpl) ProcessPartition(ctx context.Context, domainID, clusterA
 
 // processAckLevels attempts to process every ack level entry. All partitions are
 // attempted regardless of individual failures; all errors are combined and returned.
-func (p *processorImpl) processAckLevels(ctx context.Context, ackLevels []AckLevel) error {
+func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []AckLevel) error {
 	var errs error
 	for _, al := range ackLevels {
 		if err := p.processAckLevel(ctx, al); err != nil {
@@ -216,7 +216,7 @@ func (p *processorImpl) processAckLevels(ctx context.Context, ackLevels []AckLev
 // processAckLevel pages through the tasks for one (partition, taskType) and executes
 // each one. It stops at the first execution failure, then advances the ack level to
 // the last successfully executed task key.
-func (p *processorImpl) processAckLevel(ctx context.Context, al AckLevel) error {
+func (p *ProcessorImpl) processAckLevel(ctx context.Context, al AckLevel) error {
 	executor, ok := p.executors[al.TaskType]
 	if !ok {
 		return fmt.Errorf("no executor registered for task type %d", al.TaskType)
@@ -273,7 +273,7 @@ func (p *processorImpl) processAckLevel(ctx context.Context, al AckLevel) error 
 // advanceAckLevel updates the persistent ack level and then removes the acknowledged
 // tasks. UpdateAckLevel runs first so that a crash between the two steps only leaves
 // orphaned rows (which DeleteTasks can clean up on the next run).
-func (p *processorImpl) advanceAckLevel(ctx context.Context, al AckLevel, newKey persistence.HistoryTaskKey) error {
+func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al AckLevel, newKey persistence.HistoryTaskKey) error {
 	if err := p.store.UpdateAckLevel(ctx, UpdateAckLevelRequest{
 		ShardID:               al.ShardID,
 		DomainID:              al.DomainID,

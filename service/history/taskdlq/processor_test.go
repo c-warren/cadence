@@ -46,9 +46,9 @@ func newMockTask(ctrl *gomock.Controller, taskID int64) *persistence.MockTask {
 	return t
 }
 
-func setupProcessor(t *testing.T, ctrl *gomock.Controller) (*processorImpl, *MockStore, *MockTaskExecutor) {
+func setupProcessor(t *testing.T, ctrl *gomock.Controller) (*ProcessorImpl, *MockHistoryTaskDLQStore, *MockTaskExecutor) {
 	t.Helper()
-	store := NewMockStore(ctrl)
+	store := NewMockHistoryTaskDLQStore(ctrl)
 	executor := NewMockTaskExecutor(ctrl)
 	proc := NewProcessor(
 		1,
@@ -244,7 +244,7 @@ func TestProcessPartition_WhenMultipleTaskTypes_ProcessesAll(t *testing.T) {
 
 	transferExecutor := NewMockTaskExecutor(ctrl)
 	timerExecutor := NewMockTaskExecutor(ctrl)
-	store := NewMockStore(ctrl)
+	store := NewMockHistoryTaskDLQStore(ctrl)
 	proc := NewProcessor(
 		1,
 		store,
@@ -368,7 +368,7 @@ func TestProcessShard_AndProcessPartition_AreSerializedByMutex(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	store := NewMockStore(ctrl)
+	store := NewMockHistoryTaskDLQStore(ctrl)
 	proc := NewProcessor(
 		1,
 		store,
@@ -426,7 +426,7 @@ func TestStop_WhenStoreRespectsContextCancellation_ReturnsPromptly(t *testing.T)
 	defer ctrl.Finish()
 
 	ts := clock.NewMockedTimeSource()
-	store := NewMockStore(ctrl)
+	store := NewMockHistoryTaskDLQStore(ctrl)
 
 	inGetAckLevels := make(chan struct{}, 1)
 	store.EXPECT().GetAckLevels(gomock.Any(), 1).DoAndReturn(func(ctx context.Context, _ int) ([]AckLevel, error) {
@@ -515,7 +515,7 @@ func TestStartStop_ShouldBeIdempotent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	store := NewMockStore(ctrl)
+	store := NewMockHistoryTaskDLQStore(ctrl)
 	proc := NewProcessor(
 		1,
 		store,
@@ -537,7 +537,7 @@ func TestStart_ShouldCallProcessShardOnInterval(t *testing.T) {
 	defer ctrl.Finish()
 
 	ts := clock.NewMockedTimeSource()
-	store := NewMockStore(ctrl)
+	store := NewMockHistoryTaskDLQStore(ctrl)
 	processed := make(chan struct{}, 1)
 	store.EXPECT().GetAckLevels(gomock.Any(), 1).DoAndReturn(func(_ context.Context, _ int) ([]AckLevel, error) {
 		select {

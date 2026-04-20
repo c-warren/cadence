@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate mockgen -package $GOPACKAGE -source $GOFILE -destination interface_mock.go -self_package github.com/uber/cadence/service/history/dlq
+//go:generate mockgen -package $GOPACKAGE -destination interface_mock.go github.com/uber/cadence/service/history/taskdlq HistoryTaskDLQStore,TaskExecutor
 
 package taskdlq
 
