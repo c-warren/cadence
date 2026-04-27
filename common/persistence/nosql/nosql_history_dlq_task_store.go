@@ -74,7 +74,10 @@ func (m *nosqlHistoryDLQTaskStore) CreateHistoryDLQTask(
 		request.ClusterAttributeName,
 		task,
 	)
-	return convertCommonErrors(m.db, "CreateHistoryDLQTask", err)
+	if err != nil {
+		return convertCommonErrors(m.db, "CreateHistoryDLQTask", err)
+	}
+	return nil
 }
 
 func (m *nosqlHistoryDLQTaskStore) GetName() string { return m.db.PluginName() }
