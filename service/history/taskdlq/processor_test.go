@@ -50,18 +50,30 @@ func setupProcessor(t *testing.T, ctrl *gomock.Controller) (*ProcessorImpl, *Moc
 	t.Helper()
 	store := NewMockHistoryTaskDLQStore(ctrl)
 	executor := NewMockTaskExecutor(ctrl)
+	sourceQueue := newNoopSourceAckLevelReader(ctrl)
 	proc := NewProcessor(
 		1,
 		store,
 		map[int]TaskExecutor{
 			persistence.HistoryTaskCategoryIDTransfer: executor,
 		},
+		sourceQueue,
 		10,
 		dynamicproperties.GetDurationPropertyFn(defaultProcessingInterval),
 		clock.NewMockedTimeSource(),
 		testlogger.New(t),
 	)
 	return proc, store, executor
+}
+
+// newNoopSourceAckLevelReader returns a MockSourceAckLevelReader that always returns the
+// zero HistoryTaskKey, causing the processor to fall back to MaximumHistoryTaskKey for
+// all DLQ scans. Use this in tests that don't care about the source ack level bound.
+func newNoopSourceAckLevelReader(ctrl *gomock.Controller) *MockSourceAckLevelReader {
+	m := NewMockSourceAckLevelReader(ctrl)
+	m.EXPECT().GetQueueClusterAckLevel(gomock.Any(), gomock.Any()).
+		Return(persistence.HistoryTaskKey{}).AnyTimes()
+	return m
 }
 
 func baseAckLevel(shardID int) AckLevel {
@@ -277,6 +289,7 @@ func TestProcessPartition_WhenMultipleTaskTypes_ProcessesAll(t *testing.T) {
 			persistence.HistoryTaskCategoryIDTransfer: transferExecutor,
 			persistence.HistoryTaskCategoryIDTimer:    timerExecutor,
 		},
+		newNoopSourceAckLevelReader(ctrl),
 		10,
 		dynamicproperties.GetDurationPropertyFn(defaultProcessingInterval),
 		clock.NewMockedTimeSource(),
@@ -303,7 +316,51 @@ func TestProcessPartition_WhenMultipleTaskTypes_ProcessesAll(t *testing.T) {
 	assert.NoError(t, proc.ProcessPartition(context.Background(), "d", "s", "n"))
 }
 
-func TestAdvanceAckLevel(t *testing.T) {
+func TestProcessShard_WhenSourceQueueHasAckLevel_BoundsTaskScanToSourceAckLevel(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	store := NewMockHistoryTaskDLQStore(ctrl)
+	executor := NewMockTaskExecutor(ctrl)
+	sourceQueue := NewMockSourceAckLevelReader(ctrl)
+
+	sourceAckKey := persistence.NewImmediateTaskKey(42)
+	sourceQueue.EXPECT().
+		GetQueueClusterAckLevel(persistence.HistoryTaskCategoryTransfer, "cluster-east").
+		Return(sourceAckKey)
+
+	proc := NewProcessor(
+		1,
+		store,
+		map[int]TaskExecutor{persistence.HistoryTaskCategoryIDTransfer: executor},
+		sourceQueue,
+		10,
+		dynamicproperties.GetDurationPropertyFn(defaultProcessingInterval),
+		clock.NewMockedTimeSource(),
+		testlogger.New(t),
+	)
+
+	al := AckLevel{
+		ShardID: 1, DomainID: "d", ClusterAttributeScope: "cluster", ClusterAttributeName: "cluster-east",
+		TaskType:             persistence.HistoryTaskCategoryIDTransfer,
+		AckLevelVisibilityTS: time.Unix(0, 0).UTC(), AckLevelTaskID: -1,
+	}
+	store.EXPECT().GetAckLevels(gomock.Any(), 1).Return([]AckLevel{al}, nil)
+	store.EXPECT().GetTasks(gomock.Any(), GetTasksRequest{
+		ShardID:               1,
+		DomainID:              "d",
+		ClusterAttributeScope: "cluster",
+		ClusterAttributeName:  "cluster-east",
+		TaskType:              persistence.HistoryTaskCategoryIDTransfer,
+		InclusiveMinTaskKey:   persistence.NewImmediateTaskKey(0), // nextKey(-1) = 0
+		ExclusiveMaxTaskKey:   sourceAckKey,
+		PageSize:              10,
+	}).Return(GetTasksResponse{}, nil)
+
+	assert.NoError(t, proc.ProcessShard(context.Background()))
+}
+
+func TestAdvanceAckLevel_WhenPersistenceOperationsFail(t *testing.T) {
 	tests := []struct {
 		name               string
 		updateErr          error
@@ -390,7 +447,7 @@ func TestProcessShard_WhenExecutionAndAdvanceAckLevelBothFail_ReturnsBothErrors(
 	assert.ErrorIs(t, err, updateErr)
 }
 
-func TestProcessShard_AndProcessPartition_AreSerializedByMutex(t *testing.T) {
+func TestProcessShard_WhenConcurrentWithProcessPartition_ProcessPartitionWaitsUntilComplete(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -399,6 +456,7 @@ func TestProcessShard_AndProcessPartition_AreSerializedByMutex(t *testing.T) {
 		1,
 		store,
 		map[int]TaskExecutor{},
+		newNoopSourceAckLevelReader(ctrl),
 		10,
 		dynamicproperties.GetDurationPropertyFn(defaultProcessingInterval),
 		clock.NewMockedTimeSource(),
@@ -468,6 +526,7 @@ func TestStop_WhenStoreRespectsContextCancellation_ReturnsPromptly(t *testing.T)
 		1,
 		store,
 		map[int]TaskExecutor{},
+		newNoopSourceAckLevelReader(ctrl),
 		10,
 		dynamicproperties.GetDurationPropertyFn(defaultProcessingInterval),
 		ts,
@@ -537,7 +596,7 @@ func TestProcessShard_WhenDeleteTasksFailsAndDLQBecomesEmpty_OrphanedRowsNotClea
 	assert.NoError(t, proc.ProcessShard(context.Background()))
 }
 
-func TestStartStop_ShouldBeIdempotent(t *testing.T) {
+func TestStartAndStop_WhenCalledMultipleTimes_AreIdempotent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -546,6 +605,7 @@ func TestStartStop_ShouldBeIdempotent(t *testing.T) {
 		1,
 		store,
 		map[int]TaskExecutor{},
+		newNoopSourceAckLevelReader(ctrl),
 		10,
 		dynamicproperties.GetDurationPropertyFn(defaultProcessingInterval),
 		clock.NewMockedTimeSource(),
@@ -558,7 +618,7 @@ func TestStartStop_ShouldBeIdempotent(t *testing.T) {
 	proc.Stop() // second call must be a no-op
 }
 
-func TestStart_ShouldCallProcessShardOnInterval(t *testing.T) {
+func TestStart_WhenIntervalElapses_CallsProcessShard(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -577,6 +637,7 @@ func TestStart_ShouldCallProcessShardOnInterval(t *testing.T) {
 		1,
 		store,
 		map[int]TaskExecutor{},
+		newNoopSourceAckLevelReader(ctrl),
 		10,
 		dynamicproperties.GetDurationPropertyFn(defaultProcessingInterval),
 		ts,

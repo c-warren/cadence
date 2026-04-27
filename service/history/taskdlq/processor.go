@@ -42,7 +42,7 @@ import (
 const (
 	// defaultProcessingInterval is how often the periodic shard sweep runs.
 	// TODO(c-warren) Make this dynamically configurable via dynamic config in a future change.
-	defaultProcessingInterval = 30 * time.Minute
+	defaultProcessingInterval = 10 * time.Second
 )
 
 type (
@@ -67,13 +67,14 @@ type (
 	}
 
 	ProcessorImpl struct {
-		shardID    int
-		store      HistoryTaskDLQStore
-		executors  map[int]TaskExecutor // persistence.HistoryTaskCategoryID* → executor
-		pageSize   int
-		interval   dynamicproperties.DurationPropertyFn
-		timeSource clock.TimeSource
-		logger     log.Logger
+		shardID     int
+		store       HistoryTaskDLQStore
+		executors   map[int]TaskExecutor // persistence.HistoryTaskCategoryID* → executor
+		sourceQueue SourceAckLevelReader
+		pageSize    int
+		interval    dynamicproperties.DurationPropertyFn
+		timeSource  clock.TimeSource
+		logger      log.Logger
 
 		status    int32
 		ctx       context.Context
@@ -98,6 +99,10 @@ var _ Processor = (*ProcessorImpl)(nil)
 // executors maps persistence.HistoryTaskCategoryID* constants to the appropriate
 // historyqueuev2 executor for each task type.
 //
+// sourceQueue is used to read the current ack level of the source (normal) history queue
+// so that DLQ scans are bounded to tasks already committed there. shard.Context satisfies
+// this interface directly.
+//
 // interval controls how often the background loop calls ProcessShard. Pass
 // dynamicproperties.GetDurationPropertyFn(defaultProcessingInterval) to use the
 // package default, or supply a dynamic-config-backed function for live tuning.
@@ -105,21 +110,23 @@ func NewProcessor(
 	shardID int,
 	store HistoryTaskDLQStore,
 	executors map[int]TaskExecutor,
+	sourceQueue SourceAckLevelReader,
 	pageSize int,
 	interval dynamicproperties.DurationPropertyFn,
 	timeSource clock.TimeSource,
 	logger log.Logger,
 ) *ProcessorImpl {
 	return &ProcessorImpl{
-		shardID:    shardID,
-		store:      store,
-		executors:  executors,
-		pageSize:   pageSize,
-		interval:   interval,
-		timeSource: timeSource,
-		logger:     logger,
-		status:     common.DaemonStatusInitialized,
-		cancel:     func() {}, // no-op until Start() sets the real cancel
+		shardID:     shardID,
+		store:       store,
+		executors:   executors,
+		sourceQueue: sourceQueue,
+		pageSize:    pageSize,
+		interval:    interval,
+		timeSource:  timeSource,
+		logger:      logger,
+		status:      common.DaemonStatusInitialized,
+		cancel:      func() {}, // no-op until Start() sets the real cancel
 	}
 }
 
@@ -182,6 +189,7 @@ func (p *ProcessorImpl) ProcessShard(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("get DLQ ack levels for shard %d: %w", p.shardID, err)
 	}
+	p.enrichWithSourceAckLevel(ackLevels)
 	return p.processAckLevels(ctx, ackLevels)
 }
 
@@ -196,7 +204,22 @@ func (p *ProcessorImpl) ProcessPartition(ctx context.Context, domainID, clusterA
 		return fmt.Errorf("get DLQ ack levels for partition (shard=%d domain=%s scope=%s name=%s): %w",
 			p.shardID, domainID, clusterAttributeScope, clusterAttributeName, err)
 	}
+	p.enrichWithSourceAckLevel(ackLevels)
 	return p.processAckLevels(ctx, ackLevels)
+}
+
+// enrichWithSourceAckLevel sets ExclusiveMaxTaskKey on each AckLevel from the source
+// queue's current cluster ack level. This bounds DLQ scans to tasks that have already
+// been fully processed (and discarded) by the source standby queue, ensuring we never
+// touch tasks that may still be in-flight.
+func (p *ProcessorImpl) enrichWithSourceAckLevel(ackLevels []AckLevel) {
+	for i := range ackLevels {
+		cat, ok := categoryFromTaskType(ackLevels[i].TaskType)
+		if !ok {
+			continue
+		}
+		ackLevels[i].ExclusiveMaxTaskKey = p.sourceQueue.GetQueueClusterAckLevel(cat, ackLevels[i].ClusterAttributeName)
+	}
 }
 
 // processAckLevels attempts to process every ack level entry. All partitions are
@@ -321,4 +344,20 @@ func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al AckLevel, newKey
 // current ack position, used as InclusiveMinTaskKey for the next fetch.
 func nextKey(al AckLevel) persistence.HistoryTaskKey {
 	return persistence.NewHistoryTaskKey(al.AckLevelVisibilityTS, al.AckLevelTaskID).Next()
+}
+
+// categoryFromTaskType maps a persistence.HistoryTaskCategoryID* constant to the
+// corresponding HistoryTaskCategory value. Returns (category, true) on success,
+// (zero, false) if the task type is unknown.
+func categoryFromTaskType(taskType int) (persistence.HistoryTaskCategory, bool) {
+	switch taskType {
+	case persistence.HistoryTaskCategoryIDTransfer:
+		return persistence.HistoryTaskCategoryTransfer, true
+	case persistence.HistoryTaskCategoryIDTimer:
+		return persistence.HistoryTaskCategoryTimer, true
+	case persistence.HistoryTaskCategoryIDReplication:
+		return persistence.HistoryTaskCategoryReplication, true
+	default:
+		return persistence.HistoryTaskCategory{}, false
+	}
 }

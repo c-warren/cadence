@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate mockgen -package $GOPACKAGE -destination interface_mock.go github.com/uber/cadence/service/history/taskdlq HistoryTaskDLQStore,TaskExecutor
+//go:generate mockgen -package $GOPACKAGE -destination interface_mock.go github.com/uber/cadence/service/history/taskdlq HistoryTaskDLQStore,TaskExecutor,SourceAckLevelReader
 
 package taskdlq
 
@@ -33,14 +33,13 @@ type (
 	// HistoryTaskDLQStore defines the methods required from the persistence layer for the History Task DLQ Processor.
 	HistoryTaskDLQStore interface {
 		// GetAckLevels returns all DLQ partitions for a shard with their current ack levels.
-		// Implementations must populate AckLevel.ExclusiveMaxTaskKey with the current ack level
-		// of the source (normal) queue so that the processor does not scan tasks that may still
-		// be in-flight in that queue.
+		// ExclusiveMaxTaskKey in the returned AckLevel structs is NOT populated by the store;
+		// the processor enriches it from the source queue via SourceAckLevelReader.
 		GetAckLevels(ctx context.Context, shardID int) ([]AckLevel, error)
 
 		// GetAckLevelsForPartition returns ack levels for all task types within a specific
 		// (domain, clusterAttributeScope, clusterAttributeName) partition.
-		// Implementations must populate AckLevel.ExclusiveMaxTaskKey as described in GetAckLevels.
+		// ExclusiveMaxTaskKey is not populated; see GetAckLevels.
 		GetAckLevelsForPartition(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string) ([]AckLevel, error)
 
 		// GetTasks returns tasks from a DLQ partition starting at the inclusive min key.
@@ -64,6 +63,15 @@ type (
 		HandleErr(err error) error
 	}
 
+	// SourceAckLevelReader provides the current ack level of the source (normal) history
+	// task queue for a given category and cluster. The DLQ processor uses this to bound
+	// its scans — tasks beyond the source ack level may still be in-flight.
+	//
+	// shard.Context satisfies this interface directly.
+	SourceAckLevelReader interface {
+		GetQueueClusterAckLevel(category persistence.HistoryTaskCategory, cluster string) persistence.HistoryTaskKey
+	}
+
 	// AckLevel identifies one DLQ partition and its current processing watermark.
 	AckLevel struct {
 		ShardID               int
@@ -76,9 +84,9 @@ type (
 		AckLevelVisibilityTS time.Time
 		AckLevelTaskID       int64
 		// ExclusiveMaxTaskKey bounds the DLQ scan to tasks that were committed to the DLQ
-		// before the source queue had processed this far. Populated by the store from the
-		// source queue's current ack level. Tasks at or beyond this key may still be
-		// in-flight in the source queue and must not be processed.
+		// before the source queue had processed this far. Tasks at or beyond this key may
+		// still be in-flight in the source queue and must not be processed.
+		// Populated by the processor from SourceAckLevelReader, not by the store.
 		// If zero-value, the processor falls back to persistence.MaximumHistoryTaskKey.
 		ExclusiveMaxTaskKey persistence.HistoryTaskKey
 	}
