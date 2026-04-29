@@ -147,3 +147,30 @@ func TestNoSQLHistoryDLQTaskStore_Close(t *testing.T) {
 	store, _ := setUpMocksForHistoryDLQTaskStore(t)
 	store.Close() // must not panic
 }
+
+// The following tests verify that stub methods return "not implemented" errors
+// until the cwarren/dlqschema branch is merged and the plugin methods are wired up.
+
+func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQTasks_NotImplemented(t *testing.T) {
+	store, _ := setUpMocksForHistoryDLQTaskStore(t)
+	_, err := store.GetHistoryDLQTasks(context.Background(), persistence.InternalGetHistoryDLQTasksRequest{})
+	assert.EqualError(t, err, "GetHistoryDLQTasks not implemented")
+}
+
+func TestNoSQLHistoryDLQTaskStore_RangeDeleteHistoryDLQTasks_NotImplemented(t *testing.T) {
+	store, _ := setUpMocksForHistoryDLQTaskStore(t)
+	err := store.RangeDeleteHistoryDLQTasks(context.Background(), persistence.InternalRangeDeleteHistoryDLQTasksRequest{})
+	assert.EqualError(t, err, "RangeDeleteHistoryDLQTasks not implemented")
+}
+
+func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQAckLevels_NotImplemented(t *testing.T) {
+	store, _ := setUpMocksForHistoryDLQTaskStore(t)
+	_, err := store.GetHistoryDLQAckLevels(context.Background(), persistence.InternalGetHistoryDLQAckLevelsRequest{})
+	assert.EqualError(t, err, "GetHistoryDLQAckLevels not implemented")
+}
+
+func TestNoSQLHistoryDLQTaskStore_UpdateHistoryDLQAckLevel_NotImplemented(t *testing.T) {
+	store, _ := setUpMocksForHistoryDLQTaskStore(t)
+	err := store.UpdateHistoryDLQAckLevel(context.Background(), persistence.InternalUpdateHistoryDLQAckLevelRequest{})
+	assert.EqualError(t, err, "UpdateHistoryDLQAckLevel not implemented")
+}

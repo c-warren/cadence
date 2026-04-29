@@ -22,6 +22,7 @@ package nosql
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/log"
@@ -82,3 +83,39 @@ func (m *nosqlHistoryDLQTaskStore) CreateHistoryDLQTask(
 
 func (m *nosqlHistoryDLQTaskStore) GetName() string { return m.db.PluginName() }
 func (m *nosqlHistoryDLQTaskStore) Close()          {}
+
+// GetHistoryDLQTasks is not yet implemented; it will be wired once the
+// Cassandra schema and plugin methods land from the cwarren/dlqschema branch.
+func (m *nosqlHistoryDLQTaskStore) GetHistoryDLQTasks(
+	_ context.Context,
+	_ persistence.InternalGetHistoryDLQTasksRequest,
+) (persistence.InternalGetHistoryDLQTasksResponse, error) {
+	return persistence.InternalGetHistoryDLQTasksResponse{}, fmt.Errorf("GetHistoryDLQTasks not implemented")
+}
+
+// RangeDeleteHistoryDLQTasks is not yet implemented; it will be wired once the
+// Cassandra schema and plugin methods land from the cwarren/dlqschema branch.
+func (m *nosqlHistoryDLQTaskStore) RangeDeleteHistoryDLQTasks(
+	_ context.Context,
+	_ persistence.InternalRangeDeleteHistoryDLQTasksRequest,
+) error {
+	return fmt.Errorf("RangeDeleteHistoryDLQTasks not implemented")
+}
+
+// GetHistoryDLQAckLevels is not yet implemented; it will be wired once the
+// Cassandra schema and plugin methods land from the cwarren/dlqschema branch.
+func (m *nosqlHistoryDLQTaskStore) GetHistoryDLQAckLevels(
+	_ context.Context,
+	_ persistence.InternalGetHistoryDLQAckLevelsRequest,
+) (persistence.InternalGetHistoryDLQAckLevelsResponse, error) {
+	return persistence.InternalGetHistoryDLQAckLevelsResponse{}, fmt.Errorf("GetHistoryDLQAckLevels not implemented")
+}
+
+// UpdateHistoryDLQAckLevel is not yet implemented; it will be wired once the
+// Cassandra schema and plugin methods land from the cwarren/dlqschema branch.
+func (m *nosqlHistoryDLQTaskStore) UpdateHistoryDLQAckLevel(
+	_ context.Context,
+	_ persistence.InternalUpdateHistoryDLQAckLevelRequest,
+) error {
+	return fmt.Errorf("UpdateHistoryDLQAckLevel not implemented")
+}

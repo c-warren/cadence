@@ -1740,11 +1740,23 @@ type (
 		GetDomainAuditLogs(ctx context.Context, request *GetDomainAuditLogsRequest) (*GetDomainAuditLogsResponse, error)
 	}
 
-	// HistoryTaskDLQManager is the manager-level interface for writing to the history task DLQ.
+	// HistoryTaskDLQManager is the manager-level interface for the history task DLQ.
 	HistoryTaskDLQManager interface {
 		Closeable
 		GetName() string
 		CreateHistoryDLQTask(ctx context.Context, request CreateHistoryDLQTaskRequest) error
+		// GetAckLevels returns all DLQ partitions for a shard with their current ack levels.
+		// ExclusiveMaxTaskKey is left as zero value; the processor layer populates it from the shard.
+		GetAckLevels(ctx context.Context, shardID int) ([]HistoryDLQAckLevel, error)
+		// GetAckLevelsForPartition returns ack levels for all task types within a specific partition.
+		// ExclusiveMaxTaskKey is left as zero value; the processor layer populates it from the shard.
+		GetAckLevelsForPartition(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string) ([]HistoryDLQAckLevel, error)
+		// GetTasks returns deserialized tasks from a DLQ partition.
+		GetTasks(ctx context.Context, request HistoryDLQGetTasksRequest) (HistoryDLQGetTasksResponse, error)
+		// UpdateAckLevel persists the new ack level for a partition.
+		UpdateAckLevel(ctx context.Context, request HistoryDLQUpdateAckLevelRequest) error
+		// DeleteTasks removes tasks with key < ExclusiveMaxTaskKey from a DLQ partition.
+		DeleteTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error
 	}
 
 	// CreateHistoryDLQTaskRequest is the public request for adding a task to the history DLQ.
@@ -1754,6 +1766,60 @@ type (
 		ClusterAttributeScope string
 		ClusterAttributeName  string
 		Task                  Task
+	}
+
+	// HistoryDLQAckLevel identifies one DLQ partition and its current processing watermark.
+	HistoryDLQAckLevel struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		// TaskType is a HistoryTaskCategoryID* constant (1=Transfer, 2=Timer, 3=Replication).
+		TaskType             int
+		AckLevelVisibilityTS time.Time
+		AckLevelTaskID       int64
+		// ExclusiveMaxTaskKey bounds the DLQ scan; populated by the processor from the shard layer.
+		ExclusiveMaxTaskKey HistoryTaskKey
+	}
+
+	// HistoryDLQGetTasksRequest specifies what tasks to fetch from a DLQ partition.
+	HistoryDLQGetTasksRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskType              int
+		InclusiveMinTaskKey   HistoryTaskKey
+		ExclusiveMaxTaskKey   HistoryTaskKey
+		PageSize              int
+		NextPageToken         []byte
+	}
+
+	// HistoryDLQGetTasksResponse carries tasks returned from the DLQ store.
+	HistoryDLQGetTasksResponse struct {
+		Tasks         []Task
+		NextPageToken []byte
+	}
+
+	// HistoryDLQUpdateAckLevelRequest specifies the new ack watermark for a partition.
+	HistoryDLQUpdateAckLevelRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskType              int
+		AckLevelVisibilityTS  time.Time
+		AckLevelTaskID        int64
+	}
+
+	// HistoryDLQDeleteTasksRequest asks the store to remove tasks with key < ExclusiveMaxTaskKey.
+	HistoryDLQDeleteTasksRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskType              int
+		ExclusiveMaxTaskKey   HistoryTaskKey
 	}
 
 	EnqueueMessageRequest struct {

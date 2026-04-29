@@ -107,6 +107,10 @@ type (
 		Closeable
 		GetName() string
 		CreateHistoryDLQTask(ctx context.Context, request InternalCreateHistoryDLQTaskRequest) error
+		GetHistoryDLQTasks(ctx context.Context, request InternalGetHistoryDLQTasksRequest) (InternalGetHistoryDLQTasksResponse, error)
+		RangeDeleteHistoryDLQTasks(ctx context.Context, request InternalRangeDeleteHistoryDLQTasksRequest) error
+		GetHistoryDLQAckLevels(ctx context.Context, request InternalGetHistoryDLQAckLevelsRequest) (InternalGetHistoryDLQAckLevelsResponse, error)
+		UpdateHistoryDLQAckLevel(ctx context.Context, request InternalUpdateHistoryDLQAckLevelRequest) error
 	}
 
 	// ExecutionStore is used to manage workflow executions for Persistence layer
@@ -1002,6 +1006,83 @@ type (
 		Version               int64
 		CreatedAt             time.Time
 		TaskBlob              *DataBlob
+	}
+
+	// InternalHistoryDLQTask is a single row from the history_task_dlq table.
+	InternalHistoryDLQTask struct {
+		TaskType            int
+		VisibilityTimestamp time.Time
+		TaskID              int64
+		DomainID            string
+		WorkflowID          string
+		RunID               string
+		TaskPayload         *DataBlob
+		Version             int64
+		CreatedAt           time.Time
+	}
+
+	// InternalHistoryDLQAckLevel is a single row from the history_task_dlq_ack_level table.
+	InternalHistoryDLQAckLevel struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskType              int
+		AckLevelVisibilityTS  time.Time
+		AckLevelTaskID        int64
+		LastUpdatedAt         time.Time
+	}
+
+	// InternalGetHistoryDLQTasksRequest reads tasks from one DLQ partition.
+	InternalGetHistoryDLQTasksRequest struct {
+		ShardID                  int
+		DomainID                 string
+		ClusterAttributeScope    string
+		ClusterAttributeName     string
+		TaskType                 int
+		ExclusiveMinVisibilityTS time.Time
+		ExclusiveMinTaskID       int64
+		InclusiveMaxVisibilityTS time.Time
+		InclusiveMaxTaskID       int64
+		PageSize                 int
+		NextPageToken            []byte
+	}
+
+	// InternalGetHistoryDLQTasksResponse is the response for InternalGetHistoryDLQTasksRequest.
+	InternalGetHistoryDLQTasksResponse struct {
+		Tasks         []*InternalHistoryDLQTask
+		NextPageToken []byte
+	}
+
+	// InternalRangeDeleteHistoryDLQTasksRequest deletes DLQ tasks up to an inclusive (visibility_ts, task_id) boundary.
+	InternalRangeDeleteHistoryDLQTasksRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskType              int
+		// AckLevelVisibilityTS and AckLevelTaskID are the inclusive upper bound to delete up to.
+		AckLevelVisibilityTS time.Time
+		AckLevelTaskID       int64
+	}
+
+	// InternalGetHistoryDLQAckLevelsRequest reads ack level rows for a shard.
+	// Optional filters: leave DomainID/ClusterAttributeScope/ClusterAttributeName empty to return all.
+	InternalGetHistoryDLQAckLevelsRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+	}
+
+	// InternalGetHistoryDLQAckLevelsResponse is the response for InternalGetHistoryDLQAckLevelsRequest.
+	InternalGetHistoryDLQAckLevelsResponse struct {
+		AckLevels []*InternalHistoryDLQAckLevel
+	}
+
+	// InternalUpdateHistoryDLQAckLevelRequest upserts a single ack level row.
+	InternalUpdateHistoryDLQAckLevelRequest struct {
+		Row InternalHistoryDLQAckLevel
 	}
 
 	// InternalGetDomainAuditLogsResponse is the response for GetDomainAuditLogs
