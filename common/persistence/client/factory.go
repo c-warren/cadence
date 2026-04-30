@@ -23,6 +23,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -125,7 +126,7 @@ type (
 	storeType int
 )
 
-var errDatastoreNotSupported = fmt.Errorf("datastore not supported")
+var errDatastoreNotSupported = errors.New("datastore not supported")
 
 const (
 	storeTypeHistory storeType = iota + 1
@@ -283,7 +284,7 @@ func (f *factoryImpl) NewHistoryTaskDLQManager() (p.HistoryTaskDLQManager, error
 		return nil, err
 	}
 	if store == nil {
-		return nil, fmt.Errorf("%w: history DLQ task store is not supported for datastore", errDatastoreNotSupported)
+		return nil, errors.Join(errDatastoreNotSupported, fmt.Errorf("history DLQ task store is not supported for datastore"))
 	}
 	parser, err := serialization.NewParser(f.dc)
 	if err != nil {
