@@ -637,7 +637,7 @@ const (
 		`and workflow_id = ? ` +
 		`and run_id = ?`
 
-	templateInsertHistoryDLQTaskQuery = `INSERT INTO history_task_dlq (` +
+	templateInsertHistoryDLQTaskRowQuery = `INSERT INTO history_task_dlq (` +
 		`shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name, ` +
 		`task_type, visibility_ts, task_id, ` +
 		`workflow_id, run_id, task_payload, encoding_type, version, created_at) ` +

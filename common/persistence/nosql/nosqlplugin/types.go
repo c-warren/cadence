@@ -268,21 +268,6 @@ type (
 		TTLSeconds          int64 // TTL for the audit log entry in seconds
 	}
 
-	// HistoryDLQTask defines the row struct for history task dead-letter queue entries.
-	// The partition key fields (DomainID, ClusterAttributeScope, ClusterAttributeName) are
-	// passed separately to InsertHistoryDLQTask and are not included here.
-	HistoryDLQTask struct {
-		TaskType            int
-		TaskID              int64
-		VisibilityTimestamp time.Time
-		WorkflowID          string
-		RunID               string
-		Data                []byte
-		DataEncoding        string
-		Version             int64
-		CreatedAt           time.Time
-	}
-
 	// DomainAuditLogFilter contains the filter criteria for querying domain audit logs
 	DomainAuditLogFilter struct {
 		DomainID      string
@@ -293,6 +278,24 @@ type (
 		MaxCreatedTime *time.Time
 		PageSize       int
 		NextPageToken  []byte
+	}
+
+	// HistoryDLQTaskRow defines the row struct for history task dead-letter queue entries.
+	HistoryDLQTaskRow struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskType              int
+		TaskID                int64
+		VisibilityTimestamp   time.Time
+		WorkflowID            string
+		RunID                 string
+		Data                  []byte
+		DataEncoding          string
+		Version               int64
+		CreatedAt             time.Time
+		UpdatedAt             time.Time
 	}
 
 	// SelectMessagesBetweenRequest is a request struct for SelectMessagesBetween

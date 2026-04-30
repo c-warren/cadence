@@ -55,24 +55,24 @@ func (m *nosqlHistoryDLQTaskStore) CreateHistoryDLQTask(
 	ctx context.Context,
 	request persistence.InternalCreateHistoryDLQTaskRequest,
 ) error {
-	task := &nosqlplugin.HistoryDLQTask{
-		TaskType:            request.TaskType,
-		TaskID:              request.TaskID,
-		VisibilityTimestamp: request.VisibilityTimestamp,
-		WorkflowID:          request.WorkflowID,
-		RunID:               request.RunID,
-		Data:                request.TaskBlob.Data,
-		DataEncoding:        string(request.TaskBlob.Encoding),
-		Version:             request.Version,
-		CreatedAt:           request.CreatedAt,
+	row := &nosqlplugin.HistoryDLQTaskRow{
+		ShardID:               request.ShardID,
+		DomainID:              request.DomainID,
+		ClusterAttributeScope: request.ClusterAttributeScope,
+		ClusterAttributeName:  request.ClusterAttributeName,
+		TaskType:              request.TaskType,
+		TaskID:                request.TaskID,
+		VisibilityTimestamp:   request.VisibilityTimestamp,
+		WorkflowID:            request.WorkflowID,
+		RunID:                 request.RunID,
+		Data:                  request.TaskBlob.Data,
+		DataEncoding:          string(request.TaskBlob.Encoding),
+		Version:               request.Version,
+		CreatedAt:             request.CreatedAt,
 	}
-	err := m.db.InsertHistoryDLQTask(
+	err := m.db.InsertHistoryDLQTaskRow(
 		ctx,
-		request.ShardID,
-		request.DomainID,
-		request.ClusterAttributeScope,
-		request.ClusterAttributeName,
-		task,
+		row,
 	)
 	if err != nil {
 		return convertCommonErrors(m.db, "CreateHistoryDLQTask", err)

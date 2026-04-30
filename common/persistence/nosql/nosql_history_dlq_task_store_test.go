@@ -66,16 +66,20 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 		},
 	}
 
-	expectedTask := &nosqlplugin.HistoryDLQTask{
-		TaskType:            3,
-		TaskID:              99,
-		VisibilityTimestamp: now,
-		WorkflowID:          "wf-1",
-		RunID:               "run-1",
-		Data:                []byte("task-payload"),
-		DataEncoding:        string(constants.EncodingTypeThriftRW),
-		Version:             7,
-		CreatedAt:           createdAt,
+	expectedTask := &nosqlplugin.HistoryDLQTaskRow{
+		ShardID:               5,
+		DomainID:              "domain-abc",
+		ClusterAttributeScope: "scope-1",
+		ClusterAttributeName:  "cluster-west",
+		TaskType:              3,
+		TaskID:                99,
+		VisibilityTimestamp:   now,
+		WorkflowID:            "wf-1",
+		RunID:                 "run-1",
+		Data:                  []byte("task-payload"),
+		DataEncoding:          string(constants.EncodingTypeThriftRW),
+		Version:               7,
+		CreatedAt:             createdAt,
 	}
 
 	tests := map[string]struct {
@@ -86,7 +90,7 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 		"when insert succeeds then no error is returned": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				dbMock.EXPECT().
-					InsertHistoryDLQTask(ctx, 5, "domain-abc", "scope-1", "cluster-west", expectedTask).
+					InsertHistoryDLQTaskRow(ctx, expectedTask).
 					Return(nil).
 					Times(1)
 			},
@@ -95,7 +99,7 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 		"when the database returns an error then the error is propagated": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				dbMock.EXPECT().
-					InsertHistoryDLQTask(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					InsertHistoryDLQTaskRow(ctx, gomock.Any()).
 					Return(errors.New("connection refused"))
 				dbMock.EXPECT().IsNotFoundError(gomock.Any()).Return(false).AnyTimes()
 				dbMock.EXPECT().IsTimeoutError(gomock.Any()).Return(false).AnyTimes()
@@ -108,7 +112,7 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 		"when the database returns a throttling error then the error is propagated": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				dbMock.EXPECT().
-					InsertHistoryDLQTask(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					InsertHistoryDLQTaskRow(ctx, gomock.Any()).
 					Return(errors.New("rate exceeded"))
 				dbMock.EXPECT().IsNotFoundError(gomock.Any()).Return(false).AnyTimes()
 				dbMock.EXPECT().IsTimeoutError(gomock.Any()).Return(false).AnyTimes()

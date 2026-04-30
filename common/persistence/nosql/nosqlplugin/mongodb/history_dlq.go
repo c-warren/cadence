@@ -26,7 +26,7 @@ import (
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
 
-// InsertHistoryDLQTask writes a task to the history DLQ.
-func (db *mdb) InsertHistoryDLQTask(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string, task *nosqlplugin.HistoryDLQTask) error {
-	panic("TODO: InsertHistoryDLQTask not implemented for MongoDB")
+// InsertHistoryDLQTaskRow writes a task to the history DLQ.
+func (db *mdb) InsertHistoryDLQTaskRow(ctx context.Context, task *nosqlplugin.HistoryDLQTaskRow) error {
+	panic("TODO: InsertHistoryDLQTaskRow not implemented for MongoDB")
 }

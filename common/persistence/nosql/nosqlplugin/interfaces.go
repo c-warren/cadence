@@ -557,7 +557,7 @@ type (
 	 * (shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name).
 	 */
 	HistoryDLQTaskCRUD interface {
-		// InsertHistoryDLQTask writes a task to the history DLQ.
-		InsertHistoryDLQTask(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string, task *HistoryDLQTask) error
+		// InsertHistoryDLQTaskRow writes a task to the history DLQ.
+		InsertHistoryDLQTaskRow(ctx context.Context, task *HistoryDLQTaskRow) error
 	}
 )
