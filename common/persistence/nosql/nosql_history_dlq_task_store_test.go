@@ -30,6 +30,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
@@ -39,7 +40,7 @@ func setUpMocksForHistoryDLQTaskStore(t *testing.T) (*nosqlHistoryDLQTaskStore, 
 	ctrl := gomock.NewController(t)
 	dbMock := nosqlplugin.NewMockDB(ctrl)
 	return &nosqlHistoryDLQTaskStore{
-		nosqlStore: nosqlStore{db: dbMock},
+		nosqlStore: nosqlStore{db: dbMock, logger: testlogger.New(t)},
 	}, dbMock
 }
 
@@ -83,9 +84,10 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		setupMock   func(*nosqlplugin.MockDB)
-		request     persistence.InternalCreateHistoryDLQTaskRequest
-		expectError bool
+		setupMock      func(*nosqlplugin.MockDB)
+		request        persistence.InternalCreateHistoryDLQTaskRequest
+		expectError    bool
+		errorValidator func(t *testing.T, err error)
 	}{
 		"when insert succeeds then no error is returned": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
@@ -122,6 +124,21 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 			request:     baseRequest,
 			expectError: true,
 		},
+		"when task blob is nil then InvalidPersistenceRequestError is returned": {
+			setupMock: func(dbMock *nosqlplugin.MockDB) {
+				// no DB calls expected — nil check fires before any DB interaction
+			},
+			request: func() persistence.InternalCreateHistoryDLQTaskRequest {
+				r := baseRequest
+				r.TaskBlob = nil
+				return r
+			}(),
+			expectError: true,
+			errorValidator: func(t *testing.T, err error) {
+				var invalidReqErr *persistence.InvalidPersistenceRequestError
+				assert.ErrorAs(t, err, &invalidReqErr)
+			},
+		},
 	}
 
 	for name, tc := range tests {
@@ -133,6 +150,9 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 
 			if tc.expectError {
 				assert.Error(t, err)
+				if tc.errorValidator != nil {
+					tc.errorValidator(t, err)
+				}
 			} else {
 				assert.NoError(t, err)
 			}

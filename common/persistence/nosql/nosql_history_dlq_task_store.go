@@ -55,6 +55,13 @@ func (m *nosqlHistoryDLQTaskStore) CreateHistoryDLQTask(
 	ctx context.Context,
 	request persistence.InternalCreateHistoryDLQTaskRequest,
 ) error {
+	if request.TaskBlob == nil {
+		m.logger.Warn("unable to persist history DLQ task: task blob is required")
+		return &persistence.InvalidPersistenceRequestError{
+			Msg: "unable to persist history DLQ task: task blob is required",
+		}
+	}
+
 	row := &nosqlplugin.HistoryDLQTaskRow{
 		ShardID:               request.ShardID,
 		DomainID:              request.DomainID,
@@ -70,6 +77,7 @@ func (m *nosqlHistoryDLQTaskStore) CreateHistoryDLQTask(
 		Version:               request.Version,
 		CreatedAt:             request.CreatedAt,
 	}
+
 	err := m.db.InsertHistoryDLQTaskRow(
 		ctx,
 		row,
