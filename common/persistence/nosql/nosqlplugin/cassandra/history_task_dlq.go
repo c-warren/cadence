@@ -26,20 +26,18 @@ import (
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
 
-// InsertHistoryDLQTask writes a task to the history DLQ.
+// InsertHistoryDLQTaskRow writes a task to the history DLQ.
 // Uses the dedicated history_task_dlq table, partitioned by
 // (shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name).
-func (db *CDB) InsertHistoryDLQTask(
+func (db *CDB) InsertHistoryDLQTaskRow(
 	ctx context.Context,
-	shardID int,
-	domainID, clusterAttributeScope, clusterAttributeName string,
-	task *nosqlplugin.HistoryDLQTask,
+	task *nosqlplugin.HistoryDLQTaskRow,
 ) error {
-	query := db.session.Query(templateInsertHistoryDLQTaskQuery,
-		shardID,
-		domainID,
-		clusterAttributeScope,
-		clusterAttributeName,
+	query := db.session.Query(templateInsertHistoryDLQTaskRowQuery,
+		task.ShardID,
+		task.DomainID,
+		task.ClusterAttributeScope,
+		task.ClusterAttributeName,
 		task.TaskType,
 		task.VisibilityTimestamp,
 		task.TaskID,

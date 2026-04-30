@@ -30,6 +30,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/log/testlogger"
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/persistence/nosql/nosqlplugin"
 )
@@ -39,7 +40,7 @@ func setUpMocksForHistoryDLQTaskStore(t *testing.T) (*nosqlHistoryDLQTaskStore, 
 	ctrl := gomock.NewController(t)
 	dbMock := nosqlplugin.NewMockDB(ctrl)
 	return &nosqlHistoryDLQTaskStore{
-		nosqlStore: nosqlStore{db: dbMock},
+		nosqlStore: nosqlStore{db: dbMock, logger: testlogger.New(t)},
 	}, dbMock
 }
 
@@ -66,27 +67,32 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 		},
 	}
 
-	expectedTask := &nosqlplugin.HistoryDLQTask{
-		TaskType:            3,
-		TaskID:              99,
-		VisibilityTimestamp: now,
-		WorkflowID:          "wf-1",
-		RunID:               "run-1",
-		Data:                []byte("task-payload"),
-		DataEncoding:        string(constants.EncodingTypeThriftRW),
-		Version:             7,
-		CreatedAt:           createdAt,
+	expectedTask := &nosqlplugin.HistoryDLQTaskRow{
+		ShardID:               5,
+		DomainID:              "domain-abc",
+		ClusterAttributeScope: "scope-1",
+		ClusterAttributeName:  "cluster-west",
+		TaskType:              3,
+		TaskID:                99,
+		VisibilityTimestamp:   now,
+		WorkflowID:            "wf-1",
+		RunID:                 "run-1",
+		Data:                  []byte("task-payload"),
+		DataEncoding:          string(constants.EncodingTypeThriftRW),
+		Version:               7,
+		CreatedAt:             createdAt,
 	}
 
 	tests := map[string]struct {
-		setupMock   func(*nosqlplugin.MockDB)
-		request     persistence.InternalCreateHistoryDLQTaskRequest
-		expectError bool
+		setupMock      func(*nosqlplugin.MockDB)
+		request        persistence.InternalCreateHistoryDLQTaskRequest
+		expectError    bool
+		errorValidator func(t *testing.T, err error)
 	}{
 		"when insert succeeds then no error is returned": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				dbMock.EXPECT().
-					InsertHistoryDLQTask(ctx, 5, "domain-abc", "scope-1", "cluster-west", expectedTask).
+					InsertHistoryDLQTaskRow(ctx, expectedTask).
 					Return(nil).
 					Times(1)
 			},
@@ -95,7 +101,7 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 		"when the database returns an error then the error is propagated": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				dbMock.EXPECT().
-					InsertHistoryDLQTask(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					InsertHistoryDLQTaskRow(ctx, gomock.Any()).
 					Return(errors.New("connection refused"))
 				dbMock.EXPECT().IsNotFoundError(gomock.Any()).Return(false).AnyTimes()
 				dbMock.EXPECT().IsTimeoutError(gomock.Any()).Return(false).AnyTimes()
@@ -108,7 +114,7 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 		"when the database returns a throttling error then the error is propagated": {
 			setupMock: func(dbMock *nosqlplugin.MockDB) {
 				dbMock.EXPECT().
-					InsertHistoryDLQTask(ctx, gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+					InsertHistoryDLQTaskRow(ctx, gomock.Any()).
 					Return(errors.New("rate exceeded"))
 				dbMock.EXPECT().IsNotFoundError(gomock.Any()).Return(false).AnyTimes()
 				dbMock.EXPECT().IsTimeoutError(gomock.Any()).Return(false).AnyTimes()
@@ -117,6 +123,21 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 			},
 			request:     baseRequest,
 			expectError: true,
+		},
+		"when task blob is nil then InvalidPersistenceRequestError is returned": {
+			setupMock: func(dbMock *nosqlplugin.MockDB) {
+				// no DB calls expected — nil check fires before any DB interaction
+			},
+			request: func() persistence.InternalCreateHistoryDLQTaskRequest {
+				r := baseRequest
+				r.TaskBlob = nil
+				return r
+			}(),
+			expectError: true,
+			errorValidator: func(t *testing.T, err error) {
+				var invalidReqErr *persistence.InvalidPersistenceRequestError
+				assert.ErrorAs(t, err, &invalidReqErr)
+			},
 		},
 	}
 
@@ -129,6 +150,9 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 
 			if tc.expectError {
 				assert.Error(t, err)
+				if tc.errorValidator != nil {
+					tc.errorValidator(t, err)
+				}
 			} else {
 				assert.NoError(t, err)
 			}

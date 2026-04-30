@@ -56,24 +56,32 @@ func (m *nosqlHistoryDLQTaskStore) CreateHistoryDLQTask(
 	ctx context.Context,
 	request persistence.InternalCreateHistoryDLQTaskRequest,
 ) error {
-	task := &nosqlplugin.HistoryDLQTask{
-		TaskType:            request.TaskType,
-		TaskID:              request.TaskID,
-		VisibilityTimestamp: request.VisibilityTimestamp,
-		WorkflowID:          request.WorkflowID,
-		RunID:               request.RunID,
-		Data:                request.TaskBlob.Data,
-		DataEncoding:        string(request.TaskBlob.Encoding),
-		Version:             request.Version,
-		CreatedAt:           request.CreatedAt,
+	if request.TaskBlob == nil {
+		m.logger.Warn("unable to persist history DLQ task: task blob is required")
+		return &persistence.InvalidPersistenceRequestError{
+			Msg: "unable to persist history DLQ task: task blob is required",
+		}
 	}
-	err := m.db.InsertHistoryDLQTask(
+
+	row := &nosqlplugin.HistoryDLQTaskRow{
+		ShardID:               request.ShardID,
+		DomainID:              request.DomainID,
+		ClusterAttributeScope: request.ClusterAttributeScope,
+		ClusterAttributeName:  request.ClusterAttributeName,
+		TaskType:              request.TaskType,
+		TaskID:                request.TaskID,
+		VisibilityTimestamp:   request.VisibilityTimestamp,
+		WorkflowID:            request.WorkflowID,
+		RunID:                 request.RunID,
+		Data:                  request.TaskBlob.Data,
+		DataEncoding:          string(request.TaskBlob.Encoding),
+		Version:               request.Version,
+		CreatedAt:             request.CreatedAt,
+	}
+
+	err := m.db.InsertHistoryDLQTaskRow(
 		ctx,
-		request.ShardID,
-		request.DomainID,
-		request.ClusterAttributeScope,
-		request.ClusterAttributeName,
-		task,
+		row,
 	)
 	if err != nil {
 		return convertCommonErrors(m.db, "CreateHistoryDLQTask", err)

@@ -445,18 +445,18 @@ func (mr *MockDBMockRecorder) InsertDomainAuditLog(ctx, row any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertDomainAuditLog", reflect.TypeOf((*MockDB)(nil).InsertDomainAuditLog), ctx, row)
 }
 
-// InsertHistoryDLQTask mocks base method.
-func (m *MockDB) InsertHistoryDLQTask(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string, task *HistoryDLQTask) error {
+// InsertHistoryDLQTaskRow mocks base method.
+func (m *MockDB) InsertHistoryDLQTaskRow(ctx context.Context, task *HistoryDLQTaskRow) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertHistoryDLQTask", ctx, shardID, domainID, clusterAttributeScope, clusterAttributeName, task)
+	ret := m.ctrl.Call(m, "InsertHistoryDLQTaskRow", ctx, task)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// InsertHistoryDLQTask indicates an expected call of InsertHistoryDLQTask.
-func (mr *MockDBMockRecorder) InsertHistoryDLQTask(ctx, shardID, domainID, clusterAttributeScope, clusterAttributeName, task any) *gomock.Call {
+// InsertHistoryDLQTaskRow indicates an expected call of InsertHistoryDLQTaskRow.
+func (mr *MockDBMockRecorder) InsertHistoryDLQTaskRow(ctx, task any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryDLQTask", reflect.TypeOf((*MockDB)(nil).InsertHistoryDLQTask), ctx, shardID, domainID, clusterAttributeScope, clusterAttributeName, task)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryDLQTaskRow", reflect.TypeOf((*MockDB)(nil).InsertHistoryDLQTaskRow), ctx, task)
 }
 
 // InsertIntoHistoryTreeAndNode mocks base method.
@@ -1604,18 +1604,18 @@ func (mr *MocktableCRUDMockRecorder) InsertDomainAuditLog(ctx, row any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertDomainAuditLog", reflect.TypeOf((*MocktableCRUD)(nil).InsertDomainAuditLog), ctx, row)
 }
 
-// InsertHistoryDLQTask mocks base method.
-func (m *MocktableCRUD) InsertHistoryDLQTask(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string, task *HistoryDLQTask) error {
+// InsertHistoryDLQTaskRow mocks base method.
+func (m *MocktableCRUD) InsertHistoryDLQTaskRow(ctx context.Context, task *HistoryDLQTaskRow) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertHistoryDLQTask", ctx, shardID, domainID, clusterAttributeScope, clusterAttributeName, task)
+	ret := m.ctrl.Call(m, "InsertHistoryDLQTaskRow", ctx, task)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// InsertHistoryDLQTask indicates an expected call of InsertHistoryDLQTask.
-func (mr *MocktableCRUDMockRecorder) InsertHistoryDLQTask(ctx, shardID, domainID, clusterAttributeScope, clusterAttributeName, task any) *gomock.Call {
+// InsertHistoryDLQTaskRow indicates an expected call of InsertHistoryDLQTaskRow.
+func (mr *MocktableCRUDMockRecorder) InsertHistoryDLQTaskRow(ctx, task any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryDLQTask", reflect.TypeOf((*MocktableCRUD)(nil).InsertHistoryDLQTask), ctx, shardID, domainID, clusterAttributeScope, clusterAttributeName, task)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryDLQTaskRow", reflect.TypeOf((*MocktableCRUD)(nil).InsertHistoryDLQTaskRow), ctx, task)
 }
 
 // InsertIntoHistoryTreeAndNode mocks base method.
@@ -3758,16 +3758,16 @@ func (m *MockHistoryDLQTaskCRUD) EXPECT() *MockHistoryDLQTaskCRUDMockRecorder {
 	return m.recorder
 }
 
-// InsertHistoryDLQTask mocks base method.
-func (m *MockHistoryDLQTaskCRUD) InsertHistoryDLQTask(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string, task *HistoryDLQTask) error {
+// InsertHistoryDLQTaskRow mocks base method.
+func (m *MockHistoryDLQTaskCRUD) InsertHistoryDLQTaskRow(ctx context.Context, task *HistoryDLQTaskRow) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertHistoryDLQTask", ctx, shardID, domainID, clusterAttributeScope, clusterAttributeName, task)
+	ret := m.ctrl.Call(m, "InsertHistoryDLQTaskRow", ctx, task)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// InsertHistoryDLQTask indicates an expected call of InsertHistoryDLQTask.
-func (mr *MockHistoryDLQTaskCRUDMockRecorder) InsertHistoryDLQTask(ctx, shardID, domainID, clusterAttributeScope, clusterAttributeName, task any) *gomock.Call {
+// InsertHistoryDLQTaskRow indicates an expected call of InsertHistoryDLQTaskRow.
+func (mr *MockHistoryDLQTaskCRUDMockRecorder) InsertHistoryDLQTaskRow(ctx, task any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryDLQTask", reflect.TypeOf((*MockHistoryDLQTaskCRUD)(nil).InsertHistoryDLQTask), ctx, shardID, domainID, clusterAttributeScope, clusterAttributeName, task)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertHistoryDLQTaskRow", reflect.TypeOf((*MockHistoryDLQTaskCRUD)(nil).InsertHistoryDLQTaskRow), ctx, task)
 }
