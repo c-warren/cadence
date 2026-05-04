@@ -41,11 +41,8 @@ func (db *CDB) InsertHistoryDLQTaskRow(
 		task.TaskType,
 		task.VisibilityTimestamp,
 		task.TaskID,
-		task.WorkflowID,
-		task.RunID,
 		task.Data,
 		task.DataEncoding,
-		task.Version,
 		task.CreatedAt,
 	).WithContext(ctx)
 	return query.Exec()

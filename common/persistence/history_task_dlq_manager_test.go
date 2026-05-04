@@ -29,11 +29,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/mock/gomock"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/constants"
 	"github.com/uber/cadence/common/log"
 )
 
 func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
+	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+
 	testTask := &ActivityTask{
 		WorkflowIdentifier: WorkflowIdentifier{
 			DomainID:   "test-domain",
@@ -43,7 +46,7 @@ func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
 		TaskData: TaskData{
 			Version:             1,
 			TaskID:              42,
-			VisibilityTimestamp: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+			VisibilityTimestamp: time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC),
 		},
 		TargetDomainID: "target-domain",
 		TaskList:       "test-tasklist",
@@ -73,8 +76,7 @@ func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
 						assert.Equal(t, "scope", req.ClusterAttributeScope)
 						assert.Equal(t, "cluster-a", req.ClusterAttributeName)
 						assert.Equal(t, int64(42), req.TaskID)
-						assert.Equal(t, "test-workflow", req.WorkflowID)
-						assert.Equal(t, "test-run", req.RunID)
+						assert.Equal(t, now, req.CreatedAt)
 						assert.Equal(t, serializedBlob.Data, req.TaskBlob.Data)
 						return nil
 					})
@@ -111,7 +113,12 @@ func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
 			mockSerializer := NewMockHistoryTaskSerializer(ctrl)
 			tc.mockSetup(mockStore, mockSerializer)
 
-			mgr := NewHistoryTaskDLQManager(mockStore, mockSerializer, log.NewNoop())
+			mgr := &historyTaskDLQManagerImpl{
+				persistence:    mockStore,
+				taskSerializer: mockSerializer,
+				logger:         log.NewNoop(),
+				timeSrc:        clock.NewMockedTimeSourceAt(now),
+			}
 			err := mgr.CreateHistoryDLQTask(context.Background(), CreateHistoryDLQTaskRequest{
 				ShardID:               1,
 				DomainID:              "test-domain",

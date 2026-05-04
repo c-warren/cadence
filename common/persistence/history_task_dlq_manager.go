@@ -25,8 +25,8 @@ package persistence
 import (
 	"context"
 	"fmt"
-	"time"
 
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 )
 
@@ -42,6 +42,7 @@ type historyTaskDLQManagerImpl struct {
 	persistence    HistoryDLQTaskStore
 	taskSerializer HistoryTaskSerializer
 	logger         log.Logger
+	timeSrc        clock.TimeSource
 }
 
 // NewHistoryTaskDLQManager creates a new HistoryTaskDLQManager.
@@ -54,6 +55,7 @@ func NewHistoryTaskDLQManager(
 		persistence:    persistence,
 		taskSerializer: taskSerializer,
 		logger:         logger,
+		timeSrc:        clock.NewRealTimeSource(),
 	}
 }
 
@@ -74,10 +76,7 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 		TaskType:              request.Task.GetTaskType(),
 		TaskID:                request.Task.GetTaskID(),
 		VisibilityTimestamp:   request.Task.GetVisibilityTimestamp(),
-		WorkflowID:            request.Task.GetWorkflowID(),
-		RunID:                 request.Task.GetRunID(),
-		Version:               request.Task.GetVersion(),
-		CreatedAt:             time.Now().UTC(),
+		CreatedAt:             m.timeSrc.Now().UTC(),
 		TaskBlob:              &DataBlob{Data: blob.Data, Encoding: blob.Encoding},
 	})
 }

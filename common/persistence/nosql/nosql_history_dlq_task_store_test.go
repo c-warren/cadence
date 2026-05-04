@@ -57,9 +57,6 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 		TaskType:              3,
 		TaskID:                99,
 		VisibilityTimestamp:   now,
-		WorkflowID:            "wf-1",
-		RunID:                 "run-1",
-		Version:               7,
 		CreatedAt:             createdAt,
 		TaskBlob: &persistence.DataBlob{
 			Data:     []byte("task-payload"),
@@ -75,11 +72,8 @@ func TestNoSQLHistoryDLQTaskStore_CreateHistoryDLQTask(t *testing.T) {
 		TaskType:              3,
 		TaskID:                99,
 		VisibilityTimestamp:   now,
-		WorkflowID:            "wf-1",
-		RunID:                 "run-1",
 		Data:                  []byte("task-payload"),
 		DataEncoding:          string(constants.EncodingTypeThriftRW),
-		Version:               7,
 		CreatedAt:             createdAt,
 	}
 

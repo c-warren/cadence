@@ -289,13 +289,9 @@ type (
 		TaskType              int
 		TaskID                int64
 		VisibilityTimestamp   time.Time
-		WorkflowID            string
-		RunID                 string
 		Data                  []byte
 		DataEncoding          string
-		Version               int64
 		CreatedAt             time.Time
-		UpdatedAt             time.Time
 	}
 
 	// SelectMessagesBetweenRequest is a request struct for SelectMessagesBetween
