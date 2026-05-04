@@ -997,9 +997,6 @@ type (
 		TaskType              int
 		TaskID                int64
 		VisibilityTimestamp   time.Time
-		WorkflowID            string
-		RunID                 string
-		Version               int64
 		CreatedAt             time.Time
 		TaskBlob              *DataBlob
 	}

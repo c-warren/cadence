@@ -70,11 +70,8 @@ func (m *nosqlHistoryDLQTaskStore) CreateHistoryDLQTask(
 		TaskType:              request.TaskType,
 		TaskID:                request.TaskID,
 		VisibilityTimestamp:   request.VisibilityTimestamp,
-		WorkflowID:            request.WorkflowID,
-		RunID:                 request.RunID,
 		Data:                  request.TaskBlob.Data,
 		DataEncoding:          string(request.TaskBlob.Encoding),
-		Version:               request.Version,
 		CreatedAt:             request.CreatedAt,
 	}
 

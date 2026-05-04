@@ -4,5 +4,5 @@ package cassandra
 const templateInsertHistoryDLQTaskRowQuery = `INSERT INTO history_task_dlq (` +
 	`shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name, ` +
 	`task_type, visibility_ts, task_id, ` +
-	`workflow_id, run_id, task_payload, encoding_type, version, created_at) ` +
-	`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	`task_payload, encoding_type, created_at) ` +
+	`VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
