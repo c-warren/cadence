@@ -32,7 +32,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore,DomainAuditStore
+//go:generate mockgen -package $GOPACKAGE -destination data_store_interfaces_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence ExecutionStore,ShardStore,DomainStore,TaskStore,HistoryStore,ConfigStore,DomainAuditStore,HistoryDLQTaskStore
 //go:generate mockgen -package $GOPACKAGE -destination visibility_store_mock.go -self_package github.com/uber/cadence/common/persistence github.com/uber/cadence/common/persistence VisibilityStore
 
 type (
@@ -100,6 +100,13 @@ type (
 		GetName() string
 		CreateDomainAuditLog(ctx context.Context, request *InternalCreateDomainAuditLogRequest) (*CreateDomainAuditLogResponse, error)
 		GetDomainAuditLogs(ctx context.Context, request *GetDomainAuditLogsRequest) (*InternalGetDomainAuditLogsResponse, error)
+	}
+
+	// HistoryDLQTaskStore is the store-level interface for history task DLQ operations.
+	HistoryDLQTaskStore interface {
+		Closeable
+		GetName() string
+		CreateHistoryDLQTask(ctx context.Context, request InternalCreateHistoryDLQTaskRequest) error
 	}
 
 	// ExecutionStore is used to manage workflow executions for Persistence layer
@@ -979,6 +986,19 @@ type (
 		IdentityType    string
 		Comment         string
 		TTLSeconds      int64 // TTL for the audit log entry in seconds
+	}
+
+	// InternalCreateHistoryDLQTaskRequest is the store-level (pre-serialization) request for writing a history DLQ task.
+	InternalCreateHistoryDLQTaskRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskType              int
+		TaskID                int64
+		VisibilityTimestamp   time.Time
+		CreatedAt             time.Time
+		TaskBlob              *DataBlob
 	}
 
 	// InternalGetDomainAuditLogsResponse is the response for GetDomainAuditLogs
