@@ -25,7 +25,6 @@ package persistence
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
@@ -83,13 +82,11 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 }
 
 // GetAckLevels returns all DLQ partitions for a shard with their stored ack levels.
-// ExclusiveMaxTaskKey is left as zero; the processor layer must populate it from the shard.
 func (m *historyTaskDLQManagerImpl) GetAckLevels(ctx context.Context, shardID int) ([]HistoryDLQAckLevel, error) {
 	return m.getAckLevels(ctx, InternalGetHistoryDLQAckLevelsRequest{ShardID: shardID})
 }
 
 // GetAckLevelsForPartition returns ack levels for all task types within a specific partition.
-// ExclusiveMaxTaskKey is left as zero; the processor layer must populate it from the shard.
 func (m *historyTaskDLQManagerImpl) GetAckLevelsForPartition(
 	ctx context.Context,
 	shardID int,
@@ -178,7 +175,7 @@ func (m *historyTaskDLQManagerImpl) UpdateAckLevel(
 			TaskType:              request.TaskType,
 			AckLevelVisibilityTS:  request.AckLevelVisibilityTS,
 			AckLevelTaskID:        request.AckLevelTaskID,
-			LastUpdatedAt:         time.Now().UTC(),
+			LastUpdatedAt:         m.timeSrc.Now().UTC(),
 		},
 	})
 }

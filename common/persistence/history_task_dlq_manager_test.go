@@ -423,7 +423,7 @@ func TestHistoryTaskDLQManager_UpdateAckLevel(t *testing.T) {
 						assert.Equal(t, HistoryTaskCategoryIDReplication, req.Row.TaskType)
 						assert.Equal(t, int64(77), req.Row.AckLevelTaskID)
 						assert.Equal(t, now, req.Row.AckLevelVisibilityTS)
-						assert.False(t, req.Row.LastUpdatedAt.IsZero())
+						assert.Equal(t, now, req.Row.LastUpdatedAt)
 						return nil
 					})
 			},
@@ -446,7 +446,12 @@ func TestHistoryTaskDLQManager_UpdateAckLevel(t *testing.T) {
 			mockStore := NewMockHistoryDLQTaskStore(ctrl)
 			tc.mockSetup(mockStore)
 
-			mgr := NewHistoryTaskDLQManager(mockStore, NewMockHistoryTaskSerializer(ctrl), log.NewNoop())
+			mgr := &historyTaskDLQManagerImpl{
+				persistence:    mockStore,
+				taskSerializer: NewMockHistoryTaskSerializer(ctrl),
+				logger:         log.NewNoop(),
+				timeSrc:        clock.NewMockedTimeSourceAt(now),
+			}
 			err := mgr.UpdateAckLevel(context.Background(), tc.request)
 
 			if tc.wantErr != "" {

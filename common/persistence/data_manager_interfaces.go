@@ -1746,10 +1746,8 @@ type (
 		GetName() string
 		CreateHistoryDLQTask(ctx context.Context, request CreateHistoryDLQTaskRequest) error
 		// GetAckLevels returns all DLQ partitions for a shard with their current ack levels.
-		// ExclusiveMaxTaskKey is left as zero value; the processor layer populates it from the shard.
 		GetAckLevels(ctx context.Context, shardID int) ([]HistoryDLQAckLevel, error)
 		// GetAckLevelsForPartition returns ack levels for all task types within a specific partition.
-		// ExclusiveMaxTaskKey is left as zero value; the processor layer populates it from the shard.
 		GetAckLevelsForPartition(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string) ([]HistoryDLQAckLevel, error)
 		// GetTasks returns deserialized tasks from a DLQ partition.
 		GetTasks(ctx context.Context, request HistoryDLQGetTasksRequest) (HistoryDLQGetTasksResponse, error)
@@ -1778,8 +1776,6 @@ type (
 		TaskType             int
 		AckLevelVisibilityTS time.Time
 		AckLevelTaskID       int64
-		// ExclusiveMaxTaskKey bounds the DLQ scan; populated by the processor from the shard layer.
-		ExclusiveMaxTaskKey HistoryTaskKey
 	}
 
 	// HistoryDLQGetTasksRequest specifies what tasks to fetch from a DLQ partition.
