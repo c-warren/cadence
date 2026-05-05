@@ -992,7 +992,7 @@ type (
 		TTLSeconds      int64 // TTL for the audit log entry in seconds
 	}
 
-	// InternalCreateHistoryDLQTaskRequest is the store-level (pre-serialization) request for writing a history DLQ task.
+	// InternalCreateHistoryDLQTaskRequest is the store-level request for writing a history DLQ task.
 	InternalCreateHistoryDLQTaskRequest struct {
 		ShardID               int
 		DomainID              string
@@ -1007,15 +1007,17 @@ type (
 
 	// InternalHistoryDLQTask is a single row from the history_task_dlq table.
 	InternalHistoryDLQTask struct {
-		TaskType            int
-		VisibilityTimestamp time.Time
-		TaskID              int64
-		DomainID            string
-		WorkflowID          string
-		RunID               string
-		TaskPayload         *DataBlob
-		Version             int64
-		CreatedAt           time.Time
+		DomainID              string
+		WorkflowID            string
+		RunID                 string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskType              int
+		VisibilityTimestamp   time.Time
+		TaskID                int64
+		TaskPayload           *DataBlob
+		Version               int64
+		CreatedAt             time.Time
 	}
 
 	// InternalHistoryDLQAckLevel is a single row from the history_task_dlq_ack_level table.

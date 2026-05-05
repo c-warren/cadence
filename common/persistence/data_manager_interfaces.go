@@ -1748,12 +1748,12 @@ type (
 		// GetAckLevels returns all DLQ partitions for a shard with their current ack levels.
 		GetAckLevels(ctx context.Context, shardID int) ([]HistoryDLQAckLevel, error)
 		// GetAckLevelsForPartition returns ack levels for all task types within a specific partition.
-		GetAckLevelsForPartition(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string) ([]HistoryDLQAckLevel, error)
+		GetAckLevelsForPartition(ctx context.Context, request HistoryDLQGetAckLevelsRequest) ([]HistoryDLQAckLevel, error)
 		// GetTasks returns deserialized tasks from a DLQ partition.
 		GetTasks(ctx context.Context, request HistoryDLQGetTasksRequest) (HistoryDLQGetTasksResponse, error)
 		// UpdateAckLevel persists the new ack level for a partition.
 		UpdateAckLevel(ctx context.Context, request HistoryDLQUpdateAckLevelRequest) error
-		// DeleteTasks removes tasks with key < ExclusiveMaxTaskKey from a DLQ partition.
+		// DeleteTasks removes tasks up to and including the given key from a DLQ partition.
 		DeleteTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error
 	}
 
@@ -1797,18 +1797,24 @@ type (
 		NextPageToken []byte
 	}
 
-	// HistoryDLQUpdateAckLevelRequest specifies the new ack watermark for a partition.
-	HistoryDLQUpdateAckLevelRequest struct {
+	HistoryDLQGetAckLevelsRequest struct {
 		ShardID               int
 		DomainID              string
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		TaskType              int
-		AckLevelVisibilityTS  time.Time
-		AckLevelTaskID        int64
 	}
 
-	// HistoryDLQDeleteTasksRequest asks the store to remove tasks with key < ExclusiveMaxTaskKey.
+	// HistoryDLQUpdateAckLevelRequest specifies the new ack watermark for a partition.
+	HistoryDLQUpdateAckLevelRequest struct {
+		ShardID                   int
+		DomainID                  string
+		ClusterAttributeScope     string
+		ClusterAttributeName      string
+		TaskType                  int
+		UpdatedInclusiveReadLevel HistoryTaskKey
+	}
+
+	// HistoryDLQDeleteTasksRequest asks the store to remove tasks up to and including the given key from a DLQ partition.
 	HistoryDLQDeleteTasksRequest struct {
 		ShardID               int
 		DomainID              string

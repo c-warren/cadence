@@ -268,7 +268,12 @@ func TestHistoryTaskDLQManager_GetAckLevelsForPartition(t *testing.T) {
 			tc.mockSetup(mockStore)
 
 			mgr := NewHistoryTaskDLQManager(mockStore, NewMockHistoryTaskSerializer(ctrl), log.NewNoop())
-			_, err := mgr.GetAckLevelsForPartition(context.Background(), 5, "domain-x", "scope", "cluster-b")
+			_, err := mgr.GetAckLevelsForPartition(context.Background(), HistoryDLQGetAckLevelsRequest{
+				ShardID:               5,
+				DomainID:              "domain-x",
+				ClusterAttributeScope: "scope",
+				ClusterAttributeName:  "cluster-b",
+			})
 
 			if tc.wantErr != "" {
 				assert.EqualError(t, err, tc.wantErr)
@@ -406,13 +411,12 @@ func TestHistoryTaskDLQManager_UpdateAckLevel(t *testing.T) {
 		{
 			name: "passes all fields to store with LastUpdatedAt set",
 			request: HistoryDLQUpdateAckLevelRequest{
-				ShardID:               2,
-				DomainID:              "dom",
-				ClusterAttributeScope: "scope",
-				ClusterAttributeName:  "cluster",
-				TaskType:              HistoryTaskCategoryIDReplication,
-				AckLevelVisibilityTS:  now,
-				AckLevelTaskID:        77,
+				ShardID:                   2,
+				DomainID:                  "dom",
+				ClusterAttributeScope:     "scope",
+				ClusterAttributeName:      "cluster",
+				TaskType:                  HistoryTaskCategoryIDReplication,
+				UpdatedInclusiveReadLevel: NewImmediateTaskKey(77),
 			},
 			mockSetup: func(store *MockHistoryDLQTaskStore) {
 				store.EXPECT().

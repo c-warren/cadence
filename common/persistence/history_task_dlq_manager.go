@@ -89,14 +89,13 @@ func (m *historyTaskDLQManagerImpl) GetAckLevels(ctx context.Context, shardID in
 // GetAckLevelsForPartition returns ack levels for all task types within a specific partition.
 func (m *historyTaskDLQManagerImpl) GetAckLevelsForPartition(
 	ctx context.Context,
-	shardID int,
-	domainID, clusterAttributeScope, clusterAttributeName string,
+	request HistoryDLQGetAckLevelsRequest,
 ) ([]HistoryDLQAckLevel, error) {
 	return m.getAckLevels(ctx, InternalGetHistoryDLQAckLevelsRequest{
-		ShardID:               shardID,
-		DomainID:              domainID,
-		ClusterAttributeScope: clusterAttributeScope,
-		ClusterAttributeName:  clusterAttributeName,
+		ShardID:               request.ShardID,
+		DomainID:              request.DomainID,
+		ClusterAttributeScope: request.ClusterAttributeScope,
+		ClusterAttributeName:  request.ClusterAttributeName,
 	})
 }
 
@@ -173,8 +172,8 @@ func (m *historyTaskDLQManagerImpl) UpdateAckLevel(
 			ClusterAttributeScope: request.ClusterAttributeScope,
 			ClusterAttributeName:  request.ClusterAttributeName,
 			TaskType:              request.TaskType,
-			AckLevelVisibilityTS:  request.AckLevelVisibilityTS,
-			AckLevelTaskID:        request.AckLevelTaskID,
+			AckLevelVisibilityTS:  request.UpdatedInclusiveReadLevel.GetScheduledTime(),
+			AckLevelTaskID:        request.UpdatedInclusiveReadLevel.GetTaskID(),
 			LastUpdatedAt:         m.timeSrc.Now().UTC(),
 		},
 	})
