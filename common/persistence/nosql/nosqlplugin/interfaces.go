@@ -72,6 +72,7 @@ type (
 		WorkflowCRUD
 		ConfigStoreCRUD
 		DomainAuditLogCRUD
+		HistoryDLQTaskCRUD
 	}
 
 	// ClientErrorChecker checks for common nosql errors on client
@@ -547,5 +548,16 @@ type (
 		// SelectDomainAuditLogs returns audit log entries for a domain and operation type
 		// Returns paginated results ordered by created_time DESC, event_id ASC
 		SelectDomainAuditLogs(ctx context.Context, filter *DomainAuditLogFilter) ([]*DomainAuditLogRow, []byte, error)
+	}
+
+	/***
+	 * HistoryDLQTaskCRUD is for the history task dead-letter queue.
+	 *
+	 * Recommendation: use a dedicated history_task_dlq table, partitioned by
+	 * (shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name).
+	 */
+	HistoryDLQTaskCRUD interface {
+		// InsertHistoryDLQTaskRow writes a task to the history DLQ.
+		InsertHistoryDLQTaskRow(ctx context.Context, task *HistoryDLQTaskRow) error
 	}
 )

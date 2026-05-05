@@ -280,6 +280,20 @@ type (
 		NextPageToken  []byte
 	}
 
+	// HistoryDLQTaskRow defines the row struct for history task dead-letter queue entries.
+	HistoryDLQTaskRow struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskType              int
+		TaskID                int64
+		VisibilityTimestamp   time.Time
+		Data                  []byte
+		DataEncoding          string
+		CreatedAt             time.Time
+	}
+
 	// SelectMessagesBetweenRequest is a request struct for SelectMessagesBetween
 	SelectMessagesBetweenRequest struct {
 		QueueType               persistence.QueueType

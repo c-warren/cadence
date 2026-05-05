@@ -43,7 +43,7 @@ import (
 const (
 	// defaultProcessingInterval is how often the periodic shard sweep runs.
 	// TODO(c-warren) Make this dynamically configurable via dynamic config in a future change.
-	defaultProcessingInterval = 10 * time.Second
+	defaultProcessingInterval = 30 * time.Minute
 )
 
 type (

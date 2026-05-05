@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-//go:generate mockgen -package $GOPACKAGE -destination interface_mock.go github.com/uber/cadence/service/history/taskdlq HistoryTaskDLQStore,TaskExecutor,SourceAckLevelReader
+//go:generate mockgen -package $GOPACKAGE -destination interface_mock.go github.com/uber/cadence/service/history/taskdlq HistoryTaskDLQStore,TaskExecutor
 
 package taskdlq
 
@@ -33,13 +33,14 @@ type (
 	// HistoryTaskDLQStore defines the methods required from the persistence layer for the History Task DLQ Processor.
 	HistoryTaskDLQStore interface {
 		// GetAckLevels returns all DLQ partitions for a shard with their current ack levels.
-		// ExclusiveMaxTaskKey in the returned AckLevel structs is NOT populated by the store;
-		// the processor enriches it from the source queue via SourceAckLevelReader.
+		// Implementations must populate AckLevel.ExclusiveMaxTaskKey with the current ack level
+		// of the source (normal) queue so that the processor does not scan tasks that may still
+		// be in-flight in that queue.
 		GetAckLevels(ctx context.Context, shardID int) ([]AckLevel, error)
 
 		// GetAckLevelsForPartition returns ack levels for all task types within a specific
 		// (domain, clusterAttributeScope, clusterAttributeName) partition.
-		// ExclusiveMaxTaskKey is not populated; see GetAckLevels.
+		// Implementations must populate AckLevel.ExclusiveMaxTaskKey as described in GetAckLevels.
 		GetAckLevelsForPartition(ctx context.Context, shardID int, domainID, clusterAttributeScope, clusterAttributeName string) ([]AckLevel, error)
 
 		// GetTasks returns tasks from a DLQ partition starting at the inclusive min key.
@@ -50,6 +51,9 @@ type (
 
 		// DeleteTasks removes tasks up to and including the given key from a DLQ partition.
 		DeleteTasks(ctx context.Context, request DeleteTasksRequest) error
+
+		// AddTask writes a task to the DLQ partition identified by the request fields.
+		AddTask(ctx context.Context, request AddTaskRequest) error
 	}
 
 	// TaskExecutor executes a single DLQ task synchronously.
@@ -126,5 +130,14 @@ type (
 		ClusterAttributeName  string
 		TaskType              int
 		ExclusiveMaxTaskKey   persistence.HistoryTaskKey
+	}
+
+	// AddTaskRequest specifies the task to write to the DLQ.
+	AddTaskRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		Task                  persistence.Task
 	}
 )
