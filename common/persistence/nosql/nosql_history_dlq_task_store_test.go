@@ -167,7 +167,7 @@ func TestNoSQLHistoryDLQTaskStore_Close(t *testing.T) {
 }
 
 // The following tests verify that stub methods return "not implemented" errors
-// until the cwarren/dlqschema branch is merged and the plugin methods are wired up.
+// until the underlying schema is merged
 
 func TestNoSQLHistoryDLQTaskStore_GetHistoryDLQTasks_NotImplemented(t *testing.T) {
 	store, _ := setUpMocksForHistoryDLQTaskStore(t)
