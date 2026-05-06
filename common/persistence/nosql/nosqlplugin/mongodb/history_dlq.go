@@ -46,3 +46,7 @@ func (db *mdb) SelectHistoryDLQAckLevelRows(ctx context.Context, filter nosqlplu
 func (db *mdb) InsertOrUpdateHistoryDLQAckLevelRow(ctx context.Context, row *nosqlplugin.HistoryDLQAckLevelRow) error {
 	panic("TODO: InsertOrUpdateHistoryDLQAckLevelRow not implemented for MongoDB")
 }
+
+func (db *mdb) InsertHistoryDLQAckLevelIfNotExistsRow(ctx context.Context, row *nosqlplugin.HistoryDLQAckLevelRow) error {
+	panic("TODO: InsertHistoryDLQAckLevelIfNotExistsRow not implemented for MongoDB")
+}

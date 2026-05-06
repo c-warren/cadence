@@ -25,10 +25,13 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
 )
+
+var initialAckLevelVisibilityTS = time.Unix(0, 0).UTC()
 
 // HistoryTaskSerializer serializes and deserializes history tasks. It is a subset of
 // serialization.TaskSerializer, declared here to avoid an import cycle between the
@@ -67,6 +70,18 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 	blob, err := m.taskSerializer.SerializeTask(request.Task.GetTaskCategory(), request.Task)
 	if err != nil {
 		return fmt.Errorf("failed to serialize history DLQ task: %w", err)
+	}
+	if err := m.persistence.CreateHistoryDLQAckLevelIfNotExists(ctx, InternalHistoryDLQAckLevel{
+		ShardID:               request.ShardID,
+		DomainID:              request.DomainID,
+		ClusterAttributeScope: request.ClusterAttributeScope,
+		ClusterAttributeName:  request.ClusterAttributeName,
+		TaskType:              request.Task.GetTaskCategory().ID(),
+		AckLevelVisibilityTS:  initialAckLevelVisibilityTS,
+		AckLevelTaskID:        -1,
+		LastUpdatedAt:         m.timeSrc.Now().UTC(),
+	}); err != nil {
+		return fmt.Errorf("failed to create initial DLQ ack level: %w", err)
 	}
 	return m.persistence.CreateHistoryDLQTask(ctx, InternalCreateHistoryDLQTaskRequest{
 		ShardID:               request.ShardID,

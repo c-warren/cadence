@@ -43,3 +43,8 @@ const templateUpsertHistoryDLQAckLevelRowQuery = `INSERT INTO history_task_dlq_a
 	`shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name, ` +
 	`task_type, ack_level_visibility_ts, ack_level_task_id, last_updated_at) ` +
 	`VALUES(?, ?, ?, ?, ?, ?, ?, ?)`
+
+const templateInsertHistoryDLQAckLevelIfNotExistsQuery = `INSERT INTO history_task_dlq_ack_level (` +
+	`shard_id, domain_id, cluster_attribute_scope, cluster_attribute_name, ` +
+	`task_type, ack_level_visibility_ts, ack_level_task_id, last_updated_at) ` +
+	`VALUES(?, ?, ?, ?, ?, ?, ?, ?) IF NOT EXISTS`

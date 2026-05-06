@@ -203,3 +203,25 @@ func (m *nosqlHistoryDLQTaskStore) UpdateHistoryDLQAckLevel(
 	}
 	return nil
 }
+
+// CreateHistoryDLQAckLevelIfNotExists writes a sentinel ack-level row only when
+// no row already exists for this partition/task-type.
+func (m *nosqlHistoryDLQTaskStore) CreateHistoryDLQAckLevelIfNotExists(
+	ctx context.Context,
+	row persistence.InternalHistoryDLQAckLevel,
+) error {
+	err := m.db.InsertHistoryDLQAckLevelIfNotExistsRow(ctx, &nosqlplugin.HistoryDLQAckLevelRow{
+		ShardID:               row.ShardID,
+		DomainID:              row.DomainID,
+		ClusterAttributeScope: row.ClusterAttributeScope,
+		ClusterAttributeName:  row.ClusterAttributeName,
+		TaskType:              row.TaskType,
+		AckLevelVisibilityTS:  row.AckLevelVisibilityTS,
+		AckLevelTaskID:        row.AckLevelTaskID,
+		LastUpdatedAt:         row.LastUpdatedAt,
+	})
+	if err != nil {
+		return convertCommonErrors(m.db, "CreateHistoryDLQAckLevelIfNotExists", err)
+	}
+	return nil
+}

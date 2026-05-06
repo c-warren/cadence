@@ -46,3 +46,7 @@ func (db *ddb) SelectHistoryDLQAckLevelRows(ctx context.Context, filter nosqlplu
 func (db *ddb) InsertOrUpdateHistoryDLQAckLevelRow(ctx context.Context, row *nosqlplugin.HistoryDLQAckLevelRow) error {
 	panic("TODO: InsertOrUpdateHistoryDLQAckLevelRow not implemented for DynamoDB")
 }
+
+func (db *ddb) InsertHistoryDLQAckLevelIfNotExistsRow(ctx context.Context, row *nosqlplugin.HistoryDLQAckLevelRow) error {
+	panic("TODO: InsertHistoryDLQAckLevelIfNotExistsRow not implemented for DynamoDB")
+}

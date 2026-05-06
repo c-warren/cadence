@@ -1163,6 +1163,20 @@ func (mr *MockHistoryDLQTaskStoreMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockHistoryDLQTaskStore)(nil).Close))
 }
 
+// CreateHistoryDLQAckLevelIfNotExists mocks base method.
+func (m *MockHistoryDLQTaskStore) CreateHistoryDLQAckLevelIfNotExists(ctx context.Context, row InternalHistoryDLQAckLevel) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateHistoryDLQAckLevelIfNotExists", ctx, row)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateHistoryDLQAckLevelIfNotExists indicates an expected call of CreateHistoryDLQAckLevelIfNotExists.
+func (mr *MockHistoryDLQTaskStoreMockRecorder) CreateHistoryDLQAckLevelIfNotExists(ctx, row any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateHistoryDLQAckLevelIfNotExists", reflect.TypeOf((*MockHistoryDLQTaskStore)(nil).CreateHistoryDLQAckLevelIfNotExists), ctx, row)
+}
+
 // CreateHistoryDLQTask mocks base method.
 func (m *MockHistoryDLQTaskStore) CreateHistoryDLQTask(ctx context.Context, request InternalCreateHistoryDLQTaskRequest) error {
 	m.ctrl.T.Helper()
