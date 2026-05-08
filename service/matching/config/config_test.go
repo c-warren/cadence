@@ -106,6 +106,7 @@ func TestNewConfig(t *testing.T) {
 		"EnableReturnAllTaskListKinds":               {dynamicproperties.MatchingEnableReturnAllTaskListKinds, true},
 		"AppendTaskTimeout":                          {dynamicproperties.AppendTaskTimeout, time.Duration(42)},
 		"ExcludeShortLivedTaskListsFromShardManager": {dynamicproperties.MatchingExcludeShortLivedTaskListsFromShardManager, false},
+		"EmergencyOffboardingFromShardManager":       {dynamicproperties.MatchingEmergencyOffboardingFromShardManager, false},
 		"PercentageOnboardedToShardManager":          {dynamicproperties.MatchingPercentageOnboardedToShardManager, 0},
 		"MinTaskListWritePartitions":                 {dynamicproperties.MatchingTaskListMinimumWritePartitions, 1},
 	}

@@ -333,6 +333,7 @@ func TestGetTasklistManagerShutdownScenario(t *testing.T) {
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
 		config: &config.Config{
 			ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return true },
+			EmergencyOffboardingFromShardManager:       func(opts ...dynamicproperties.FilterOption) bool { return false },
 			PercentageOnboardedToShardManager:          func(opts ...dynamicproperties.FilterOption) int { return 100 },
 		},
 		shutdown:    make(chan struct{}),
