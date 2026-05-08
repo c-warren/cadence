@@ -425,7 +425,6 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 			executor:           executor,
 			membershipResolver: resolver,
 			config: &config.Config{
-				EnableTasklistOwnershipGuard:               func(opts ...dynamicproperties.FilterOption) bool { return true },
 				ExcludeShortLivedTaskListsFromShardManager: func(opts ...dynamicproperties.FilterOption) bool { return false },
 				PercentageOnboardedToShardManager:          func(opts ...dynamicproperties.FilterOption) int { return 100 },
 			},
@@ -443,13 +442,6 @@ func TestErrIfShardOwnershipLost(t *testing.T) {
 		assert.Equal(t, ownedBy, ownershipErr.OwnedByIdentity)
 		assert.Equal(t, me, ownershipErr.MyIdentity)
 	}
-
-	t.Run("ownership guard disabled", func(t *testing.T) {
-		engine, _, _ := newEngine(t)
-		engine.config.EnableTasklistOwnershipGuard = func(opts ...dynamicproperties.FilterOption) bool { return false }
-		err := engine.errIfShardOwnershipLost(context.Background(), taskListID)
-		require.NoError(t, err)
-	})
 
 	t.Run("not excluded from sd with shard process error", func(t *testing.T) {
 		engine, executor, _ := newEngine(t)
@@ -953,10 +945,8 @@ func TestGetTasklistsNotOwned(t *testing.T) {
 		shutdown:           make(chan struct{}),
 		membershipResolver: resolver,
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
-		config: &config.Config{
-			EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
-		},
-		logger: log.NewNoop(),
+		config:             &config.Config{},
+		logger:             log.NewNoop(),
 	}
 	e.taskListRegistry.Register(*tl1, tl1m)
 	e.taskListRegistry.Register(*tl2, tl2m)
@@ -991,11 +981,9 @@ func TestShutDownTasklistsNotOwned(t *testing.T) {
 		shutdown:           make(chan struct{}),
 		membershipResolver: resolver,
 		taskListRegistry:   tasklist.NewTaskListRegistry(metrics.NewNoopMetricsClient()),
-		config: &config.Config{
-			EnableTasklistOwnershipGuard: func(opts ...dynamicproperties.FilterOption) bool { return true },
-		},
-		metricsClient: metrics.NewNoopMetricsClient(),
-		logger:        log.NewNoop(),
+		config:             &config.Config{},
+		metricsClient:      metrics.NewNoopMetricsClient(),
+		logger:             log.NewNoop(),
 	}
 	e.taskListRegistry.Register(*tl1, tl1m)
 	e.taskListRegistry.Register(*tl2, tl2m)
