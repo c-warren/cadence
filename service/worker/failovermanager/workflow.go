@@ -126,11 +126,11 @@ type (
 		GracefulFailoverTimeoutInSeconds *int32
 		// ClusterAttributeRebalanceMap defines a mapping of cluster attribute to its preferred cluster.
 		// Optional; carried as metadata for the active-active rebalance path.
-		ClusterAttributeRebalanceMap ClusterAttributeRebalanceMap
+		ClusterAttributeRebalanceMap ClusterAttributeRebalanceMap `json:",omitempty"`
 		// ClusterAttributes, when non-empty, triggers failover for active-active domains.
 		// each listed scope+name pair is moved to TargetCluster via UpdateDomain.ActiveClusters instead of ActiveClusterName.
 		// GetDomainsActivity also switches to active-active mode when this is set.
-		ClusterAttributes []types.ClusterAttribute
+		ClusterAttributes []types.ClusterAttribute `json:",omitempty"`
 	}
 
 	// FailoverResult is workflow result
