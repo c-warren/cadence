@@ -556,6 +556,9 @@ func FailoverActivity(ctx context.Context, params *FailoverActivityParams) (*Fai
 		if isActiveActiveFailover {
 			updateRequest.ActiveClusters = buildActiveClusters(params.TargetCluster, params.ClusterAttributes)
 		}
+		// ActiveClusterName is set for all global and active-active domains.
+		// For Active-Active domains any workflows that do not use cluster attributes use this field,
+		// so it should maintain the same behaviour as a standard global domain.
 		updateRequest.ActiveClusterName = common.StringPtr(params.TargetCluster)
 		if params.GracefulFailoverTimeoutInSeconds != nil {
 			updateRequest.FailoverTimeoutInSeconds = params.GracefulFailoverTimeoutInSeconds
