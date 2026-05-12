@@ -73,7 +73,6 @@ const (
 	failoverActivityName            = "cadence-sys-failover-activity"
 	getDomainsActivityName          = "cadence-sys-getDomains-activity"
 	getRebalanceDomainsActivityName = "cadence-sys-getRebalanceDomains-activity"
-	// rebalanceDomainsActivityName    = "cadence-sys-rebalanceDomains-activity"
 
 	defaultBatchFailoverSize              = 20
 	defaultBatchFailoverWaitTimeInSeconds = 30
@@ -147,8 +146,9 @@ type (
 		TargetCluster string
 		SourceCluster string
 		Domains       []string
-		// ClusterAttributes, when non-empty, switches GetDomainsActivity to active-active mode:
-		// returns AA domains where any listed attribute is currently active on SourceCluster.
+		// ClusterAttributes specifies which cluster attributes to match for active-active failover.
+		// All active-active domains that have matching attributes (e.g scope:name) will be returned.
+		// Optional.
 		ClusterAttributes []types.ClusterAttribute
 	}
 
@@ -157,8 +157,9 @@ type (
 		Domains                          []string
 		TargetCluster                    string
 		GracefulFailoverTimeoutInSeconds *int32
-		// ClusterAttributes, when non-empty, triggers failover for active-active domains: UpdateDomain is called with
-		// ActiveClusters (each attribute set to TargetCluster) instead of ActiveClusterName.
+		// ClusterAttributes specifies which attributes to fail over to the TargetCluster across the environment.
+		// All active-active domains that have matching attributes (e.g scope:name) will be failed over.
+		// Optional.
 		ClusterAttributes []types.ClusterAttribute
 	}
 
