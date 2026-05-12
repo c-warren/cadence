@@ -208,7 +208,7 @@ func (p *ProcessorImpl) processAckLevels(ctx context.Context, ackLevels []AckLev
 				tag.WorkflowDomainID(al.DomainID),
 				tag.Dynamic("cluster-attribute-scope", al.ClusterAttributeScope),
 				tag.Dynamic("cluster-attribute-name", al.ClusterAttributeName),
-				tag.Dynamic("task-type", al.TaskType),
+				tag.TaskType(al.TaskCategory.ID()),
 				tag.Error(err),
 			)
 			errs = multierr.Append(errs, err)
@@ -226,9 +226,9 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al AckLevel) error 
 		return nil
 	}
 
-	executor, ok := p.executors[al.TaskType]
+	executor, ok := p.executors[al.TaskCategory.ID()]
 	if !ok {
-		return fmt.Errorf("no executor registered for task type %d", al.TaskType)
+		return fmt.Errorf("no executor registered for task type %d", al.TaskCategory.ID())
 	}
 
 	var (
@@ -244,7 +244,7 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al AckLevel) error 
 			tag.WorkflowDomainID(al.DomainID),
 			tag.Dynamic("cluster-attribute-scope", al.ClusterAttributeScope),
 			tag.Dynamic("cluster-attribute-name", al.ClusterAttributeName),
-			tag.TaskType(al.TaskType))
+			tag.TaskType(al.TaskCategory.ID()))
 
 		return ErrInvalidExclusiveMaxTaskKey
 	}
@@ -255,7 +255,7 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al AckLevel) error 
 			DomainID:              al.DomainID,
 			ClusterAttributeScope: al.ClusterAttributeScope,
 			ClusterAttributeName:  al.ClusterAttributeName,
-			TaskType:              al.TaskType,
+			TaskCategory:          al.TaskCategory,
 			InclusiveMinTaskKey:   minKey,
 			ExclusiveMaxTaskKey:   maxKey,
 			PageSize:              p.pageSize,
@@ -305,7 +305,7 @@ func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al AckLevel, newKey
 		DomainID:              al.DomainID,
 		ClusterAttributeScope: al.ClusterAttributeScope,
 		ClusterAttributeName:  al.ClusterAttributeName,
-		TaskType:              al.TaskType,
+		TaskCategory:          al.TaskCategory,
 		AckLevelVisibilityTS:  newKey.GetScheduledTime(),
 		AckLevelTaskID:        newKey.GetTaskID(),
 	}); err != nil {
@@ -316,7 +316,7 @@ func (p *ProcessorImpl) advanceAckLevel(ctx context.Context, al AckLevel, newKey
 		DomainID:              al.DomainID,
 		ClusterAttributeScope: al.ClusterAttributeScope,
 		ClusterAttributeName:  al.ClusterAttributeName,
-		TaskType:              al.TaskType,
+		TaskCategory:          al.TaskCategory,
 		ExclusiveMaxTaskKey:   newKey.Next(),
 	}); err != nil {
 		p.logger.Error("failed to delete acknowledged DLQ tasks",

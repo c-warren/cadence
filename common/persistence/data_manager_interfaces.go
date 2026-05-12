@@ -231,6 +231,20 @@ var (
 	}
 )
 
+// HistoryTaskCategoryFromID converts a stored category ID back to the corresponding HistoryTaskCategory.
+func HistoryTaskCategoryFromID(id int) (HistoryTaskCategory, error) {
+	switch id {
+	case HistoryTaskCategoryIDTransfer:
+		return HistoryTaskCategoryTransfer, nil
+	case HistoryTaskCategoryIDTimer:
+		return HistoryTaskCategoryTimer, nil
+	case HistoryTaskCategoryIDReplication:
+		return HistoryTaskCategoryReplication, nil
+	default:
+		return HistoryTaskCategory{}, fmt.Errorf("unknown task category ID: %d", id)
+	}
+}
+
 // Transfer task types
 const (
 	TransferTaskTypeDecisionTask = iota
@@ -1751,11 +1765,20 @@ type (
 		GetDomainAuditLogs(ctx context.Context, request *GetDomainAuditLogsRequest) (*GetDomainAuditLogsResponse, error)
 	}
 
-	// HistoryTaskDLQManager is the manager-level interface for writing to the history task DLQ.
+	// HistoryTaskDLQManager is the manager-level interface for the history task DLQ.
 	HistoryTaskDLQManager interface {
 		Closeable
 		GetName() string
 		CreateHistoryDLQTask(ctx context.Context, request CreateHistoryDLQTaskRequest) error
+		// GetAckLevels returns DLQ partitions for a shard and task category with their current ack levels.
+		// Optionally filter to a specific partition by setting DomainID/ClusterAttributeScope/ClusterAttributeName.
+		GetAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) ([]HistoryDLQAckLevel, error)
+		// GetTasks returns deserialized tasks from a DLQ partition.
+		GetTasks(ctx context.Context, request HistoryDLQGetTasksRequest) (HistoryDLQGetTasksResponse, error)
+		// UpdateAckLevel persists the new ack level for a partition.
+		UpdateAckLevel(ctx context.Context, request HistoryDLQUpdateAckLevelRequest) error
+		// DeleteTasks removes tasks up to and including the given key from a DLQ partition.
+		DeleteTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error
 	}
 
 	// CreateHistoryDLQTaskRequest is the public request for adding a task to the history DLQ.
@@ -1765,6 +1788,66 @@ type (
 		ClusterAttributeScope string
 		ClusterAttributeName  string
 		Task                  Task
+	}
+
+	// HistoryDLQAckLevel identifies one DLQ partition and its current processing watermark.
+	HistoryDLQAckLevel struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskCategory          HistoryTaskCategory
+		AckLevelVisibilityTS  time.Time
+		AckLevelTaskID        int64
+	}
+
+	// HistoryDLQGetTasksRequest specifies what tasks to fetch from a DLQ partition.
+	HistoryDLQGetTasksRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskCategory          HistoryTaskCategory
+		InclusiveMinTaskKey   HistoryTaskKey
+		ExclusiveMaxTaskKey   HistoryTaskKey
+		PageSize              int
+		NextPageToken         []byte
+	}
+
+	// HistoryDLQGetTasksResponse carries tasks returned from the DLQ store.
+	HistoryDLQGetTasksResponse struct {
+		Tasks         []Task
+		NextPageToken []byte
+	}
+
+	// HistoryDLQGetAckLevelsRequest specifies the shard and task category to query ack levels for.
+	// Optionally filter to a specific partition by setting DomainID/ClusterAttributeScope/ClusterAttributeName.
+	HistoryDLQGetAckLevelsRequest struct {
+		ShardID               int
+		TaskCategory          HistoryTaskCategory
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+	}
+
+	// HistoryDLQUpdateAckLevelRequest specifies the new ack watermark for a partition.
+	HistoryDLQUpdateAckLevelRequest struct {
+		ShardID                   int
+		DomainID                  string
+		ClusterAttributeScope     string
+		ClusterAttributeName      string
+		TaskCategory              HistoryTaskCategory
+		UpdatedInclusiveReadLevel HistoryTaskKey
+	}
+
+	// HistoryDLQDeleteTasksRequest asks the store to remove tasks up to and including the given key from a DLQ partition.
+	HistoryDLQDeleteTasksRequest struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskCategory          HistoryTaskCategory
+		ExclusiveMaxTaskKey   HistoryTaskKey
 	}
 
 	EnqueueMessageRequest struct {

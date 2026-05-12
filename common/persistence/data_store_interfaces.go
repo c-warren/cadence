@@ -107,6 +107,10 @@ type (
 		Closeable
 		GetName() string
 		CreateHistoryDLQTask(ctx context.Context, request InternalCreateHistoryDLQTaskRequest) error
+		GetHistoryDLQTasks(ctx context.Context, request HistoryDLQGetTasksRequest) (InternalGetHistoryDLQTasksResponse, error)
+		RangeDeleteHistoryDLQTasks(ctx context.Context, request HistoryDLQDeleteTasksRequest) error
+		GetHistoryDLQAckLevels(ctx context.Context, request HistoryDLQGetAckLevelsRequest) (InternalGetHistoryDLQAckLevelsResponse, error)
+		UpdateHistoryDLQAckLevel(ctx context.Context, request InternalUpdateHistoryDLQAckLevelRequest) error
 	}
 
 	// ExecutionStore is used to manage workflow executions for Persistence layer
@@ -992,7 +996,7 @@ type (
 		TTLSeconds      int64 // TTL for the audit log entry in seconds
 	}
 
-	// InternalCreateHistoryDLQTaskRequest is the store-level (pre-serialization) request for writing a history DLQ task.
+	// InternalCreateHistoryDLQTaskRequest is the store-level request for writing a history DLQ task.
 	InternalCreateHistoryDLQTaskRequest struct {
 		ShardID               int
 		DomainID              string
@@ -1003,6 +1007,49 @@ type (
 		VisibilityTimestamp   time.Time
 		CreatedAt             time.Time
 		TaskBlob              *DataBlob
+	}
+
+	// InternalHistoryDLQTask is a single row from the history_task_dlq table.
+	InternalHistoryDLQTask struct {
+		DomainID              string
+		WorkflowID            string
+		RunID                 string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskCategory          int
+		VisibilityTimestamp   time.Time
+		TaskID                int64
+		TaskPayload           *DataBlob
+		Version               int64
+		CreatedAt             time.Time
+	}
+
+	// InternalHistoryDLQAckLevel is a single row from the history_task_dlq_ack_level table.
+	InternalHistoryDLQAckLevel struct {
+		ShardID               int
+		DomainID              string
+		ClusterAttributeScope string
+		ClusterAttributeName  string
+		TaskCategory          int
+		AckLevelVisibilityTS  time.Time
+		AckLevelTaskID        int64
+		LastUpdatedAt         time.Time
+	}
+
+	// InternalGetHistoryDLQTasksResponse is the response for GetHistoryDLQTasks.
+	InternalGetHistoryDLQTasksResponse struct {
+		Tasks         []*InternalHistoryDLQTask
+		NextPageToken []byte
+	}
+
+	// InternalGetHistoryDLQAckLevelsResponse is the response for GetHistoryDLQAckLevels.
+	InternalGetHistoryDLQAckLevelsResponse struct {
+		AckLevels []*InternalHistoryDLQAckLevel
+	}
+
+	// InternalUpdateHistoryDLQAckLevelRequest upserts a single ack level row.
+	InternalUpdateHistoryDLQAckLevelRequest struct {
+		Row InternalHistoryDLQAckLevel
 	}
 
 	// InternalGetDomainAuditLogsResponse is the response for GetDomainAuditLogs
