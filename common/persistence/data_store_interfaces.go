@@ -1004,6 +1004,9 @@ type (
 		ClusterAttributeName  string
 		TaskType              int
 		TaskID                int64
+		WorkflowID            string
+		RunID                 string
+		Version               int64
 		VisibilityTimestamp   time.Time
 		CreatedAt             time.Time
 		TaskBlob              *DataBlob
