@@ -3,7 +3,7 @@ name: Security Scan
 on:
   push:
     branches: [master]
-  pull_request_target:
+  pull_request:
     branches: [master]
 
 jobs:
@@ -14,35 +14,30 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Run Snyk to check for vulnerabilities
-        if: github.event_name == 'pull_request_target'
+        if: github.event_name == 'pull_request'
         uses: snyk/actions/golang@master
         continue-on-error: true
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          args: --org=52a03d45-7ee8-4d93-9298-375b00a8680c --severity-threshold=high --sarif-file-output=snyk.sarif
+          args: --severity-threshold=high --sarif-file-output=snyk.sarif
       - name: Upload result to GitHub Code Scanning
-        if: github.event_name == 'pull_request_target'
+        if: github.event_name == 'pull_request'
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: snyk.sarif
-          ref: ${{ github.event.pull_request.head.ref }}
-          sha: ${{ github.event.pull_request.head.sha }}
       - name: Monitor on default branch
         if: github.event_name == 'push'
         uses: snyk/actions/golang@master
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          args: --org=52a03d45-7ee8-4d93-9298-375b00a8680c
           command: monitor
 
   dependency-review:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request_target'
+    if: github.event_name == 'pull_request'
     permissions:
       contents: read
       pull-requests: write
