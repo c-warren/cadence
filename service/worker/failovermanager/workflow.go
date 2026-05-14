@@ -389,13 +389,7 @@ func GetDomainsActivity(ctx context.Context, params *GetDomainsActivityParams) (
 	}
 	var res []string
 	for _, domain := range domains {
-		var include bool
-		if len(params.ClusterAttributes) > 0 {
-			include = shouldFailoverActiveActiveDomain(domain, params.SourceCluster, params.ClusterAttributes)
-		} else {
-			include = shouldFailover(domain, params.SourceCluster)
-		}
-		if include {
+		if shouldFailover(domain, params.SourceCluster, params.ClusterAttributes) {
 			res = append(res, domain.GetDomainInfo().GetName())
 		}
 	}
@@ -422,62 +416,44 @@ func validateTargetAndSourceCluster(targetCluster, sourceCluster string) error {
 	return nil
 }
 
-func shouldFailover(domain *types.DescribeDomainResponse, sourceCluster string) bool {
-	if !domain.GetIsGlobalDomain() {
+// shouldFailover returns true if the domain should be included in a failover run.
+//
+// A domain is included when either of the following is true:
+//  1. Its default active cluster (ActiveClusterName) matches sourceCluster.
+//  2. A clusterAttributeFilter is provided and at least one of the listed cluster
+//     attributes is currently active on sourceCluster in the domain's ActiveClusters config.
+//
+// Both conditions are checked regardless of whether the domain has active-active configuration,
+// so plain global domains and active-active domains are treated uniformly.
+func shouldFailover(domain *types.DescribeDomainResponse, sourceCluster string, clusterAttributeFilter []types.ClusterAttribute) bool {
+	if !domain.GetIsGlobalDomain() || !isDomainFailoverManagedByCadence(domain) {
 		return false
 	}
-	// Skip deprecated and deleted domains
 	if domain.DomainInfo != nil && domain.DomainInfo.Status != nil {
 		status := *domain.DomainInfo.Status
 		if status == types.DomainStatusDeprecated || status == types.DomainStatusDeleted {
 			return false
 		}
 	}
-
-	// TODO(active-active): Remove this check once failover drills are supported for
-	// active-active workflows
-
-	if domain.ReplicationConfiguration.ActiveClusters != nil &&
-		len(domain.ReplicationConfiguration.ActiveClusters.AttributeScopes) > 0 {
-		return false
+	if domain.ReplicationConfiguration.GetActiveClusterName() == sourceCluster {
+		return true
 	}
-
-	currentActiveCluster := domain.ReplicationConfiguration.GetActiveClusterName()
-	isDomainTarget := currentActiveCluster == sourceCluster
-	return isDomainTarget && isDomainFailoverManagedByCadence(domain)
+	ac := domain.ReplicationConfiguration.GetActiveClusters()
+	if ac != nil {
+		for _, attr := range clusterAttributeFilter {
+			if info, err := ac.GetActiveClusterByClusterAttribute(attr.GetScope(), attr.GetName()); err == nil {
+				if info.ActiveClusterName == sourceCluster {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func isDomainFailoverManagedByCadence(domain *types.DescribeDomainResponse) bool {
 	domainData := domain.DomainInfo.GetData()
 	return strings.ToLower(strings.TrimSpace(domainData[constants.DomainDataKeyForManagedFailover])) == "true"
-}
-
-// shouldFailoverActiveActiveDomain returns true if the domain is an AA domain managed by Cadence that
-// has at least one of the specified cluster attributes currently active on sourceCluster.
-func shouldFailoverActiveActiveDomain(domain *types.DescribeDomainResponse, sourceCluster string, attrs []types.ClusterAttribute) bool {
-	if !domain.GetIsGlobalDomain() || !isDomainFailoverManagedByCadence(domain) {
-		return false
-	}
-	if domain.DomainInfo != nil && domain.DomainInfo.Status != nil {
-		s := *domain.DomainInfo.Status
-		if s == types.DomainStatusDeprecated || s == types.DomainStatusDeleted {
-			return false
-		}
-	}
-	ac := domain.ReplicationConfiguration.GetActiveClusters()
-	if ac == nil || len(ac.AttributeScopes) == 0 {
-		return false
-	}
-	for _, attr := range attrs {
-		info, err := ac.GetActiveClusterByClusterAttribute(attr.GetScope(), attr.GetName())
-		if err != nil {
-			continue
-		}
-		if info.ActiveClusterName == sourceCluster {
-			return true
-		}
-	}
-	return false
 }
 
 func getClient(ctx context.Context) frontend.Client {
@@ -540,27 +516,21 @@ func FailoverActivity(ctx context.Context, params *FailoverActivityParams) (*Fai
 	var successDomains []string
 	var failedDomains []string
 	for _, domain := range domains {
-		// Omitting the poller validation check for active-active failover as the domain will already be
-		// polling on both clusters - or will already be in a failed state. Failing over/not failing over
-		// will not change this.
-		if !isActiveActiveFailover {
-			// Check if poller exist for single-cluster failover
-			if err := validateTaskListPollerInfo(ctx, params.TargetCluster, domain); err != nil {
-				logger.Error("Failed to validate task list poller info", zap.Error(err))
-				failedDomains = append(failedDomains, domain)
-				continue
-			}
-		}
-		updateRequest := &types.UpdateDomainRequest{
-			Name: domain,
-		}
-		if isActiveActiveFailover {
-			updateRequest.ActiveClusters = buildActiveClusters(params.TargetCluster, params.ClusterAttributes)
+		if err := validateTaskListPollerInfo(ctx, params.TargetCluster, domain); err != nil {
+			logger.Error("Failed to validate task list poller info", zap.Error(err))
+			failedDomains = append(failedDomains, domain)
+			continue
 		}
 		// ActiveClusterName is set for all global and active-active domains.
 		// For Active-Active domains any workflows that do not use cluster attributes use this field,
 		// so it should maintain the same behaviour as a standard global domain.
-		updateRequest.ActiveClusterName = common.StringPtr(params.TargetCluster)
+		updateRequest := &types.UpdateDomainRequest{
+			Name:              domain,
+			ActiveClusterName: common.StringPtr(params.TargetCluster),
+		}
+		if isActiveActiveFailover {
+			updateRequest.ActiveClusters = buildActiveClusters(params.TargetCluster, params.ClusterAttributes)
+		}
 		if params.GracefulFailoverTimeoutInSeconds != nil {
 			updateRequest.FailoverTimeoutInSeconds = params.GracefulFailoverTimeoutInSeconds
 		}
