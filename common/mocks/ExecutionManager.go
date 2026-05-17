@@ -533,6 +533,94 @@ func (_m *ExecutionManager) DeleteActiveClusterSelectionPolicy(ctx context.Conte
 	return r0
 }
 
+// PutHistoryTaskToDLQ provides a mock function with given fields: ctx, request
+func (_m *ExecutionManager) PutHistoryTaskToDLQ(ctx context.Context, request *persistence.PutHistoryTaskToDLQRequest) error {
+	ret := _m.Called(ctx, request)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.PutHistoryTaskToDLQRequest) error); ok {
+		r0 = rf(ctx, request)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// GetHistoryTasksFromDLQ provides a mock function with given fields: ctx, request
+func (_m *ExecutionManager) GetHistoryTasksFromDLQ(ctx context.Context, request *persistence.GetHistoryTasksFromDLQRequest) (*persistence.GetHistoryTasksFromDLQResponse, error) {
+	ret := _m.Called(ctx, request)
+
+	var r0 *persistence.GetHistoryTasksFromDLQResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetHistoryTasksFromDLQRequest) *persistence.GetHistoryTasksFromDLQResponse); ok {
+		r0 = rf(ctx, request)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*persistence.GetHistoryTasksFromDLQResponse)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *persistence.GetHistoryTasksFromDLQRequest) error); ok {
+		r1 = rf(ctx, request)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// RangeDeleteHistoryTasksFromDLQ provides a mock function with given fields: ctx, request
+func (_m *ExecutionManager) RangeDeleteHistoryTasksFromDLQ(ctx context.Context, request *persistence.RangeDeleteHistoryTasksFromDLQRequest) error {
+	ret := _m.Called(ctx, request)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.RangeDeleteHistoryTasksFromDLQRequest) error); ok {
+		r0 = rf(ctx, request)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// GetHistoryTaskDLQAckLevels provides a mock function with given fields: ctx, request
+func (_m *ExecutionManager) GetHistoryTaskDLQAckLevels(ctx context.Context, request *persistence.GetHistoryTaskDLQAckLevelsRequest) (*persistence.GetHistoryTaskDLQAckLevelsResponse, error) {
+	ret := _m.Called(ctx, request)
+
+	var r0 *persistence.GetHistoryTaskDLQAckLevelsResponse
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.GetHistoryTaskDLQAckLevelsRequest) *persistence.GetHistoryTaskDLQAckLevelsResponse); ok {
+		r0 = rf(ctx, request)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(*persistence.GetHistoryTaskDLQAckLevelsResponse)
+		}
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, *persistence.GetHistoryTaskDLQAckLevelsRequest) error); ok {
+		r1 = rf(ctx, request)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// UpdateHistoryTaskDLQAckLevel provides a mock function with given fields: ctx, request
+func (_m *ExecutionManager) UpdateHistoryTaskDLQAckLevel(ctx context.Context, request *persistence.UpdateHistoryTaskDLQAckLevelRequest) error {
+	ret := _m.Called(ctx, request)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, *persistence.UpdateHistoryTaskDLQAckLevelRequest) error); ok {
+		r0 = rf(ctx, request)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
 // NewExecutionManager creates a new instance of ExecutionManager. It also registers a testing interface on the mock and a cleanup function to assert the mocks expectations.
 // The first argument is typically a *testing.T value.
 func NewExecutionManager(t interface {

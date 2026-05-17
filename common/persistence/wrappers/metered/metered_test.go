@@ -277,6 +277,11 @@ func prepareMockForTest(t *testing.T, input interface{}, expectedErr error) {
 		mocked.EXPECT().RangeDeleteReplicationTaskFromDLQ(gomock.Any(), gomock.Any()).Return(&persistence.RangeDeleteReplicationTaskFromDLQResponse{}, expectedErr).Times(1)
 		mocked.EXPECT().GetActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(&types.ActiveClusterSelectionPolicy{}, expectedErr).Times(1)
 		mocked.EXPECT().DeleteActiveClusterSelectionPolicy(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
+		mocked.EXPECT().PutHistoryTaskToDLQ(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
+		mocked.EXPECT().GetHistoryTasksFromDLQ(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTasksFromDLQResponse{}, expectedErr).Times(1)
+		mocked.EXPECT().RangeDeleteHistoryTasksFromDLQ(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
+		mocked.EXPECT().GetHistoryTaskDLQAckLevels(gomock.Any(), gomock.Any()).Return(&persistence.GetHistoryTaskDLQAckLevelsResponse{}, expectedErr).Times(1)
+		mocked.EXPECT().UpdateHistoryTaskDLQAckLevel(gomock.Any(), gomock.Any()).Return(expectedErr).Times(1)
 	default:
 		t.Errorf("unsupported type %v", reflect.TypeOf(input))
 		t.FailNow()

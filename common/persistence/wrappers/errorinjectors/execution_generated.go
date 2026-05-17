@@ -191,6 +191,21 @@ func (c *injectorExecutionManager) GetCurrentExecution(ctx context.Context, requ
 	return
 }
 
+func (c *injectorExecutionManager) GetHistoryTaskDLQAckLevels(ctx context.Context, request *persistence.GetHistoryTaskDLQAckLevelsRequest) (gp1 *persistence.GetHistoryTaskDLQAckLevelsResponse, err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		gp1, err = c.wrapped.GetHistoryTaskDLQAckLevels(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "ExecutionManager.GetHistoryTaskDLQAckLevels", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *injectorExecutionManager) GetHistoryTasks(ctx context.Context, request *persistence.GetHistoryTasksRequest) (gp1 *persistence.GetHistoryTasksResponse, err error) {
 	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
@@ -200,6 +215,21 @@ func (c *injectorExecutionManager) GetHistoryTasks(ctx context.Context, request 
 
 	if fakeErr != nil {
 		logErr(c.logger, "ExecutionManager.GetHistoryTasks", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *injectorExecutionManager) GetHistoryTasksFromDLQ(ctx context.Context, request *persistence.GetHistoryTasksFromDLQRequest) (gp1 *persistence.GetHistoryTasksFromDLQResponse, err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		gp1, err = c.wrapped.GetHistoryTasksFromDLQ(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "ExecutionManager.GetHistoryTasksFromDLQ", fakeErr, forwardCall, err)
 		err = fakeErr
 		return
 	}
@@ -304,6 +334,21 @@ func (c *injectorExecutionManager) ListCurrentExecutions(ctx context.Context, re
 	return
 }
 
+func (c *injectorExecutionManager) PutHistoryTaskToDLQ(ctx context.Context, request *persistence.PutHistoryTaskToDLQRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		err = c.wrapped.PutHistoryTaskToDLQ(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "ExecutionManager.PutHistoryTaskToDLQ", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *injectorExecutionManager) PutReplicationTaskToDLQ(ctx context.Context, request *persistence.PutReplicationTaskToDLQRequest) (err error) {
 	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
@@ -334,6 +379,21 @@ func (c *injectorExecutionManager) RangeCompleteHistoryTask(ctx context.Context,
 	return
 }
 
+func (c *injectorExecutionManager) RangeDeleteHistoryTasksFromDLQ(ctx context.Context, request *persistence.RangeDeleteHistoryTasksFromDLQRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		err = c.wrapped.RangeDeleteHistoryTasksFromDLQ(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "ExecutionManager.RangeDeleteHistoryTasksFromDLQ", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *injectorExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *persistence.RangeDeleteReplicationTaskFromDLQRequest) (rp1 *persistence.RangeDeleteReplicationTaskFromDLQResponse, err error) {
 	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool
@@ -343,6 +403,21 @@ func (c *injectorExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx context
 
 	if fakeErr != nil {
 		logErr(c.logger, "ExecutionManager.RangeDeleteReplicationTaskFromDLQ", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *injectorExecutionManager) UpdateHistoryTaskDLQAckLevel(ctx context.Context, request *persistence.UpdateHistoryTaskDLQAckLevelRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		err = c.wrapped.UpdateHistoryTaskDLQAckLevel(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "ExecutionManager.UpdateHistoryTaskDLQAckLevel", fakeErr, forwardCall, err)
 		err = fakeErr
 		return
 	}

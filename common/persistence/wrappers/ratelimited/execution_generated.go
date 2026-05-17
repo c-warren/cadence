@@ -117,12 +117,28 @@ func (c *ratelimitedExecutionManager) GetCurrentExecution(ctx context.Context, r
 	return c.wrapped.GetCurrentExecution(ctx, request)
 }
 
+func (c *ratelimitedExecutionManager) GetHistoryTaskDLQAckLevels(ctx context.Context, request *persistence.GetHistoryTaskDLQAckLevelsRequest) (gp1 *persistence.GetHistoryTaskDLQAckLevelsResponse, err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.GetHistoryTaskDLQAckLevels(ctx, request)
+}
+
 func (c *ratelimitedExecutionManager) GetHistoryTasks(ctx context.Context, request *persistence.GetHistoryTasksRequest) (gp1 *persistence.GetHistoryTasksResponse, err error) {
 	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
 	return c.wrapped.GetHistoryTasks(ctx, request)
+}
+
+func (c *ratelimitedExecutionManager) GetHistoryTasksFromDLQ(ctx context.Context, request *persistence.GetHistoryTasksFromDLQRequest) (gp1 *persistence.GetHistoryTasksFromDLQResponse, err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.GetHistoryTasksFromDLQ(ctx, request)
 }
 
 func (c *ratelimitedExecutionManager) GetName() (s1 string) {
@@ -181,6 +197,14 @@ func (c *ratelimitedExecutionManager) ListCurrentExecutions(ctx context.Context,
 	return c.wrapped.ListCurrentExecutions(ctx, request)
 }
 
+func (c *ratelimitedExecutionManager) PutHistoryTaskToDLQ(ctx context.Context, request *persistence.PutHistoryTaskToDLQRequest) (err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.PutHistoryTaskToDLQ(ctx, request)
+}
+
 func (c *ratelimitedExecutionManager) PutReplicationTaskToDLQ(ctx context.Context, request *persistence.PutReplicationTaskToDLQRequest) (err error) {
 	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
@@ -197,12 +221,28 @@ func (c *ratelimitedExecutionManager) RangeCompleteHistoryTask(ctx context.Conte
 	return c.wrapped.RangeCompleteHistoryTask(ctx, request)
 }
 
+func (c *ratelimitedExecutionManager) RangeDeleteHistoryTasksFromDLQ(ctx context.Context, request *persistence.RangeDeleteHistoryTasksFromDLQRequest) (err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.RangeDeleteHistoryTasksFromDLQ(ctx, request)
+}
+
 func (c *ratelimitedExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *persistence.RangeDeleteReplicationTaskFromDLQRequest) (rp1 *persistence.RangeDeleteReplicationTaskFromDLQResponse, err error) {
 	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded
 		return
 	}
 	return c.wrapped.RangeDeleteReplicationTaskFromDLQ(ctx, request)
+}
+
+func (c *ratelimitedExecutionManager) UpdateHistoryTaskDLQAckLevel(ctx context.Context, request *persistence.UpdateHistoryTaskDLQAckLevelRequest) (err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.UpdateHistoryTaskDLQAckLevel(ctx, request)
 }
 
 func (c *ratelimitedExecutionManager) UpdateWorkflowExecution(ctx context.Context, request *persistence.UpdateWorkflowExecutionRequest) (up1 *persistence.UpdateWorkflowExecutionResponse, err error) {

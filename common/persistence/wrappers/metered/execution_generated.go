@@ -291,6 +291,31 @@ func (c *meteredExecutionManager) GetCurrentExecution(ctx context.Context, reque
 	return
 }
 
+func (c *meteredExecutionManager) GetHistoryTaskDLQAckLevels(ctx context.Context, request *persistence.GetHistoryTaskDLQAckLevelsRequest) (gp1 *persistence.GetHistoryTaskDLQAckLevelsResponse, err error) {
+	op := func() error {
+		gp1, err = c.wrapped.GetHistoryTaskDLQAckLevels(ctx, request)
+		c.emptyMetric("ExecutionManager.GetHistoryTaskDLQAckLevels", request, gp1, err)
+		return err
+	}
+
+	retryCount := getRetryCountFromContext(ctx)
+	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
+		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		c.logger.Debug("Persistence GetHistoryTaskDLQAckLevels called", logTags...)
+		if c.enableShardIDMetrics() {
+			err = c.callWithDomainAndShardScope(metrics.PersistenceGetHistoryTaskDLQAckLevelsScope, op, metrics.DomainTag(domainName),
+				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+		} else {
+			err = c.call(metrics.PersistenceGetHistoryTaskDLQAckLevelsScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+		}
+		return
+	}
+
+	err = c.callWithoutDomainTag(metrics.PersistenceGetHistoryTaskDLQAckLevelsScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+
+	return
+}
+
 func (c *meteredExecutionManager) GetHistoryTasks(ctx context.Context, request *persistence.GetHistoryTasksRequest) (gp1 *persistence.GetHistoryTasksResponse, err error) {
 	op := func() error {
 		gp1, err = c.wrapped.GetHistoryTasks(ctx, request)
@@ -312,6 +337,31 @@ func (c *meteredExecutionManager) GetHistoryTasks(ctx context.Context, request *
 	}
 
 	err = c.callWithoutDomainTag(metrics.PersistenceGetHistoryTasksScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+
+	return
+}
+
+func (c *meteredExecutionManager) GetHistoryTasksFromDLQ(ctx context.Context, request *persistence.GetHistoryTasksFromDLQRequest) (gp1 *persistence.GetHistoryTasksFromDLQResponse, err error) {
+	op := func() error {
+		gp1, err = c.wrapped.GetHistoryTasksFromDLQ(ctx, request)
+		c.emptyMetric("ExecutionManager.GetHistoryTasksFromDLQ", request, gp1, err)
+		return err
+	}
+
+	retryCount := getRetryCountFromContext(ctx)
+	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
+		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		c.logger.Debug("Persistence GetHistoryTasksFromDLQ called", logTags...)
+		if c.enableShardIDMetrics() {
+			err = c.callWithDomainAndShardScope(metrics.PersistenceGetHistoryTasksFromDLQScope, op, metrics.DomainTag(domainName),
+				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+		} else {
+			err = c.call(metrics.PersistenceGetHistoryTasksFromDLQScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+		}
+		return
+	}
+
+	err = c.callWithoutDomainTag(metrics.PersistenceGetHistoryTasksFromDLQScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 
 	return
 }
@@ -474,6 +524,30 @@ func (c *meteredExecutionManager) ListCurrentExecutions(ctx context.Context, req
 	return
 }
 
+func (c *meteredExecutionManager) PutHistoryTaskToDLQ(ctx context.Context, request *persistence.PutHistoryTaskToDLQRequest) (err error) {
+	op := func() error {
+		err = c.wrapped.PutHistoryTaskToDLQ(ctx, request)
+		return err
+	}
+
+	retryCount := getRetryCountFromContext(ctx)
+	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
+		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		c.logger.Debug("Persistence PutHistoryTaskToDLQ called", logTags...)
+		if c.enableShardIDMetrics() {
+			err = c.callWithDomainAndShardScope(metrics.PersistencePutHistoryTaskToDLQScope, op, metrics.DomainTag(domainName),
+				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+		} else {
+			err = c.call(metrics.PersistencePutHistoryTaskToDLQScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+		}
+		return
+	}
+
+	err = c.callWithoutDomainTag(metrics.PersistencePutHistoryTaskToDLQScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+
+	return
+}
+
 func (c *meteredExecutionManager) PutReplicationTaskToDLQ(ctx context.Context, request *persistence.PutReplicationTaskToDLQRequest) (err error) {
 	op := func() error {
 		err = c.wrapped.PutReplicationTaskToDLQ(ctx, request)
@@ -523,6 +597,30 @@ func (c *meteredExecutionManager) RangeCompleteHistoryTask(ctx context.Context, 
 	return
 }
 
+func (c *meteredExecutionManager) RangeDeleteHistoryTasksFromDLQ(ctx context.Context, request *persistence.RangeDeleteHistoryTasksFromDLQRequest) (err error) {
+	op := func() error {
+		err = c.wrapped.RangeDeleteHistoryTasksFromDLQ(ctx, request)
+		return err
+	}
+
+	retryCount := getRetryCountFromContext(ctx)
+	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
+		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		c.logger.Debug("Persistence RangeDeleteHistoryTasksFromDLQ called", logTags...)
+		if c.enableShardIDMetrics() {
+			err = c.callWithDomainAndShardScope(metrics.PersistenceRangeDeleteHistoryTasksFromDLQScope, op, metrics.DomainTag(domainName),
+				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+		} else {
+			err = c.call(metrics.PersistenceRangeDeleteHistoryTasksFromDLQScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+		}
+		return
+	}
+
+	err = c.callWithoutDomainTag(metrics.PersistenceRangeDeleteHistoryTasksFromDLQScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+
+	return
+}
+
 func (c *meteredExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *persistence.RangeDeleteReplicationTaskFromDLQRequest) (rp1 *persistence.RangeDeleteReplicationTaskFromDLQResponse, err error) {
 	op := func() error {
 		rp1, err = c.wrapped.RangeDeleteReplicationTaskFromDLQ(ctx, request)
@@ -544,6 +642,30 @@ func (c *meteredExecutionManager) RangeDeleteReplicationTaskFromDLQ(ctx context.
 	}
 
 	err = c.callWithoutDomainTag(metrics.PersistenceRangeDeleteReplicationTaskFromDLQScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+
+	return
+}
+
+func (c *meteredExecutionManager) UpdateHistoryTaskDLQAckLevel(ctx context.Context, request *persistence.UpdateHistoryTaskDLQAckLevelRequest) (err error) {
+	op := func() error {
+		err = c.wrapped.UpdateHistoryTaskDLQAckLevel(ctx, request)
+		return err
+	}
+
+	retryCount := getRetryCountFromContext(ctx)
+	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
+		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		c.logger.Debug("Persistence UpdateHistoryTaskDLQAckLevel called", logTags...)
+		if c.enableShardIDMetrics() {
+			err = c.callWithDomainAndShardScope(metrics.PersistenceUpdateHistoryTaskDLQAckLevelScope, op, metrics.DomainTag(domainName),
+				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+		} else {
+			err = c.call(metrics.PersistenceUpdateHistoryTaskDLQAckLevelScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+		}
+		return
+	}
+
+	err = c.callWithoutDomainTag(metrics.PersistenceUpdateHistoryTaskDLQAckLevelScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
 
 	return
 }

@@ -156,3 +156,27 @@ func (db *ddb) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID i
 func (db *ddb) DeleteActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, wfID, rID string) error {
 	panic("TODO")
 }
+
+func (db *ddb) InsertHistoryDLQTask(_ context.Context, _ int, _, _, _ string, _ *nosqlplugin.HistoryDLQTask) error {
+	panic("TODO")
+}
+
+func (db *ddb) SelectHistoryDLQTasksOrderByKey(_ context.Context, _ int, _, _, _ string, _ int, _ int, _ []byte, _ time.Time, _ int64, _ time.Time, _ int64) ([]*nosqlplugin.HistoryDLQTask, []byte, error) {
+	panic("TODO")
+}
+
+func (db *ddb) RangeDeleteHistoryDLQTasksBefore(_ context.Context, _ int, _, _, _ string, _ int, _ time.Time) error {
+	panic("TODO")
+}
+
+func (db *ddb) RangeDeleteHistoryDLQTasksAtTS(_ context.Context, _ int, _, _, _ string, _ int, _ time.Time, _ int64) error {
+	panic("TODO")
+}
+
+func (db *ddb) SelectHistoryDLQAckLevels(_ context.Context, _ int, _, _, _ string) ([]*nosqlplugin.HistoryDLQAckLevelRow, error) {
+	panic("TODO")
+}
+
+func (db *ddb) UpsertHistoryDLQAckLevel(_ context.Context, _ *nosqlplugin.HistoryDLQAckLevelRow) error {
+	panic("TODO")
+}

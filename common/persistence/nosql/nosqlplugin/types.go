@@ -98,6 +98,12 @@ type (
 		ScheduledTime time.Time
 	}
 
+	// HistoryDLQTask aliases the persistence type for use in the nosqlplugin layer.
+	HistoryDLQTask = persistence.HistoryDLQTask
+
+	// HistoryDLQAckLevelRow aliases the persistence type for use in the nosqlplugin layer.
+	HistoryDLQAckLevelRow = persistence.HistoryDLQAckLevelRow
+
 	// ShardCondition is the condition for making changes within a shard
 	ShardCondition struct {
 		ShardID int
