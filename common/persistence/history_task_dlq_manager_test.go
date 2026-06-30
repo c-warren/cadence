@@ -63,14 +63,18 @@ func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
 		wantErr   string
 	}{
 		{
-			name: "successful write",
+			name: "successful write seeds a new ack level",
 			mockSetup: func(store *MockHistoryDLQTaskStore, ser *MockHistoryTaskSerializer) {
 				ser.EXPECT().
 					SerializeTask(HistoryTaskCategoryTransfer, testTask).
 					Return(serializedBlob, nil)
 				store.EXPECT().
-					CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.AssignableToTypeOf(InternalHistoryDLQAckLevel{})).
-					DoAndReturn(func(_ context.Context, row InternalHistoryDLQAckLevel) error {
+					GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).
+					Return(InternalGetHistoryDLQAckLevelsResponse{}, nil)
+				store.EXPECT().
+					UpdateHistoryDLQAckLevel(gomock.Any(), gomock.AssignableToTypeOf(InternalUpdateHistoryDLQAckLevelRequest{})).
+					DoAndReturn(func(_ context.Context, req InternalUpdateHistoryDLQAckLevelRequest) error {
+						row := req.Row
 						assert.Equal(t, 1, row.ShardID)
 						assert.Equal(t, "test-domain", row.DomainID)
 						assert.Equal(t, "scope", row.ClusterAttributeScope)
@@ -96,18 +100,61 @@ func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
 			},
 		},
 		{
-			name: "ack level creation failure",
+			name: "existing ack level is not reseeded",
 			mockSetup: func(store *MockHistoryDLQTaskStore, ser *MockHistoryTaskSerializer) {
 				ser.EXPECT().
 					SerializeTask(HistoryTaskCategoryTransfer, testTask).
 					Return(serializedBlob, nil)
 				store.EXPECT().
-					CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).
-					Return(errors.New("cassandra unavailable"))
-				// CreateHistoryDLQTask must NOT be called when the ack level write fails:
-				// the ack level row is always inserted prior to the task.
+					GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).
+					Return(InternalGetHistoryDLQAckLevelsResponse{
+						AckLevels: []*InternalHistoryDLQAckLevel{
+							{
+								ShardID:               1,
+								DomainID:              "test-domain",
+								ClusterAttributeScope: "scope",
+								ClusterAttributeName:  "cluster-a",
+								TaskCategory:          HistoryTaskCategoryTransfer.ID(),
+								AckLevelTaskID:        99,
+							},
+						},
+					}, nil)
+				// UpdateHistoryDLQAckLevel must NOT be called: a row already exists and a
+				// blind upsert would clobber recorded progress.
+				store.EXPECT().
+					CreateHistoryDLQTask(gomock.Any(), gomock.Any()).
+					Return(nil)
 			},
-			wantErr: "failed to create initial DLQ ack level: cassandra unavailable",
+		},
+		{
+			name: "ack level read failure",
+			mockSetup: func(store *MockHistoryDLQTaskStore, ser *MockHistoryTaskSerializer) {
+				ser.EXPECT().
+					SerializeTask(HistoryTaskCategoryTransfer, testTask).
+					Return(serializedBlob, nil)
+				store.EXPECT().
+					GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).
+					Return(InternalGetHistoryDLQAckLevelsResponse{}, errors.New("cassandra unavailable"))
+				// Neither the seed nor the task write happen when the existence read fails.
+			},
+			wantErr: "failed to read DLQ ack levels: cassandra unavailable",
+		},
+		{
+			name: "ack level seed failure",
+			mockSetup: func(store *MockHistoryDLQTaskStore, ser *MockHistoryTaskSerializer) {
+				ser.EXPECT().
+					SerializeTask(HistoryTaskCategoryTransfer, testTask).
+					Return(serializedBlob, nil)
+				store.EXPECT().
+					GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).
+					Return(InternalGetHistoryDLQAckLevelsResponse{}, nil)
+				store.EXPECT().
+					UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).
+					Return(errors.New("cassandra unavailable"))
+				// CreateHistoryDLQTask must NOT be called when the seed fails: the ack level
+				// row is always ensured prior to the task.
+			},
+			wantErr: "failed to seed initial DLQ ack level: cassandra unavailable",
 		},
 		{
 			name: "serialization failure",
@@ -120,13 +167,16 @@ func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
 			wantErr: "failed to serialize history DLQ task: codec error",
 		},
 		{
-			name: "store error propagation",
+			name: "task write error propagation",
 			mockSetup: func(store *MockHistoryDLQTaskStore, ser *MockHistoryTaskSerializer) {
 				ser.EXPECT().
 					SerializeTask(HistoryTaskCategoryTransfer, testTask).
 					Return(serializedBlob, nil)
 				store.EXPECT().
-					CreateHistoryDLQAckLevelIfNotExists(gomock.Any(), gomock.Any()).
+					GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).
+					Return(InternalGetHistoryDLQAckLevelsResponse{}, nil)
+				store.EXPECT().
+					UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).
 					Return(nil)
 				store.EXPECT().
 					CreateHistoryDLQTask(gomock.Any(), gomock.Any()).
@@ -164,6 +214,50 @@ func TestHistoryTaskDLQManager_CreateHistoryDLQTask(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHistoryTaskDLQManager_CreateHistoryDLQTask_CachesAckLevel(t *testing.T) {
+	now := time.Date(2026, 5, 4, 12, 0, 0, 0, time.UTC)
+	testTask := &ActivityTask{
+		WorkflowIdentifier: WorkflowIdentifier{
+			DomainID:   "test-domain",
+			WorkflowID: "test-workflow",
+			RunID:      "test-run",
+		},
+		TaskData: TaskData{
+			Version:             1,
+			TaskID:              42,
+			VisibilityTimestamp: now,
+		},
+	}
+	serializedBlob := DataBlob{Data: []byte("serialized-task"), Encoding: constants.EncodingTypeThriftRW}
+
+	ctrl := gomock.NewController(t)
+	store := NewMockHistoryDLQTaskStore(ctrl)
+	ser := NewMockHistoryTaskSerializer(ctrl)
+
+	ser.EXPECT().SerializeTask(HistoryTaskCategoryTransfer, testTask).Return(serializedBlob, nil).Times(2)
+	// The ack level is read and seeded only once; the second write hits the cache.
+	store.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).Return(InternalGetHistoryDLQAckLevelsResponse{}, nil).Times(1)
+	store.EXPECT().UpdateHistoryDLQAckLevel(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+	store.EXPECT().CreateHistoryDLQTask(gomock.Any(), gomock.Any()).Return(nil).Times(2)
+
+	mgr := &historyTaskDLQManagerImpl{
+		persistence:    store,
+		taskSerializer: ser,
+		logger:         log.NewNoop(),
+		timeSrc:        clock.NewMockedTimeSourceAt(now),
+	}
+
+	req := CreateHistoryDLQTaskRequest{
+		ShardID:               1,
+		DomainID:              "test-domain",
+		ClusterAttributeScope: "scope",
+		ClusterAttributeName:  "cluster-a",
+		Task:                  testTask,
+	}
+	assert.NoError(t, mgr.CreateHistoryDLQTask(context.Background(), req))
+	assert.NoError(t, mgr.CreateHistoryDLQTask(context.Background(), req))
 }
 
 func TestHistoryTaskDLQManager_GetName(t *testing.T) {

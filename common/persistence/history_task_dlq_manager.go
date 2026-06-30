@@ -25,6 +25,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
@@ -39,11 +40,29 @@ type HistoryTaskSerializer interface {
 	DeserializeTask(HistoryTaskCategory, *DataBlob) (Task, error)
 }
 
+// dlqPartitionKey identifies a single DLQ partition + task category. It is used as
+// the key for the in-process "ack-level row already exists" cache.
+type dlqPartitionKey struct {
+	shardID               int
+	domainID              string
+	clusterAttributeScope string
+	clusterAttributeName  string
+	taskCategory          int
+}
+
 type historyTaskDLQManagerImpl struct {
 	persistence    HistoryDLQTaskStore
 	taskSerializer HistoryTaskSerializer
 	logger         log.Logger
 	timeSrc        clock.TimeSource
+
+	// seeded memoizes partitions whose ack-level row is known to exist, so steady-state
+	// DLQ writes skip the existence read/seed entirely. It is a dlqPartitionKey -> struct{}
+	// membership set; see nosqlExecutionStore.missingShardIDLogs for the same once-per-key
+	// sync.Map idiom. Safe to cache forever: a history shard has a single owner, ack-level
+	// rows are only ever created (never deleted), and the only writer of those rows is the
+	// seed path below.
+	seeded sync.Map
 }
 
 // NewHistoryTaskDLQManager creates a new HistoryTaskDLQManager.
@@ -69,17 +88,9 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 	if err != nil {
 		return fmt.Errorf("failed to serialize history DLQ task: %w", err)
 	}
-	if err := m.persistence.CreateHistoryDLQAckLevelIfNotExists(ctx, InternalHistoryDLQAckLevel{
-		ShardID:               request.ShardID,
-		DomainID:              request.DomainID,
-		ClusterAttributeScope: request.ClusterAttributeScope,
-		ClusterAttributeName:  request.ClusterAttributeName,
-		TaskCategory:          request.Task.GetTaskCategory().ID(),
-		AckLevelVisibilityTS:  MinimumHistoryTaskKey.GetScheduledTime(),
-		AckLevelTaskID:        MinimumHistoryTaskKey.GetTaskID(),
-		LastUpdatedAt:         m.timeSrc.Now().UTC(),
-	}); err != nil {
-		return fmt.Errorf("failed to create initial DLQ ack level: %w", err)
+	// Ensure an ack-level row exists for this partition/task-category.
+	if err := m.ensureAckLevel(ctx, request); err != nil {
+		return err
 	}
 	// Use the task's key to store the visibility_ts/task_id in the DLQ.
 	taskKey := request.Task.GetTaskKey()
@@ -97,6 +108,69 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 		CreatedAt:             m.timeSrc.Now().UTC(),
 		TaskBlob:              &DataBlob{Data: blob.Data, Encoding: blob.Encoding},
 	})
+}
+
+// ensureAckLevel guarantees an ack-level row exists for the partition/task-category
+// Results are cached per host to minimize reads and prevent duplicate writes.
+func (m *historyTaskDLQManagerImpl) ensureAckLevel(
+	ctx context.Context,
+	request CreateHistoryDLQTaskRequest,
+) error {
+	key := dlqPartitionKey{
+		shardID:               request.ShardID,
+		domainID:              request.DomainID,
+		clusterAttributeScope: request.ClusterAttributeScope,
+		clusterAttributeName:  request.ClusterAttributeName,
+		taskCategory:          request.Task.GetTaskCategory().ID(),
+	}
+
+	if _, ok := m.seeded.Load(key); ok {
+		return nil
+	}
+
+	// A single read returns every category for this partition (the ack-level table is
+	// partitioned by shard/domain/scope/name with task_type as the clustering key), so
+	// cache them all to avoid re-reading when other categories are written.
+	resp, err := m.persistence.GetHistoryDLQAckLevels(ctx, HistoryDLQGetAckLevelsRequest{
+		ShardID:               request.ShardID,
+		DomainID:              request.DomainID,
+		ClusterAttributeScope: request.ClusterAttributeScope,
+		ClusterAttributeName:  request.ClusterAttributeName,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to read DLQ ack levels: %w", err)
+	}
+
+	for _, row := range resp.AckLevels {
+		m.seeded.Store(dlqPartitionKey{
+			shardID:               request.ShardID,
+			domainID:              request.DomainID,
+			clusterAttributeScope: request.ClusterAttributeScope,
+			clusterAttributeName:  request.ClusterAttributeName,
+			taskCategory:          row.TaskCategory,
+		}, struct{}{})
+	}
+	if _, ok := m.seeded.Load(key); ok {
+		return nil
+	}
+
+	if err := m.persistence.UpdateHistoryDLQAckLevel(ctx, InternalUpdateHistoryDLQAckLevelRequest{
+		Row: InternalHistoryDLQAckLevel{
+			ShardID:               request.ShardID,
+			DomainID:              request.DomainID,
+			ClusterAttributeScope: request.ClusterAttributeScope,
+			ClusterAttributeName:  request.ClusterAttributeName,
+			TaskCategory:          key.taskCategory,
+			AckLevelVisibilityTS:  MinimumHistoryTaskKey.GetScheduledTime(),
+			AckLevelTaskID:        MinimumHistoryTaskKey.GetTaskID(),
+			LastUpdatedAt:         m.timeSrc.Now().UTC(),
+		},
+	}); err != nil {
+		return fmt.Errorf("failed to seed initial DLQ ack level: %w", err)
+	}
+
+	m.seeded.Store(key, struct{}{})
+	return nil
 }
 
 // GetHistoryDLQAckLevels returns DLQ partitions for the given shard and task category with their stored ack levels.
