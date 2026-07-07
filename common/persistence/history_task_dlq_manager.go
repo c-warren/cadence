@@ -56,12 +56,8 @@ type historyTaskDLQManagerImpl struct {
 	logger         log.Logger
 	timeSrc        clock.TimeSource
 
-	// seeded memoizes partitions whose ack-level row is known to exist, so steady-state
-	// DLQ writes skip the existence read/seed entirely. It is a dlqPartitionKey -> struct{}
-	// membership set; see nosqlExecutionStore.missingShardIDLogs for the same once-per-key
-	// sync.Map idiom. Safe to cache forever: a history shard has a single owner, ack-level
-	// rows are only ever created (never deleted), and the only writer of those rows is the
-	// seed path below.
+	// seeded memoizes partitions whose ack-level row is known to exist
+	// Key is dlqPartitionKey, Value is struct{}
 	seeded sync.Map
 }
 
@@ -92,14 +88,17 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 	if err := m.ensureAckLevel(ctx, request); err != nil {
 		return err
 	}
+
 	// Use the task's key to store the visibility_ts/task_id in the DLQ.
 	taskKey := request.Task.GetTaskKey()
-	return m.persistence.CreateHistoryDLQTask(ctx, InternalCreateHistoryDLQTaskRequest{
+	taskCategoryID := request.Task.GetTaskCategory().ID()
+
+	createHistoryDLQTaskRequest := InternalCreateHistoryDLQTaskRequest{
 		ShardID:               request.ShardID,
 		DomainID:              request.DomainID,
 		ClusterAttributeScope: request.ClusterAttributeScope,
 		ClusterAttributeName:  request.ClusterAttributeName,
-		TaskType:              request.Task.GetTaskCategory().ID(),
+		TaskCategory:          taskCategoryID,
 		TaskID:                taskKey.GetTaskID(),
 		WorkflowID:            request.Task.GetWorkflowID(),
 		RunID:                 request.Task.GetRunID(),
@@ -107,7 +106,9 @@ func (m *historyTaskDLQManagerImpl) CreateHistoryDLQTask(
 		VisibilityTimestamp:   taskKey.GetScheduledTime(),
 		CreatedAt:             m.timeSrc.Now().UTC(),
 		TaskBlob:              &DataBlob{Data: blob.Data, Encoding: blob.Encoding},
-	})
+	}
+
+	return m.persistence.CreateHistoryDLQTask(ctx, createHistoryDLQTaskRequest)
 }
 
 // ensureAckLevel guarantees an ack-level row exists for the partition/task-category
