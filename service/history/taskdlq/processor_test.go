@@ -55,6 +55,7 @@ type newProcessorParams struct {
 	ShardID           int
 	Manager           persistence.HistoryTaskDLQManager
 	Reinjector        TaskReinjector
+	MaxReadLevel      func(persistence.HistoryTaskCategory) persistence.HistoryTaskKey
 	DomainMode        string
 	ProcessingEnabled bool
 	TimeSource        clock.TimeSource
@@ -70,6 +71,7 @@ func newProcessor(
 		ShardID:       1,
 		Manager:       params.Manager,
 		Reinjector:    params.Reinjector,
+		MaxReadLevel:  params.MaxReadLevel,
 		PageSize:      10,
 		Interval:      dynamicproperties.GetDurationPropertyFnFilteredByShardID(defaultTestProcessingInterval),
 		DomainMode:    dynamicproperties.GetStringPropertyFnFilteredByDomain(params.DomainMode),
@@ -173,7 +175,87 @@ func TestProcessShard_WhenPageSucceeds_AdvancesAckLevelToLastTaskKey(t *testing.
 	assert.NoError(t, proc.ProcessShard(context.Background()))
 }
 
-// TestProcessShard_AdvancesUsingOriginalKey_WhenReinjectionMutatesTaskID guards against
+// TestProcessShard_WhenMaxReadLevelSupplied_BoundsGetTasksToThatKey verifies that the DLQ scan
+// is bounded by the shard's read level.
+func TestProcessShard_WhenMaxReadLevelSupplied_BoundsGetTasksToThatKey(t *testing.T) {
+	tests := []struct {
+		name     string
+		category persistence.HistoryTaskCategory
+		bound    persistence.HistoryTaskKey
+	}{
+		{
+			name:     "transfer/immediate",
+			category: persistence.HistoryTaskCategoryTransfer,
+			bound:    persistence.NewImmediateTaskKey(42),
+		},
+		{
+			name:     "timer/scheduled",
+			category: persistence.HistoryTaskCategoryTimer,
+			bound:    persistence.NewHistoryTaskKey(time.Unix(0, 12345).UTC(), 0),
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			defer ctrl.Finish()
+
+			mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+			proc := newProcessor(t, newProcessorParams{
+				Manager:    mgr,
+				Reinjector: NewMockTaskReinjector(ctrl),
+				MaxReadLevel: func(category persistence.HistoryTaskCategory) persistence.HistoryTaskKey {
+					require.Equal(t, tc.category, category, "processor must query the read level for the ack level's category")
+					return tc.bound
+				},
+				DomainMode:        constants.HistoryTaskDLQModeEnabled,
+				ProcessingEnabled: true,
+				TimeSource:        clock.NewMockedTimeSource(),
+			})
+			al := baseAckLevel(1)
+			al.TaskCategory = tc.category
+
+			mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+			mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(_ context.Context, req persistence.HistoryDLQGetTasksRequest) (persistence.HistoryDLQGetTasksResponse, error) {
+					assert.Equal(t, tc.bound, req.ExclusiveMaxTaskKey)
+					return persistence.HistoryDLQGetTasksResponse{}, nil
+				},
+			)
+
+			assert.NoError(t, proc.ProcessShard(context.Background()))
+		})
+	}
+}
+
+// TestProcessShard_WhenNoMaxReadLevelSupplied_ScansToMaximumTaskKey verifies the default:
+// with no MaxReadLevel function, the scan is unbounded, so GetHistoryDLQTasks is called with
+// an ExclusiveMaxTaskKey of persistence.MaximumHistoryTaskKey.
+func TestProcessShard_WhenNoMaxReadLevelSupplied_ScansToMaximumTaskKey(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mgr := persistence.NewMockHistoryTaskDLQManager(ctrl)
+	proc := newProcessor(t, newProcessorParams{
+		Manager:           mgr,
+		Reinjector:        NewMockTaskReinjector(ctrl),
+		MaxReadLevel:      nil, // no bound supplied
+		DomainMode:        constants.HistoryTaskDLQModeEnabled,
+		ProcessingEnabled: true,
+		TimeSource:        clock.NewMockedTimeSource(),
+	})
+	al := baseAckLevel(1)
+
+	mgr.EXPECT().GetHistoryDLQAckLevels(gomock.Any(), gomock.Any()).Return([]persistence.HistoryDLQAckLevel{al}, nil)
+	mgr.EXPECT().GetHistoryDLQTasks(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(_ context.Context, req persistence.HistoryDLQGetTasksRequest) (persistence.HistoryDLQGetTasksResponse, error) {
+			assert.Equal(t, persistence.MaximumHistoryTaskKey, req.ExclusiveMaxTaskKey)
+			return persistence.HistoryDLQGetTasksResponse{}, nil
+		},
+	)
+
+	assert.NoError(t, proc.ProcessShard(context.Background()))
+}
+
 // reading the ack-level cursor from a task whose ID was rewritten by reinjection.
 // ReinjectHistoryTasks allocates fresh shard-global IDs and calls SetTaskID in place; if
 // the processor captured GetTaskKey() after reinjection it would advance the ack level

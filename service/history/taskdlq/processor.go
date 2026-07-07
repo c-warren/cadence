@@ -66,6 +66,7 @@ type (
 		shardID       int
 		mgr           persistence.HistoryTaskDLQManager
 		reinjector    TaskReinjector
+		maxReadLevel  func(persistence.HistoryTaskCategory) persistence.HistoryTaskKey
 		pageSize      int
 		interval      dynamicproperties.DurationPropertyFnWithShardIDFilter
 		domainMode    dynamicproperties.StringPropertyFnWithDomainFilter
@@ -83,9 +84,13 @@ type (
 
 	// ProcessorParams are the dependencies needed to build a Processor.
 	ProcessorParams struct {
-		ShardID       int
-		Manager       persistence.HistoryTaskDLQManager
-		Reinjector    TaskReinjector
+		ShardID    int
+		Manager    persistence.HistoryTaskDLQManager
+		Reinjector TaskReinjector
+		// MaxReadLevel returns the exclusive upper bound for the DLQ scan of a task category,
+		// derived from the shard's current read level, so we never re-inject a task the live
+		// queue has not yet read. If nil, the scan is unbounded (persistence.MaximumHistoryTaskKey).
+		MaxReadLevel  func(persistence.HistoryTaskCategory) persistence.HistoryTaskKey
 		PageSize      int
 		Interval      dynamicproperties.DurationPropertyFnWithShardIDFilter
 		DomainMode    dynamicproperties.StringPropertyFnWithDomainFilter
@@ -103,10 +108,18 @@ var _ Processor = (*ProcessorImpl)(nil)
 // The processor will periodically process the DLQ for the entire shard,
 // and will process a domain/clusterAttribute pair on demand.
 func NewProcessor(params ProcessorParams) *ProcessorImpl {
+	maxReadLevel := params.MaxReadLevel
+	if maxReadLevel == nil {
+		// Default to an unbounded scan when no read level is supplied.
+		maxReadLevel = func(persistence.HistoryTaskCategory) persistence.HistoryTaskKey {
+			return persistence.MaximumHistoryTaskKey
+		}
+	}
 	return &ProcessorImpl{
 		shardID:       params.ShardID,
 		mgr:           params.Manager,
 		reinjector:    params.Reinjector,
+		maxReadLevel:  maxReadLevel,
 		pageSize:      params.PageSize,
 		interval:      params.Interval,
 		domainMode:    params.DomainMode,
@@ -131,9 +144,13 @@ func NewProcessorFromShard(
 	enabled dynamicproperties.BoolPropertyFn,
 ) *ProcessorImpl {
 	return NewProcessor(ProcessorParams{
-		ShardID:       shard.GetShardID(),
-		Manager:       shard.GetService().GetHistoryTaskDLQManager(),
-		Reinjector:    shard,
+		ShardID:    shard.GetShardID(),
+		Manager:    shard.GetService().GetHistoryTaskDLQManager(),
+		Reinjector: shard,
+		MaxReadLevel: func(category persistence.HistoryTaskCategory) persistence.HistoryTaskKey {
+			// The shard's read level is inclusive; Next() makes it the exclusive upper bound.
+			return shard.UpdateIfNeededAndGetQueueMaxReadLevel(category, shard.GetClusterMetadata().GetCurrentClusterName()).Next()
+		},
 		PageSize:      pageSize,
 		Interval:      interval,
 		DomainMode:    domainMode,
@@ -285,8 +302,8 @@ func (p *ProcessorImpl) processAckLevel(ctx context.Context, al persistence.Hist
 	)
 	// Start just past the current ack position.
 	minKey := persistence.NewHistoryTaskKey(al.AckLevelVisibilityTS, al.AckLevelTaskID).Next()
-	// TODO(c-warren): Pass in max read level from the shard context.
-	maxKey := persistence.MaximumHistoryTaskKey
+	// Bound the maximum task key to the shard's current read level to prevent re-injecting tasks that have not yet been processed.
+	maxKey := p.maxReadLevel(al.TaskCategory)
 
 	for {
 		resp, err := p.mgr.GetHistoryDLQTasks(ctx, persistence.HistoryDLQGetTasksRequest{
