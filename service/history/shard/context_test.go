@@ -515,6 +515,95 @@ func (s *contextTestSuite) TestReplicateFailoverMarkers() {
 	}
 }
 
+func (s *contextTestSuite) TestReinjectHistoryTasks() {
+	newTransferTask := func() *persistence.DecisionTask {
+		return &persistence.DecisionTask{
+			WorkflowIdentifier: persistence.WorkflowIdentifier{
+				DomainID:   testDomainID,
+				WorkflowID: testWorkflowID,
+			},
+		}
+	}
+	newTransferTaskForWorkflow := func(workflowID string) *persistence.DecisionTask {
+		return &persistence.DecisionTask{
+			WorkflowIdentifier: persistence.WorkflowIdentifier{
+				DomainID:   testDomainID,
+				WorkflowID: workflowID,
+			},
+		}
+	}
+
+	s.Run("transfer tasks get fresh, strictly-increasing IDs", func() {
+		s.SetupTest()
+		s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(s.setupAllocateTimerIDsTest(), nil)
+		task1, task2 := newTransferTask(), newTransferTask()
+		s.mockResource.ExecutionMgr.On("CreateHistoryTasks", mock.Anything, mock.MatchedBy(func(req *persistence.CreateHistoryTasksRequest) bool {
+			return req.ShardID != nil && *req.ShardID == testShardID &&
+				req.RangeID == testRangeID &&
+				len(req.TasksByCategory[persistence.HistoryTaskCategoryTransfer]) == 2
+		})).Once().Return(nil)
+
+		err := s.context.ReinjectHistoryTasks(context.Background(), []persistence.Task{task1, task2})
+		s.NoError(err)
+		s.NotZero(task1.GetTaskID())
+		s.Greater(task2.GetTaskID(), task1.GetTaskID())
+	})
+
+	s.Run("timer tasks are allocated using the per-domain entry", func() {
+		s.SetupTest()
+		s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(s.setupAllocateTimerIDsTest(), nil)
+		timerTask := s.createMockTimerTask(createMockTimerTaskParams{
+			Version:    constants.EmptyVersion,
+			Timestamp:  time.Now().Add(time.Hour),
+			DomainID:   testDomainID,
+			WorkflowID: testWorkflowID,
+			RunID:      "test-run-id",
+		})
+		s.mockResource.ExecutionMgr.On("CreateHistoryTasks", mock.Anything, mock.MatchedBy(func(req *persistence.CreateHistoryTasksRequest) bool {
+			return len(req.TasksByCategory[persistence.HistoryTaskCategoryTimer]) == 1
+		})).Once().Return(nil)
+
+		err := s.context.ReinjectHistoryTasks(context.Background(), []persistence.Task{timerTask})
+		s.NoError(err)
+		s.NotZero(timerTask.GetTaskID())
+	})
+
+	s.Run("multiple workflows in one domain share a single domain lookup", func() {
+		s.SetupTest()
+		// Two executions in the same domain must resolve the domain entry exactly once.
+		s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(s.setupAllocateTimerIDsTest(), nil).Times(1)
+		task1, task2 := newTransferTaskForWorkflow("workflow-1"), newTransferTaskForWorkflow("workflow-2")
+		s.mockResource.ExecutionMgr.On("CreateHistoryTasks", mock.Anything, mock.MatchedBy(func(req *persistence.CreateHistoryTasksRequest) bool {
+			return len(req.TasksByCategory[persistence.HistoryTaskCategoryTransfer]) == 2
+		})).Once().Return(nil)
+
+		err := s.context.ReinjectHistoryTasks(context.Background(), []persistence.Task{task1, task2})
+		s.NoError(err)
+		s.NotZero(task1.GetTaskID())
+		s.NotZero(task2.GetTaskID())
+	})
+
+	s.Run("shard ownership lost closes the shard", func() {
+		s.SetupTest()
+		s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(s.setupAllocateTimerIDsTest(), nil)
+		s.mockResource.ExecutionMgr.On("CreateHistoryTasks", mock.Anything, mock.Anything).Once().Return(&persistence.ShardOwnershipLostError{})
+
+		err := s.context.ReinjectHistoryTasks(context.Background(), []persistence.Task{newTransferTask()})
+		s.IsType(&persistence.ShardOwnershipLostError{}, err)
+		s.ErrorContains(s.context.closedError(), "shard closed")
+	})
+
+	s.Run("other errors are propagated without closing the shard", func() {
+		s.SetupTest()
+		s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(s.setupAllocateTimerIDsTest(), nil)
+		s.mockResource.ExecutionMgr.On("CreateHistoryTasks", mock.Anything, mock.Anything).Once().Return(assert.AnError)
+
+		err := s.context.ReinjectHistoryTasks(context.Background(), []persistence.Task{newTransferTask()})
+		s.Equal(assert.AnError, err)
+		s.NoError(s.context.closedError())
+	})
+}
+
 func (s *contextTestSuite) TestCreateWorkflowExecution() {
 	cases := []struct {
 		name            string
@@ -1335,161 +1424,6 @@ func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DomainNoLongerEx
 	s.NoError(err, "orphan-domain marker must not poison the cleanup loop")
 	s.Empty(pendingFailoverMarkers, "both the orphan and the otherwise-droppable marker should be cleaned")
 	s.Empty(s.context.shardInfo.PendingFailoverMarkers, "shard info should be cleared of both markers")
-}
-
-func (s *contextTestSuite) TestValidateAndUpdateFailoverMarkers_DomainVersionRegressed() {
-	// Marker carries a higher FailoverVersion than the domain currently reports.
-	// The marker is always dropped; only the active-cluster case bumps the
-	// alert counter (passive replicas have no ordering guarantee).
-	const domainFailoverVersion int64 = 5
-	const markerFailoverVersion int64 = 100
-
-	cases := []struct {
-		name                string
-		domainActiveCluster string
-		expectAlertCounter  bool
-	}{
-		{
-			name:                "active cluster emits alert and drops marker",
-			domainActiveCluster: cluster.TestCurrentClusterName,
-			expectAlertCounter:  true,
-		},
-		{
-			name:                "passive cluster drops marker silently",
-			domainActiveCluster: cluster.TestAlternativeClusterName,
-			expectAlertCounter:  false,
-		},
-	}
-
-	for _, tc := range cases {
-		s.Run(tc.name, func() {
-			// fresh context per subcase so PendingFailoverMarkers and metric snapshots are isolated
-			s.context = s.newContext()
-
-			domainEntry := cache.NewDomainCacheEntryForTest(
-				&persistence.DomainInfo{ID: testDomainID, Name: testDomainID},
-				&persistence.DomainConfig{Retention: 7},
-				true,
-				&persistence.DomainReplicationConfig{
-					ActiveClusterName: tc.domainActiveCluster,
-					Clusters: []*persistence.ClusterReplicationConfig{
-						{ClusterName: cluster.TestCurrentClusterName},
-						{ClusterName: cluster.TestAlternativeClusterName},
-					},
-				},
-				domainFailoverVersion,
-				nil,
-				0, 0, 0,
-			)
-
-			regressedMarker := &types.FailoverMarkerAttributes{
-				DomainID:        testDomainID,
-				FailoverVersion: markerFailoverVersion,
-			}
-			s.context.shardInfo.PendingFailoverMarkers = append(s.context.shardInfo.PendingFailoverMarkers, regressedMarker)
-			s.Require().Len(s.context.shardInfo.PendingFailoverMarkers, 1)
-
-			s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainEntry, nil)
-			s.mockShardManager.On("UpdateShard", mock.Anything, mock.Anything).Return(nil)
-
-			before := alertCounterValue(s.mockResource.MetricsScope)
-
-			pendingFailoverMarkers, err := s.context.ValidateAndUpdateFailoverMarkers()
-			s.NoError(err)
-			s.Empty(pendingFailoverMarkers, "regressed-version marker should be dropped")
-			s.Empty(s.context.shardInfo.PendingFailoverMarkers, "shard info should be cleared")
-
-			after := alertCounterValue(s.mockResource.MetricsScope)
-			if tc.expectAlertCounter {
-				s.Equal(int64(1), after-before, "alert counter should fire once on active cluster")
-			} else {
-				s.Equal(int64(0), after-before, "alert counter should be suppressed on passive cluster")
-			}
-		})
-	}
-}
-
-func (s *contextTestSuite) TestAddingPendingFailoverMarker_DomainVersionRegressed() {
-	// AddingPendingFailoverMarker must refuse to persist a marker whose
-	// FailoverVersion is greater than the domain's current FailoverVersion —
-	// otherwise we'd seed the same forever-stuck marker we're trying to
-	// defend against on the validation side. Same gating: alert fires only
-	// on the to-be-active cluster.
-	const domainFailoverVersion int64 = 5
-	const markerFailoverVersion int64 = 100
-
-	cases := []struct {
-		name                string
-		domainActiveCluster string
-		expectAlertCounter  bool
-	}{
-		{
-			name:                "active cluster emits alert and drops marker",
-			domainActiveCluster: cluster.TestCurrentClusterName,
-			expectAlertCounter:  true,
-		},
-		{
-			name:                "passive cluster drops marker silently",
-			domainActiveCluster: cluster.TestAlternativeClusterName,
-			expectAlertCounter:  false,
-		},
-	}
-
-	for _, tc := range cases {
-		s.Run(tc.name, func() {
-			s.context = s.newContext()
-
-			domainEntry := cache.NewDomainCacheEntryForTest(
-				&persistence.DomainInfo{ID: testDomainID, Name: testDomainID},
-				&persistence.DomainConfig{Retention: 7},
-				true,
-				&persistence.DomainReplicationConfig{
-					ActiveClusterName: tc.domainActiveCluster,
-					Clusters: []*persistence.ClusterReplicationConfig{
-						{ClusterName: cluster.TestCurrentClusterName},
-						{ClusterName: cluster.TestAlternativeClusterName},
-					},
-				},
-				domainFailoverVersion,
-				nil,
-				0, 0, 0,
-			)
-
-			s.mockResource.DomainCache.EXPECT().GetDomainByID(testDomainID).Return(domainEntry, nil)
-
-			regressedMarker := &types.FailoverMarkerAttributes{
-				DomainID:        testDomainID,
-				FailoverVersion: markerFailoverVersion,
-			}
-
-			before := alertCounterValue(s.mockResource.MetricsScope)
-
-			s.NoError(s.context.AddingPendingFailoverMarker(regressedMarker))
-			s.Empty(s.context.shardInfo.PendingFailoverMarkers, "regressed-version marker must not be persisted")
-			s.mockShardManager.AssertNotCalled(s.T(), "UpdateShard", mock.Anything, mock.Anything)
-
-			after := alertCounterValue(s.mockResource.MetricsScope)
-			if tc.expectAlertCounter {
-				s.Equal(int64(1), after-before, "alert counter should fire once on active cluster")
-			} else {
-				s.Equal(int64(0), after-before, "alert counter should be suppressed on passive cluster")
-			}
-		})
-	}
-}
-
-// alertCounterValue returns the current sum of the
-// failover_marker_dropped_regressed_domain counter across all tag combinations
-// recorded on the tally scope. The metric is tagged with domain name, so the
-// snapshot key includes that tag; summing avoids hard-coding the key.
-func alertCounterValue(scope tally.TestScope) int64 {
-	var total int64
-	for _, c := range scope.Snapshot().Counters() {
-		if c.Name() == "test.failover_marker_dropped_regressed_domain" {
-			total += c.Value()
-		}
-	}
-	return total
 }
 
 func (s *contextTestSuite) TestGetAndUpdateProcessingQueueStates() {

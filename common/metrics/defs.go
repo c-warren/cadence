@@ -118,6 +118,9 @@ const (
 
 	MutableStateCacheTypeTagValue = "mutablestate"
 	EventsCacheTypeTagValue       = "events"
+	LRUCacheTypeTagValue          = "lru"
+	ReplicationCacheTypeTagValue  = "replication"
+	SourceClusterNoneTagValue     = "none"
 )
 
 // Common service base metrics
@@ -208,6 +211,8 @@ const (
 	PersistenceRangeDeleteReplicationTaskFromDLQScope
 	// PersistenceCreateFailoverMarkerTasksScope tracks CreateFailoverMarkerTasks calls made by service to persistence layer
 	PersistenceCreateFailoverMarkerTasksScope
+	// PersistenceCreateHistoryTasksScope tracks CreateHistoryTasks calls made by service to persistence layer
+	PersistenceCreateHistoryTasksScope
 	// PersistenceGetTimerIndexTasksScope tracks GetTimerIndexTasks calls made by service to persistence layer
 	PersistenceGetTimerIndexTasksScope
 	// PersistenceCompleteTimerTaskScope tracks CompleteTimerTasks calls made by service to persistence layer
@@ -1460,6 +1465,8 @@ const (
 	HistoryTaskSchedulerMigrationScope
 	// WorkflowCorruptionRepairScope is the scope used for workflow corruption detection and repair operations
 	WorkflowCorruptionRepairScope
+	// HistoryTaskDLQProcessorScope is the scope used by the history task DLQ re-injection processor
+	HistoryTaskDLQProcessorScope
 	NumHistoryScopes
 )
 
@@ -1581,6 +1588,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		PersistenceDeleteReplicationTaskFromDLQScope:             {operation: "DeleteReplicationTaskFromDLQ"},
 		PersistenceRangeDeleteReplicationTaskFromDLQScope:        {operation: "RangeDeleteReplicationTaskFromDLQ"},
 		PersistenceCreateFailoverMarkerTasksScope:                {operation: "CreateFailoverMarkerTasks"},
+		PersistenceCreateHistoryTasksScope:                       {operation: "CreateHistoryTasks"},
 		PersistenceGetTimerIndexTasksScope:                       {operation: "GetTimerIndexTasks"},
 		PersistenceCompleteTimerTaskScope:                        {operation: "CompleteTimerTask"},
 		PersistenceGetHistoryTasksScope:                          {operation: "GetHistoryTasks"},
@@ -2212,6 +2220,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryFlushBufferedEventsScope:                                 {operation: "HistoryFlushBufferedEvents"},
 		HistoryTaskSchedulerMigrationScope:                              {operation: "HistoryTaskSchedulerMigration"},
 		WorkflowCorruptionRepairScope:                                   {operation: "WorkflowCorruptionRepair"},
+		HistoryTaskDLQProcessorScope:                                    {operation: "HistoryTaskDLQProcessor"},
 	},
 	// Matching Scope Names
 	Matching: {
@@ -2277,6 +2286,7 @@ const (
 	CadenceErrLimitExceededCounter
 	CadenceErrContextTimeoutCounter
 	CadenceErrGRPCConnectionClosingCounter
+	CadenceErrServiceUnavailableCounter
 	CadenceErrRetryTaskCounter
 	CadenceErrBadBinaryCounter
 	CadenceErrClientVersionNotSupportedCounter
@@ -2568,6 +2578,13 @@ const (
 	// cluster forwarding policy metrics
 	ClusterForwardingPolicyRequests
 
+	// cluster metadata metrics
+	ClusterMetadataFailureToResolveCounter
+	ClusterMetadataGettingMinFailoverVersionCounter
+	ClusterMetadataGettingFailoverVersionCounter
+	ClusterMetadataResolvingFailoverVersionCounter
+	ClusterMetadataResolvingMinFailoverVersionCounter
+
 	RingResolverError
 
 	// WorkflowExecutionHistoryAccess tracks the access to the workflow history
@@ -2667,12 +2684,6 @@ const (
 	QueueValidatorValidationCounter
 	QueueValidatorValidationFailure
 
-	ClusterMetadataFailureToResolveCounter
-	ClusterMetadataGettingMinFailoverVersionCounter
-	ClusterMetadataGettingFailoverVersionCounter
-	ClusterMetadataResolvingFailoverVersionCounter
-	ClusterMetadataResolvingMinFailoverVersionCounter
-
 	ActivityE2ELatency
 	ActivityE2ELatencyHistogram
 	ActivityLostCounter
@@ -2699,7 +2710,7 @@ const (
 	DecisionRetriesExceededCounter
 	StaleMutableStateCounter
 	DataInconsistentCounter
-	DuplicateActivityTaskEventCounter
+	DuplicateBufferedEventCounter
 	TimerResurrectionCounter
 	TimerProcessingDeletionTimerNoopDueToMutableStateNotLoading
 	TimerProcessingDeletionTimerNoopDueToWFRunning
@@ -2981,6 +2992,13 @@ const (
 	TaskProcessingLatencyPerTaskListHistogram
 	TaskQueueLatencyPerTaskListHistogram
 	TaskScheduleLatencyPerTaskListHistogram
+	TaskScheduleSubmittedPerTaskList
+	TaskScheduleThrottledPerTaskList
+
+	// HistoryTaskDLQReinjectFailuresCounter counts DLQ page re-injection failures (alert on this)
+	HistoryTaskDLQReinjectFailuresCounter
+	// HistoryTaskDLQPageSizeBytes tracks the serialized byte size of each re-injected DLQ page
+	HistoryTaskDLQPageSizeBytes
 
 	NumHistoryMetrics
 )
@@ -3012,12 +3030,15 @@ const (
 	SyncMatchForwardTaskThrottleErrorPerTasklist
 	AsyncMatchForwardTaskThrottleErrorPerTasklist
 	ForwardTaskLatencyPerTaskList
+	ForwardTaskLatencyPerTaskListHistogram
 	ForwardQueryCallsPerTaskList
 	ForwardQueryErrorsPerTaskList
 	ForwardQueryLatencyPerTaskList
+	ForwardQueryLatencyPerTaskListHistogram
 	ForwardPollCallsPerTaskList
 	ForwardPollErrorsPerTaskList
 	ForwardPollLatencyPerTaskList
+	ForwardPollLatencyPerTaskListHistogram
 	LocalToLocalMatchPerTaskListCounter
 	LocalToRemoteMatchPerTaskListCounter
 	RemoteToLocalMatchPerTaskListCounter
@@ -3033,19 +3054,24 @@ const (
 	TaskCountPerTaskListGauge
 	RateLimitPerTaskListGauge
 	SyncMatchLocalPollLatencyPerTaskList
+	SyncMatchLocalPollLatencyPerTaskListHistogram
 	SyncMatchForwardPollLatencyPerTaskList
+	SyncMatchForwardPollLatencyPerTaskListHistogram
 	AsyncMatchLocalPollCounterPerTaskList
 	AsyncMatchLocalPollAttemptPerTaskList
 	AsyncMatchLocalPollAttemptPerTaskListHistogram
 	AsyncMatchLocalPollLatencyPerTaskList
+	AsyncMatchLocalPollLatencyPerTaskListHistogram
 	AsyncMatchForwardPollCounterPerTaskList
 	AsyncMatchForwardPollAttemptPerTaskList
 	AsyncMatchForwardPollAttemptPerTaskListHistogram
 	AsyncMatchForwardPollLatencyPerTaskList
+	AsyncMatchForwardPollLatencyPerTaskListHistogram
 	AsyncMatchLocalPollAfterForwardFailedCounterPerTaskList
 	AsyncMatchLocalPollAfterForwardFailedAttemptPerTaskList
 	AsyncMatchLocalPollAfterForwardFailedAttemptPerTaskListHistogram
 	AsyncMatchLocalPollAfterForwardFailedLatencyPerTaskList
+	AsyncMatchLocalPollAfterForwardFailedLatencyPerTaskListHistogram
 	PollLocalMatchLatencyPerTaskList
 	PollLocalMatchLatencyPerTaskListHistogram
 	PollForwardMatchLatencyPerTaskList
@@ -3082,6 +3108,7 @@ const (
 	ReplicatorFailures
 	ReplicatorMessagesDropped
 	ReplicatorLatency
+	ReplicatorLatencyHistogram
 	ReplicatorDLQFailures
 	ESProcessorRequests
 	ESProcessorRetries
@@ -3098,9 +3125,13 @@ const (
 	ArchiverCoroutineStartedCount
 	ArchiverCoroutineStoppedCount
 	ArchiverHandleHistoryRequestLatency
+	ArchiverHandleHistoryRequestLatencyHistogram
 	ArchiverHandleVisibilityRequestLatency
+	ArchiverHandleVisibilityRequestLatencyHistogram
 	ArchiverUploadWithRetriesLatency
+	ArchiverUploadWithRetriesLatencyHistogram
 	ArchiverDeleteWithRetriesLatency
+	ArchiverDeleteWithRetriesLatencyHistogram
 	ArchiverUploadFailedAllRetriesCount
 	ArchiverUploadSuccessCount
 	ArchiverDeleteFailedAllRetriesCount
@@ -3223,6 +3254,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		CadenceErrLimitExceededCounter:                               {metricName: "cadence_errors_limit_exceeded", metricType: Counter},
 		CadenceErrContextTimeoutCounter:                              {metricName: "cadence_errors_context_timeout", metricType: Counter},
 		CadenceErrGRPCConnectionClosingCounter:                       {metricName: "cadence_errors_grpc_connection_closing", metricType: Counter},
+		CadenceErrServiceUnavailableCounter:                          {metricName: "cadence_errors_service_unavailable", metricType: Counter},
 		CadenceErrRetryTaskCounter:                                   {metricName: "cadence_errors_retry_task", metricType: Counter},
 		CadenceErrBadBinaryCounter:                                   {metricName: "cadence_errors_bad_binary", metricType: Counter},
 		CadenceErrClientVersionNotSupportedCounter:                   {metricName: "cadence_errors_client_version_not_supported", metricType: Counter},
@@ -3307,7 +3339,7 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		HistorySize:                                                  {metricName: "history_size", metricType: Timer},
 		HistorySizeHistogram:                                         {metricName: "history_size_counts", metricType: Histogram, intExponentialBuckets: Mid8B16MB},
 		HistoryCount:                                                 {metricName: "history_count", metricType: Timer},
-		HistoryCountHistogram:                                        {metricName: "history_count_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
+		HistoryCountHistogram:                                        {metricName: "history_count_counts", metricType: Histogram, intExponentialBuckets: Mid1To50k},
 		EventBlobSizeExceedLimit:                                     {metricName: "blob_size_exceed_limit", metricType: Counter},
 		EventBlobSize:                                                {metricName: "event_blob_size", metricType: Timer},
 		EventBlobSizeHistogram:                                       {metricName: "event_blob_size_counts", metricType: Histogram, intExponentialBuckets: Mid8B16MB},
@@ -3528,6 +3560,12 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 
 		ClusterForwardingPolicyRequests: {metricName: "cluster_forwarding_policy_requests", metricType: Counter},
 
+		ClusterMetadataFailureToResolveCounter:            {metricName: "failed_to_resolve_failover_version", metricType: Counter},
+		ClusterMetadataGettingMinFailoverVersionCounter:   {metricName: "getting_min_failover_version_counter", metricType: Counter},
+		ClusterMetadataGettingFailoverVersionCounter:      {metricName: "getting_failover_version_counter", metricType: Counter},
+		ClusterMetadataResolvingFailoverVersionCounter:    {metricName: "resolving_failover_version_counter", metricType: Counter},
+		ClusterMetadataResolvingMinFailoverVersionCounter: {metricName: "resolving_min_failover_version_counter", metricType: Counter},
+
 		RingResolverError: {metricName: "ring_resolver_error", metricType: Counter},
 
 		WorkflowExecutionHistoryAccess: {metricName: "workflow_execution_history_access", metricType: Gauge},
@@ -3603,6 +3641,11 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TaskProcessingLatencyPerTaskListHistogram: {metricName: "task_latency_processing_per_task_list_ns", metricType: Histogram, exponentialBuckets: High1ms24h},
 		TaskQueueLatencyPerTaskListHistogram:      {metricName: "task_latency_queue_per_task_list_ns", metricType: Histogram, exponentialBuckets: High1ms24h},
 		TaskScheduleLatencyPerTaskListHistogram:   {metricName: "task_latency_schedule_per_task_list_ns", metricType: Histogram, exponentialBuckets: High1ms24h},
+		TaskScheduleSubmittedPerTaskList:          {metricName: "task_schedule_submitted_per_task_list", metricType: Counter},
+		TaskScheduleThrottledPerTaskList:          {metricName: "task_schedule_throttled_per_task_list", metricType: Counter},
+
+		HistoryTaskDLQReinjectFailuresCounter: {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
+		HistoryTaskDLQPageSizeBytes:           {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
 
 		TaskBatchCompleteCounter:                                      {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                      {metricName: "task_batch_complete_error", metricType: Counter},
@@ -3627,11 +3670,6 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		QueueValidatorInvalidLoadCounter:                              {metricName: "queue_validator_invalid_load_counter", metricType: Counter},
 		QueueValidatorValidationCounter:                               {metricName: "queue_validator_validation_counter", metricType: Counter},
 		QueueValidatorValidationFailure:                               {metricName: "queue_validator_validation_error", metricType: Counter},
-		ClusterMetadataFailureToResolveCounter:                        {metricName: "failed_to_resolve_failover_version", metricType: Counter},
-		ClusterMetadataGettingMinFailoverVersionCounter:               {metricName: "getting_min_failover_version_counter", metricType: Counter},
-		ClusterMetadataGettingFailoverVersionCounter:                  {metricName: "getting_failover_version_counter", metricType: Counter},
-		ClusterMetadataResolvingFailoverVersionCounter:                {metricName: "resolving_failover_version_counter", metricType: Counter},
-		ClusterMetadataResolvingMinFailoverVersionCounter:             {metricName: "resolving_min_failover_version_counter", metricType: Counter},
 		ActivityE2ELatency:                                            {metricName: "activity_end_to_end_latency", metricType: Timer},
 		ActivityE2ELatencyHistogram:                                   {metricName: "activity_end_to_end_latency_ns", metricType: Histogram, exponentialBuckets: Mid1ms24h},
 		ActivityLostCounter:                                           {metricName: "activity_lost", metricType: Counter},
@@ -3654,11 +3692,11 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		MultipleCompletionDecisionsCounter:                            {metricName: "multiple_completion_decisions", metricType: Counter},
 		FailedDecisionsCounter:                                        {metricName: "failed_decisions", metricType: Counter},
 		DecisionAttemptTimer:                                          {metricName: "decision_attempt", metricType: Timer},
-		DecisionAttemptHistogram:                                      {metricName: "decision_attempt_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
+		DecisionAttemptHistogram:                                      {metricName: "decision_attempt_counts", metricType: Histogram, intExponentialBuckets: Mid1To50k},
 		DecisionRetriesExceededCounter:                                {metricName: "decision_retries_exceeded", metricType: Counter},
 		StaleMutableStateCounter:                                      {metricName: "stale_mutable_state", metricType: Counter},
 		DataInconsistentCounter:                                       {metricName: "data_inconsistent", metricType: Counter},
-		DuplicateActivityTaskEventCounter:                             {metricName: "duplicate_activity_task_event", metricType: Counter},
+		DuplicateBufferedEventCounter:                                 {metricName: "duplicate_buffered_event", metricType: Counter},
 		TimerResurrectionCounter:                                      {metricName: "timer_resurrection", metricType: Counter},
 		TimerProcessingDeletionTimerNoopDueToMutableStateNotLoading:   {metricName: "timer_processing_skipping_deletion_due_to_missing_mutable_state", metricType: Counter},
 		TimerProcessingDeletionTimerNoopDueToWFRunning:                {metricName: "timer_processing_skipping_deletion_due_to_running", metricType: Counter},
@@ -3960,9 +3998,12 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		AsyncMatchLatencyPerTaskList:                                     {metricName: "asyncmatch_latency_per_tl", metricRollupName: "asyncmatch_latency", metricType: Timer},
 		AsyncMatchLatencyPerTaskListHistogram:                            {metricName: "asyncmatch_latency_per_tl_ns", metricRollupName: "asyncmatch_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		AsyncMatchDispatchTimeoutCounterPerTaskList:                      {metricName: "asyncmatch_dispatch_timeouts_per_tl", metricRollupName: "asyncmatch_dispatch_timeouts"},
-		ForwardTaskLatencyPerTaskList:                                    {metricName: "forward_task_latency_per_tl", metricRollupName: "forward_task_latency"},
-		ForwardQueryLatencyPerTaskList:                                   {metricName: "forward_query_latency_per_tl", metricRollupName: "forward_query_latency"},
-		ForwardPollLatencyPerTaskList:                                    {metricName: "forward_poll_latency_per_tl", metricRollupName: "forward_poll_latency"},
+		ForwardTaskLatencyPerTaskList:                                    {metricName: "forward_task_latency_per_tl", metricRollupName: "forward_task_latency", metricType: Timer},
+		ForwardTaskLatencyPerTaskListHistogram:                           {metricName: "forward_task_latency_per_tl_ns", metricRollupName: "forward_task_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		ForwardQueryLatencyPerTaskList:                                   {metricName: "forward_query_latency_per_tl", metricRollupName: "forward_query_latency", metricType: Timer},
+		ForwardQueryLatencyPerTaskListHistogram:                          {metricName: "forward_query_latency_per_tl_ns", metricRollupName: "forward_query_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		ForwardPollLatencyPerTaskList:                                    {metricName: "forward_poll_latency_per_tl", metricRollupName: "forward_poll_latency", metricType: Timer},
+		ForwardPollLatencyPerTaskListHistogram:                           {metricName: "forward_poll_latency_per_tl_ns", metricRollupName: "forward_poll_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		LocalToLocalMatchPerTaskListCounter:                              {metricName: "local_to_local_matches_per_tl", metricRollupName: "local_to_local_matches"},
 		LocalToRemoteMatchPerTaskListCounter:                             {metricName: "local_to_remote_matches_per_tl", metricRollupName: "local_to_remote_matches"},
 		RemoteToLocalMatchPerTaskListCounter:                             {metricName: "remote_to_local_matches_per_tl", metricRollupName: "remote_to_local_matches"},
@@ -3977,20 +4018,25 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TaskBacklogPerTaskListGauge:                                      {metricName: "task_backlog_per_tl", metricType: Gauge},
 		TaskCountPerTaskListGauge:                                        {metricName: "task_count_per_tl", metricType: Gauge},
 		RateLimitPerTaskListGauge:                                        {metricName: "rate_limit_per_tl", metricType: Gauge},
-		SyncMatchLocalPollLatencyPerTaskList:                             {metricName: "syncmatch_local_poll_latency_per_tl", metricRollupName: "syncmatch_local_poll_latency"},
-		SyncMatchForwardPollLatencyPerTaskList:                           {metricName: "syncmatch_forward_poll_latency_per_tl", metricRollupName: "syncmatch_forward_poll_latency"},
+		SyncMatchLocalPollLatencyPerTaskList:                             {metricName: "syncmatch_local_poll_latency_per_tl", metricRollupName: "syncmatch_local_poll_latency", metricType: Timer},
+		SyncMatchLocalPollLatencyPerTaskListHistogram:                    {metricName: "syncmatch_local_poll_latency_per_tl_ns", metricRollupName: "syncmatch_local_poll_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		SyncMatchForwardPollLatencyPerTaskList:                           {metricName: "syncmatch_forward_poll_latency_per_tl", metricRollupName: "syncmatch_forward_poll_latency", metricType: Timer},
+		SyncMatchForwardPollLatencyPerTaskListHistogram:                  {metricName: "syncmatch_forward_poll_latency_per_tl_ns", metricRollupName: "syncmatch_forward_poll_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		AsyncMatchLocalPollCounterPerTaskList:                            {metricName: "asyncmatch_local_poll_per_tl", metricRollupName: "asyncmatch_local_poll"},
 		AsyncMatchLocalPollAttemptPerTaskList:                            {metricName: "asyncmatch_local_poll_attempt_per_tl", metricRollupName: "asyncmatch_local_poll_attempt", metricType: Timer},
 		AsyncMatchLocalPollAttemptPerTaskListHistogram:                   {metricName: "asyncmatch_local_poll_attempt_per_tl_counts", metricRollupName: "asyncmatch_local_poll_attempt_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
-		AsyncMatchLocalPollLatencyPerTaskList:                            {metricName: "asyncmatch_local_poll_latency_per_tl", metricRollupName: "asyncmatch_local_poll_latency"},
+		AsyncMatchLocalPollLatencyPerTaskList:                            {metricName: "asyncmatch_local_poll_latency_per_tl", metricRollupName: "asyncmatch_local_poll_latency", metricType: Timer},
+		AsyncMatchLocalPollLatencyPerTaskListHistogram:                   {metricName: "asyncmatch_local_poll_latency_per_tl_ns", metricRollupName: "asyncmatch_local_poll_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		AsyncMatchForwardPollCounterPerTaskList:                          {metricName: "asyncmatch_forward_poll_per_tl", metricRollupName: "asyncmatch_forward_poll"},
 		AsyncMatchForwardPollAttemptPerTaskList:                          {metricName: "asyncmatch_forward_poll_attempt_per_tl", metricRollupName: "asyncmatch_forward_poll_attempt", metricType: Timer},
 		AsyncMatchForwardPollAttemptPerTaskListHistogram:                 {metricName: "asyncmatch_forward_poll_attempt_per_tl_counts", metricRollupName: "asyncmatch_forward_poll_attempt_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
-		AsyncMatchForwardPollLatencyPerTaskList:                          {metricName: "asyncmatch_forward_poll_latency_per_tl", metricRollupName: "asyncmatch_forward_poll_latency"},
+		AsyncMatchForwardPollLatencyPerTaskList:                          {metricName: "asyncmatch_forward_poll_latency_per_tl", metricRollupName: "asyncmatch_forward_poll_latency", metricType: Timer},
+		AsyncMatchForwardPollLatencyPerTaskListHistogram:                 {metricName: "asyncmatch_forward_poll_latency_per_tl_ns", metricRollupName: "asyncmatch_forward_poll_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		AsyncMatchLocalPollAfterForwardFailedCounterPerTaskList:          {metricName: "asyncmatch_local_poll_after_forward_failed_per_tl", metricRollupName: "asyncmatch_local_poll_after_forward_failed"},
 		AsyncMatchLocalPollAfterForwardFailedAttemptPerTaskList:          {metricName: "asyncmatch_local_poll_after_forward_failed_attempt_per_tl", metricRollupName: "asyncmatch_local_poll_after_forward_failed_attempt", metricType: Timer},
 		AsyncMatchLocalPollAfterForwardFailedAttemptPerTaskListHistogram: {metricName: "asyncmatch_local_poll_after_forward_failed_attempt_per_tl_counts", metricRollupName: "asyncmatch_local_poll_after_forward_failed_attempt_counts", metricType: Histogram, intExponentialBuckets: Mid1To16k},
-		AsyncMatchLocalPollAfterForwardFailedLatencyPerTaskList:          {metricName: "asyncmatch_local_poll_after_forward_failed_latency_per_tl", metricRollupName: "asyncmatch_local_poll_after_forward_failed_latency"},
+		AsyncMatchLocalPollAfterForwardFailedLatencyPerTaskList:          {metricName: "asyncmatch_local_poll_after_forward_failed_latency_per_tl", metricRollupName: "asyncmatch_local_poll_after_forward_failed_latency", metricType: Timer},
+		AsyncMatchLocalPollAfterForwardFailedLatencyPerTaskListHistogram: {metricName: "asyncmatch_local_poll_after_forward_failed_latency_per_tl_ns", metricRollupName: "asyncmatch_local_poll_after_forward_failed_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		PollLocalMatchLatencyPerTaskList:                                 {metricName: "poll_local_match_latency_per_tl", metricRollupName: "poll_local_match_latency", metricType: Timer},
 		PollLocalMatchLatencyPerTaskListHistogram:                        {metricName: "poll_local_match_latency_per_tl_ns", metricRollupName: "poll_local_match_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
 		PollForwardMatchLatencyPerTaskList:                               {metricName: "poll_forward_match_latency_per_tl", metricRollupName: "poll_forward_match_latency", metricType: Timer},
@@ -4019,109 +4065,114 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		IsolationGroupPartitionsGauge:                                    {metricName: "ig_partitions_per_tl", metricType: Gauge},
 	},
 	Worker: {
-		ReplicatorMessages:                            {metricName: "replicator_messages"},
-		ReplicatorFailures:                            {metricName: "replicator_errors"},
-		ReplicatorMessagesDropped:                     {metricName: "replicator_messages_dropped"},
-		ReplicatorLatency:                             {metricName: "replicator_latency"},
-		ReplicatorDLQFailures:                         {metricName: "replicator_dlq_enqueue_fails", metricType: Counter},
-		ESProcessorRequests:                           {metricName: "es_processor_requests"},
-		ESProcessorRetries:                            {metricName: "es_processor_retries"},
-		ESProcessorFailures:                           {metricName: "es_processor_errors"},
-		ESProcessorCorruptedData:                      {metricName: "es_processor_corrupted_data"},
-		ESProcessorProcessMsgLatency:                  {metricName: "es_processor_process_msg_latency", metricType: Timer},
-		ESProcessorProcessMsgLatencyHistogram:         {metricName: "es_processor_process_msg_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
-		IndexProcessorCorruptedData:                   {metricName: "index_processor_corrupted_data"},
-		IndexProcessorProcessMsgLatency:               {metricName: "index_processor_process_msg_latency", metricType: Timer},
-		IndexProcessorProcessMsgLatencyHistogram:      {metricName: "index_processor_process_msg_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
-		ArchiverNonRetryableErrorCount:                {metricName: "archiver_non_retryable_error"},
-		ArchiverStartedCount:                          {metricName: "archiver_started"},
-		ArchiverStoppedCount:                          {metricName: "archiver_stopped"},
-		ArchiverCoroutineStartedCount:                 {metricName: "archiver_coroutine_started"},
-		ArchiverCoroutineStoppedCount:                 {metricName: "archiver_coroutine_stopped"},
-		ArchiverHandleHistoryRequestLatency:           {metricName: "archiver_handle_history_request_latency"},
-		ArchiverHandleVisibilityRequestLatency:        {metricName: "archiver_handle_visibility_request_latency"},
-		ArchiverUploadWithRetriesLatency:              {metricName: "archiver_upload_with_retries_latency"},
-		ArchiverDeleteWithRetriesLatency:              {metricName: "archiver_delete_with_retries_latency"},
-		ArchiverUploadFailedAllRetriesCount:           {metricName: "archiver_upload_failed_all_retries"},
-		ArchiverUploadSuccessCount:                    {metricName: "archiver_upload_success"},
-		ArchiverDeleteFailedAllRetriesCount:           {metricName: "archiver_delete_failed_all_retries"},
-		ArchiverDeleteSuccessCount:                    {metricName: "archiver_delete_success"},
-		ArchiverHandleVisibilityFailedAllRetiresCount: {metricName: "archiver_handle_visibility_failed_all_retries"},
-		ArchiverHandleVisibilitySuccessCount:          {metricName: "archiver_handle_visibility_success"},
-		ArchiverBacklogSizeGauge:                      {metricName: "archiver_backlog_size"},
-		ArchiverPumpTimeoutCount:                      {metricName: "archiver_pump_timeout"},
-		ArchiverPumpSignalThresholdCount:              {metricName: "archiver_pump_signal_threshold"},
-		ArchiverPumpTimeoutWithoutSignalsCount:        {metricName: "archiver_pump_timeout_without_signals"},
-		ArchiverPumpSignalChannelClosedCount:          {metricName: "archiver_pump_signal_channel_closed"},
-		ArchiverWorkflowStartedCount:                  {metricName: "archiver_workflow_started"},
-		ArchiverNumPumpedRequestsCount:                {metricName: "archiver_num_pumped_requests"},
-		ArchiverNumHandledRequestsCount:               {metricName: "archiver_num_handled_requests"},
-		ArchiverPumpedNotEqualHandledCount:            {metricName: "archiver_pumped_not_equal_handled"},
-		ArchiverHandleAllRequestsLatency:              {metricName: "archiver_handle_all_requests_latency"},
-		ArchiverWorkflowStoppingCount:                 {metricName: "archiver_workflow_stopping"},
-		TaskProcessedCount:                            {metricName: "task_processed", metricType: Gauge},
-		TaskDeletedCount:                              {metricName: "task_deleted", metricType: Gauge},
-		TaskListProcessedCount:                        {metricName: "tasklist_processed", metricType: Gauge},
-		TaskListDeletedCount:                          {metricName: "tasklist_deleted", metricType: Gauge},
-		TaskListOutstandingCount:                      {metricName: "tasklist_outstanding", metricType: Gauge},
-		ExecutionsOutstandingCount:                    {metricName: "executions_outstanding", metricType: Gauge},
-		StartedCount:                                  {metricName: "started", metricType: Counter},
-		StoppedCount:                                  {metricName: "stopped", metricType: Counter},
-		ExecutorTasksDeferredCount:                    {metricName: "executor_deferred", metricType: Counter},
-		ExecutorTasksDroppedCount:                     {metricName: "executor_dropped", metricType: Counter},
-		BatcherProcessorSuccess:                       {metricName: "batcher_processor_requests", metricType: Counter},
-		BatcherProcessorFailures:                      {metricName: "batcher_processor_errors", metricType: Counter},
-		HistoryScavengerSuccessCount:                  {metricName: "scavenger_success", metricType: Counter},
-		HistoryScavengerErrorCount:                    {metricName: "scavenger_errors", metricType: Counter},
-		HistoryScavengerSkipCount:                     {metricName: "scavenger_skips", metricType: Counter},
-		DomainReplicationEnqueueDLQCount:              {metricName: "domain_replication_dlq_enqueue_requests", metricType: Counter},
-		ScannerExecutionsGauge:                        {metricName: "scanner_executions", metricType: Gauge},
-		ScannerCorruptedGauge:                         {metricName: "scanner_corrupted", metricType: Gauge},
-		ScannerCheckFailedGauge:                       {metricName: "scanner_check_failed", metricType: Gauge},
-		ScannerCorruptionByTypeGauge:                  {metricName: "scanner_corruption_by_type", metricType: Gauge},
-		ScannerCorruptedOpenExecutionGauge:            {metricName: "scanner_corrupted_open_execution", metricType: Gauge},
-		ScannerShardSizeMaxGauge:                      {metricName: "scanner_shard_size_max", metricType: Gauge},
-		ScannerShardSizeMedianGauge:                   {metricName: "scanner_shard_size_median", metricType: Gauge},
-		ScannerShardSizeMinGauge:                      {metricName: "scanner_shard_size_min", metricType: Gauge},
-		ScannerShardSizeNinetyGauge:                   {metricName: "scanner_shard_size_ninety", metricType: Gauge},
-		ScannerShardSizeSeventyFiveGauge:              {metricName: "scanner_shard_size_seventy_five", metricType: Gauge},
-		ScannerShardSizeTwentyFiveGauge:               {metricName: "scanner_shard_size_twenty_five", metricType: Gauge},
-		ScannerShardSizeTenGauge:                      {metricName: "scanner_shard_size_ten", metricType: Gauge},
-		ShardScannerScan:                              {metricName: "shardscanner_scan", metricType: Counter},
-		ShardScannerFix:                               {metricName: "shardscanner_fix", metricType: Counter},
-		DataCorruptionWorkflowFailure:                 {metricName: "data_corruption_workflow_failure", metricType: Counter},
-		DataCorruptionWorkflowSuccessCount:            {metricName: "data_corruption_workflow_success", metricType: Counter},
-		DataCorruptionWorkflowCount:                   {metricName: "data_corruption_workflow_count", metricType: Counter},
-		DataCorruptionWorkflowSkipCount:               {metricName: "data_corruption_workflow_skips", metricType: Counter},
-		ESAnalyzerNumStuckWorkflowsDiscovered:         {metricName: "es_analyzer_num_stuck_workflows_discovered", metricType: Counter},
-		ESAnalyzerNumStuckWorkflowsRefreshed:          {metricName: "es_analyzer_num_stuck_workflows_refreshed", metricType: Counter},
-		ESAnalyzerNumStuckWorkflowsFailedToRefresh:    {metricName: "es_analyzer_num_stuck_workflows_failed_to_refresh", metricType: Counter},
-		ESAnalyzerNumLongRunningWorkflows:             {metricName: "es_analyzer_num_long_running_workflows", metricType: Counter},
-		AsyncWorkflowConsumerCount:                    {metricName: "async_workflow_consumer_count", metricType: Gauge},
-		AsyncWorkflowProcessMsgLatency:                {metricName: "async_workflow_process_msg_latency", metricType: Timer},
-		AsyncWorkflowProcessMsgLatencyHistogram:       {metricName: "async_workflow_process_msg_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
-		AsyncWorkflowFailureCorruptMsgCount:           {metricName: "async_workflow_failure_corrupt_msg", metricType: Counter},
-		AsyncWorkflowFailureByFrontendCount:           {metricName: "async_workflow_failure_by_frontend", metricType: Counter},
-		AsyncWorkflowSuccessCount:                     {metricName: "async_workflow_success", metricType: Counter},
-		DiagnosticsWorkflowStartedCount:               {metricName: "diagnostics_workflow_count", metricType: Counter},
-		DiagnosticsWorkflowSuccess:                    {metricName: "diagnostics_workflow_success", metricType: Counter},
-		DiagnosticsWorkflowExecutionLatency:           {metricName: "diagnostics_workflow_execution_latency", metricType: Timer},
-		DiagnosticsWorkflowExecutionLatencyHistogram:  {metricName: "diagnostics_workflow_execution_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
-		SchedulerWorkerActiveGauge:                    {metricName: "scheduler_worker_active_gauge", metricType: Gauge},
-		SchedulerWorkerStartedCount:                   {metricName: "scheduler_worker_started_count", metricType: Counter},
-		SchedulerWorkerStoppedCount:                   {metricName: "scheduler_worker_stopped_count", metricType: Counter},
-		SchedulerWorkerStartErrorsCountPerDomain:      {metricName: "scheduler_worker_start_errors_count_per_domain", metricType: Counter},
-		SchedulerWorkerRefreshLatencyHistogram:        {metricName: "scheduler_worker_refresh_latency_ns", metricType: Histogram, exponentialBuckets: Default1ms100s},
-		SchedulerWorkerLookupFailuresCount:            {metricName: "scheduler_worker_lookup_failures_count", metricType: Counter},
-		SchedulerWorkerDomainCoverageCount:            {metricName: "scheduler_worker_domain_coverage_count", metricType: Counter},
-		SchedulerFireStartedCountPerDomain:            {metricName: "scheduler_fire_started_per_domain", metricType: Counter},
-		SchedulerFireSkippedCountPerDomain:            {metricName: "scheduler_fire_skipped_per_domain", metricType: Counter},
-		SchedulerFireBufferedCountPerDomain:           {metricName: "scheduler_fire_buffered_per_domain", metricType: Counter},
-		SchedulerFireAlreadyRunningCountPerDomain:     {metricName: "scheduler_fire_already_running_per_domain", metricType: Counter},
-		SchedulerFireErrorCountPerDomain:              {metricName: "scheduler_fire_error_per_domain", metricType: Counter},
-		SchedulerFireLatencyPerDomainHistogram:        {metricName: "scheduler_fire_latency_per_domain_ns", metricType: Histogram, exponentialBuckets: Default1ms100s},
-		SchedulerOverlapCancelCountPerDomain:          {metricName: "scheduler_overlap_cancel_per_domain", metricType: Counter},
-		SchedulerOverlapTerminateCountPerDomain:       {metricName: "scheduler_overlap_terminate_per_domain", metricType: Counter},
+		ReplicatorMessages:                              {metricName: "replicator_messages"},
+		ReplicatorFailures:                              {metricName: "replicator_errors"},
+		ReplicatorMessagesDropped:                       {metricName: "replicator_messages_dropped"},
+		ReplicatorLatency:                               {metricName: "replicator_latency", metricType: Timer},
+		ReplicatorLatencyHistogram:                      {metricName: "replicator_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		ReplicatorDLQFailures:                           {metricName: "replicator_dlq_enqueue_fails", metricType: Counter},
+		ESProcessorRequests:                             {metricName: "es_processor_requests"},
+		ESProcessorRetries:                              {metricName: "es_processor_retries"},
+		ESProcessorFailures:                             {metricName: "es_processor_errors"},
+		ESProcessorCorruptedData:                        {metricName: "es_processor_corrupted_data"},
+		ESProcessorProcessMsgLatency:                    {metricName: "es_processor_process_msg_latency", metricType: Timer},
+		ESProcessorProcessMsgLatencyHistogram:           {metricName: "es_processor_process_msg_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		IndexProcessorCorruptedData:                     {metricName: "index_processor_corrupted_data"},
+		IndexProcessorProcessMsgLatency:                 {metricName: "index_processor_process_msg_latency", metricType: Timer},
+		IndexProcessorProcessMsgLatencyHistogram:        {metricName: "index_processor_process_msg_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		ArchiverNonRetryableErrorCount:                  {metricName: "archiver_non_retryable_error"},
+		ArchiverStartedCount:                            {metricName: "archiver_started"},
+		ArchiverStoppedCount:                            {metricName: "archiver_stopped"},
+		ArchiverCoroutineStartedCount:                   {metricName: "archiver_coroutine_started"},
+		ArchiverCoroutineStoppedCount:                   {metricName: "archiver_coroutine_stopped"},
+		ArchiverHandleHistoryRequestLatency:             {metricName: "archiver_handle_history_request_latency", metricType: Timer},
+		ArchiverHandleHistoryRequestLatencyHistogram:    {metricName: "archiver_handle_history_request_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		ArchiverHandleVisibilityRequestLatency:          {metricName: "archiver_handle_visibility_request_latency", metricType: Timer},
+		ArchiverHandleVisibilityRequestLatencyHistogram: {metricName: "archiver_handle_visibility_request_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		ArchiverUploadWithRetriesLatency:                {metricName: "archiver_upload_with_retries_latency", metricType: Timer},
+		ArchiverUploadWithRetriesLatencyHistogram:       {metricName: "archiver_upload_with_retries_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		ArchiverDeleteWithRetriesLatency:                {metricName: "archiver_delete_with_retries_latency", metricType: Timer},
+		ArchiverDeleteWithRetriesLatencyHistogram:       {metricName: "archiver_delete_with_retries_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		ArchiverUploadFailedAllRetriesCount:             {metricName: "archiver_upload_failed_all_retries"},
+		ArchiverUploadSuccessCount:                      {metricName: "archiver_upload_success"},
+		ArchiverDeleteFailedAllRetriesCount:             {metricName: "archiver_delete_failed_all_retries"},
+		ArchiverDeleteSuccessCount:                      {metricName: "archiver_delete_success"},
+		ArchiverHandleVisibilityFailedAllRetiresCount:   {metricName: "archiver_handle_visibility_failed_all_retries"},
+		ArchiverHandleVisibilitySuccessCount:            {metricName: "archiver_handle_visibility_success"},
+		ArchiverBacklogSizeGauge:                        {metricName: "archiver_backlog_size"},
+		ArchiverPumpTimeoutCount:                        {metricName: "archiver_pump_timeout"},
+		ArchiverPumpSignalThresholdCount:                {metricName: "archiver_pump_signal_threshold"},
+		ArchiverPumpTimeoutWithoutSignalsCount:          {metricName: "archiver_pump_timeout_without_signals"},
+		ArchiverPumpSignalChannelClosedCount:            {metricName: "archiver_pump_signal_channel_closed"},
+		ArchiverWorkflowStartedCount:                    {metricName: "archiver_workflow_started"},
+		ArchiverNumPumpedRequestsCount:                  {metricName: "archiver_num_pumped_requests"},
+		ArchiverNumHandledRequestsCount:                 {metricName: "archiver_num_handled_requests"},
+		ArchiverPumpedNotEqualHandledCount:              {metricName: "archiver_pumped_not_equal_handled"},
+		ArchiverHandleAllRequestsLatency:                {metricName: "archiver_handle_all_requests_latency"},
+		ArchiverWorkflowStoppingCount:                   {metricName: "archiver_workflow_stopping"},
+		TaskProcessedCount:                              {metricName: "task_processed", metricType: Gauge},
+		TaskDeletedCount:                                {metricName: "task_deleted", metricType: Gauge},
+		TaskListProcessedCount:                          {metricName: "tasklist_processed", metricType: Gauge},
+		TaskListDeletedCount:                            {metricName: "tasklist_deleted", metricType: Gauge},
+		TaskListOutstandingCount:                        {metricName: "tasklist_outstanding", metricType: Gauge},
+		ExecutionsOutstandingCount:                      {metricName: "executions_outstanding", metricType: Gauge},
+		StartedCount:                                    {metricName: "started", metricType: Counter},
+		StoppedCount:                                    {metricName: "stopped", metricType: Counter},
+		ExecutorTasksDeferredCount:                      {metricName: "executor_deferred", metricType: Counter},
+		ExecutorTasksDroppedCount:                       {metricName: "executor_dropped", metricType: Counter},
+		BatcherProcessorSuccess:                         {metricName: "batcher_processor_requests", metricType: Counter},
+		BatcherProcessorFailures:                        {metricName: "batcher_processor_errors", metricType: Counter},
+		HistoryScavengerSuccessCount:                    {metricName: "scavenger_success", metricType: Counter},
+		HistoryScavengerErrorCount:                      {metricName: "scavenger_errors", metricType: Counter},
+		HistoryScavengerSkipCount:                       {metricName: "scavenger_skips", metricType: Counter},
+		DomainReplicationEnqueueDLQCount:                {metricName: "domain_replication_dlq_enqueue_requests", metricType: Counter},
+		ScannerExecutionsGauge:                          {metricName: "scanner_executions", metricType: Gauge},
+		ScannerCorruptedGauge:                           {metricName: "scanner_corrupted", metricType: Gauge},
+		ScannerCheckFailedGauge:                         {metricName: "scanner_check_failed", metricType: Gauge},
+		ScannerCorruptionByTypeGauge:                    {metricName: "scanner_corruption_by_type", metricType: Gauge},
+		ScannerCorruptedOpenExecutionGauge:              {metricName: "scanner_corrupted_open_execution", metricType: Gauge},
+		ScannerShardSizeMaxGauge:                        {metricName: "scanner_shard_size_max", metricType: Gauge},
+		ScannerShardSizeMedianGauge:                     {metricName: "scanner_shard_size_median", metricType: Gauge},
+		ScannerShardSizeMinGauge:                        {metricName: "scanner_shard_size_min", metricType: Gauge},
+		ScannerShardSizeNinetyGauge:                     {metricName: "scanner_shard_size_ninety", metricType: Gauge},
+		ScannerShardSizeSeventyFiveGauge:                {metricName: "scanner_shard_size_seventy_five", metricType: Gauge},
+		ScannerShardSizeTwentyFiveGauge:                 {metricName: "scanner_shard_size_twenty_five", metricType: Gauge},
+		ScannerShardSizeTenGauge:                        {metricName: "scanner_shard_size_ten", metricType: Gauge},
+		ShardScannerScan:                                {metricName: "shardscanner_scan", metricType: Counter},
+		ShardScannerFix:                                 {metricName: "shardscanner_fix", metricType: Counter},
+		DataCorruptionWorkflowFailure:                   {metricName: "data_corruption_workflow_failure", metricType: Counter},
+		DataCorruptionWorkflowSuccessCount:              {metricName: "data_corruption_workflow_success", metricType: Counter},
+		DataCorruptionWorkflowCount:                     {metricName: "data_corruption_workflow_count", metricType: Counter},
+		DataCorruptionWorkflowSkipCount:                 {metricName: "data_corruption_workflow_skips", metricType: Counter},
+		ESAnalyzerNumStuckWorkflowsDiscovered:           {metricName: "es_analyzer_num_stuck_workflows_discovered", metricType: Counter},
+		ESAnalyzerNumStuckWorkflowsRefreshed:            {metricName: "es_analyzer_num_stuck_workflows_refreshed", metricType: Counter},
+		ESAnalyzerNumStuckWorkflowsFailedToRefresh:      {metricName: "es_analyzer_num_stuck_workflows_failed_to_refresh", metricType: Counter},
+		ESAnalyzerNumLongRunningWorkflows:               {metricName: "es_analyzer_num_long_running_workflows", metricType: Counter},
+		AsyncWorkflowConsumerCount:                      {metricName: "async_workflow_consumer_count", metricType: Gauge},
+		AsyncWorkflowProcessMsgLatency:                  {metricName: "async_workflow_process_msg_latency", metricType: Timer},
+		AsyncWorkflowProcessMsgLatencyHistogram:         {metricName: "async_workflow_process_msg_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		AsyncWorkflowFailureCorruptMsgCount:             {metricName: "async_workflow_failure_corrupt_msg", metricType: Counter},
+		AsyncWorkflowFailureByFrontendCount:             {metricName: "async_workflow_failure_by_frontend", metricType: Counter},
+		AsyncWorkflowSuccessCount:                       {metricName: "async_workflow_success", metricType: Counter},
+		DiagnosticsWorkflowStartedCount:                 {metricName: "diagnostics_workflow_count", metricType: Counter},
+		DiagnosticsWorkflowSuccess:                      {metricName: "diagnostics_workflow_success", metricType: Counter},
+		DiagnosticsWorkflowExecutionLatency:             {metricName: "diagnostics_workflow_execution_latency", metricType: Timer},
+		DiagnosticsWorkflowExecutionLatencyHistogram:    {metricName: "diagnostics_workflow_execution_latency_ns", metricType: Histogram, exponentialBuckets: Low1ms100s},
+		SchedulerWorkerActiveGauge:                      {metricName: "scheduler_worker_active_gauge", metricType: Gauge},
+		SchedulerWorkerStartedCount:                     {metricName: "scheduler_worker_started_count", metricType: Counter},
+		SchedulerWorkerStoppedCount:                     {metricName: "scheduler_worker_stopped_count", metricType: Counter},
+		SchedulerWorkerStartErrorsCountPerDomain:        {metricName: "scheduler_worker_start_errors_count_per_domain", metricType: Counter},
+		SchedulerWorkerRefreshLatencyHistogram:          {metricName: "scheduler_worker_refresh_latency_ns", metricType: Histogram, exponentialBuckets: Default1ms100s},
+		SchedulerWorkerLookupFailuresCount:              {metricName: "scheduler_worker_lookup_failures_count", metricType: Counter},
+		SchedulerWorkerDomainCoverageCount:              {metricName: "scheduler_worker_domain_coverage_count", metricType: Counter},
+		SchedulerFireStartedCountPerDomain:              {metricName: "scheduler_fire_started_per_domain", metricType: Counter},
+		SchedulerFireSkippedCountPerDomain:              {metricName: "scheduler_fire_skipped_per_domain", metricType: Counter},
+		SchedulerFireBufferedCountPerDomain:             {metricName: "scheduler_fire_buffered_per_domain", metricType: Counter},
+		SchedulerFireAlreadyRunningCountPerDomain:       {metricName: "scheduler_fire_already_running_per_domain", metricType: Counter},
+		SchedulerFireErrorCountPerDomain:                {metricName: "scheduler_fire_error_per_domain", metricType: Counter},
+		SchedulerFireLatencyPerDomainHistogram:          {metricName: "scheduler_fire_latency_per_domain_ns", metricType: Histogram, exponentialBuckets: Default1ms100s},
+		SchedulerOverlapCancelCountPerDomain:            {metricName: "scheduler_overlap_cancel_per_domain", metricType: Counter},
+		SchedulerOverlapTerminateCountPerDomain:         {metricName: "scheduler_overlap_terminate_per_domain", metricType: Counter},
 	},
 }
 

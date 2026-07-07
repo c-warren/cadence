@@ -826,6 +826,90 @@ func (db *CDB) InsertReplicationTask(ctx context.Context, tasks []*nosqlplugin.H
 	return nil
 }
 
+// historyMigrationTaskOwner returns the (domainID, workflowID) the task belongs to, read from the
+// task's own info. The cassandra task-create helpers store these as the row's data columns, so each
+// task must be written with its own owner rather than a shared per-call value.
+func historyMigrationTaskOwner(c persistence.HistoryTaskCategory, task *nosqlplugin.HistoryMigrationTask) (string, string) {
+	switch c.ID() {
+	case persistence.HistoryTaskCategoryIDTransfer:
+		return task.Transfer.DomainID, task.Transfer.WorkflowID
+	case persistence.HistoryTaskCategoryIDTimer:
+		return task.Timer.DomainID, task.Timer.WorkflowID
+	case persistence.HistoryTaskCategoryIDReplication:
+		return task.Replication.DomainID, task.Replication.WorkflowID
+	}
+	return "", ""
+}
+
+func (db *CDB) InsertHistoryTasks(ctx context.Context, tasksByCategory map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask, currentTimeStamp time.Time, shardCondition nosqlplugin.ShardCondition) error {
+	shardID := shardCondition.ShardID
+
+	hasTasks := false
+	for _, tasks := range tasksByCategory {
+		if len(tasks) > 0 {
+			hasTasks = true
+			break
+		}
+	}
+	if !hasTasks {
+		return nil
+	}
+
+	batch := db.session.NewBatch(gocql.LoggedBatch).WithContext(ctx)
+	for category, tasks := range tasksByCategory {
+		for _, task := range tasks {
+			domainID, workflowID := historyMigrationTaskOwner(category, task)
+			createTasksByCategory(batch, shardID, domainID, workflowID, currentTimeStamp,
+				map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask{category: {task}})
+		}
+	}
+
+	assertShardRangeID(batch, shardID, shardCondition.RangeID, currentTimeStamp)
+	return db.executeHistoryTaskBatchCAS(batch, shardCondition)
+}
+
+func (db *CDB) executeHistoryTaskBatchCAS(batch gocql.Batch, shardCondition nosqlplugin.ShardCondition) error {
+	previous := make(map[string]interface{})
+	applied, iter, err := db.session.MapExecuteBatchCAS(batch, previous)
+	defer func() {
+		if iter != nil {
+			_ = iter.Close()
+		}
+	}()
+	if err != nil {
+		return err
+	}
+
+	if !applied {
+		rowType, ok := previous["type"].(int)
+		if !ok {
+			// This should never happen, as all our rows have the type field.
+			panic("Encounter row type not found")
+		}
+		if rowType == rowTypeShard {
+			if actualRangeID, ok := previous["range_id"].(int64); ok && actualRangeID != shardCondition.RangeID {
+				// CreateWorkflowExecution failed because rangeID was modified
+				return &nosqlplugin.ShardOperationConditionFailure{
+					RangeID: actualRangeID,
+				}
+			}
+		}
+
+		// At this point we only know that the write was not applied.
+		// It's much safer to return ShardOperationConditionFailure(which will become ShardOwnershipLostError later) as the default to force the application to reload
+		// shard to recover from such errors
+		var columns []string
+		for k, v := range previous {
+			columns = append(columns, fmt.Sprintf("%s=%v", k, v))
+		}
+		return &nosqlplugin.ShardOperationConditionFailure{
+			RangeID: -1,
+			Details: strings.Join(columns, ","),
+		}
+	}
+	return nil
+}
+
 func (db *CDB) SelectActiveClusterSelectionPolicy(ctx context.Context, shardID int, domainID, wfID, rID string) (*nosqlplugin.ActiveClusterSelectionPolicyRow, error) {
 	query := db.session.Query(templateGetActiveClusterSelectionPolicyQuery,
 		shardID,

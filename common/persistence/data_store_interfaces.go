@@ -138,6 +138,7 @@ type (
 		CreateFailoverMarkerTasks(ctx context.Context, request *CreateFailoverMarkersRequest) error
 
 		// History task related methods
+		CreateHistoryTasks(ctx context.Context, request *CreateHistoryTasksRequest) error
 		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
 		RangeCompleteHistoryTask(ctx context.Context, request *RangeCompleteHistoryTaskRequest) (*RangeCompleteHistoryTaskResponse, error)
@@ -1011,18 +1012,36 @@ type (
 
 	// InternalCreateHistoryDLQTaskRequest is the store-level request for writing a history DLQ task.
 	InternalCreateHistoryDLQTaskRequest struct {
-		ShardID               int
-		DomainID              string
+		// ShardID is the history shard the task belongs to; it selects the
+		// backing store shard and is part of the DLQ partition key.
+		ShardID int
+		// DomainID is the workflow's domain; part of the DLQ partition key.
+		DomainID string
+		// ClusterAttributeScope and ClusterAttributeName identify the
+		// cluster-attribute partition the task was dead-lettered under; both are
+		// part of the DLQ partition key.
 		ClusterAttributeScope string
 		ClusterAttributeName  string
-		TaskType              int
-		TaskID                int64
-		WorkflowID            string
-		RunID                 string
-		Version               int64
-		VisibilityTimestamp   time.Time
-		CreatedAt             time.Time
-		TaskBlob              *DataBlob
+		// TaskCategory is the task category ID (transfer/timer/replication). TaskCategory
+		// is used as the key for deserialization of the TaskBlob.
+		TaskCategory int
+		// TaskID and VisibilityTimestamp form the task's key, used as the
+		// clustering key for ordered range reads within a partition.
+		TaskID int64
+		// WorkflowID and RunID identify the workflow execution the task belongs
+		// to; stored as row metadata.
+		WorkflowID string
+		RunID      string
+		// Version is the task's failover version; stored as row metadata.
+		Version int64
+		// VisibilityTimestamp is the task's scheduled/visibility time; together
+		// with TaskID it forms the clustering key.
+		VisibilityTimestamp time.Time
+		// CreatedAt is when the task was written to the DLQ.
+		CreatedAt time.Time
+		// TaskBlob is the serialized task (including its granular task type),
+		// produced by the task serializer for TaskCategory.
+		TaskBlob *DataBlob
 	}
 
 	// InternalHistoryDLQTask is a single row from the history_task_dlq table.

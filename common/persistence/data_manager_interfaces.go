@@ -1641,6 +1641,16 @@ type (
 		CurrentTimeStamp time.Time
 	}
 
+	// CreateHistoryTasksRequest is a request to create history tasks directly in the
+	// executions table, grouped by category. It is used to (re)inject tasks such as
+	// transfer and timer tasks so the standard queue infrastructure processes them.
+	CreateHistoryTasksRequest struct {
+		ShardID          ShardID
+		RangeID          int64
+		TasksByCategory  map[HistoryTaskCategory][]Task
+		CurrentTimeStamp time.Time
+	}
+
 	// FetchDynamicConfigResponse is a response to FetchDynamicConfigResponse
 	FetchDynamicConfigResponse struct {
 		Snapshot *DynamicConfigSnapshot
@@ -1693,6 +1703,8 @@ type (
 		DeleteReplicationTaskFromDLQ(ctx context.Context, request *DeleteReplicationTaskFromDLQRequest) error
 		RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *RangeDeleteReplicationTaskFromDLQRequest) (*RangeDeleteReplicationTaskFromDLQResponse, error)
 		CreateFailoverMarkerTasks(ctx context.Context, request *CreateFailoverMarkersRequest) error
+
+		CreateHistoryTasks(ctx context.Context, request *CreateHistoryTasksRequest) error
 
 		GetHistoryTasks(ctx context.Context, request *GetHistoryTasksRequest) (*GetHistoryTasksResponse, error)
 		CompleteHistoryTask(ctx context.Context, request *CompleteHistoryTaskRequest) error
@@ -1835,6 +1847,10 @@ type (
 	HistoryDLQGetTasksResponse struct {
 		Tasks         []Task
 		NextPageToken []byte
+		// PageSizeBytes is the summed serialized byte size of the raw task payloads in
+		// this page, before deserialization. Callers can use it to track
+		// batch size relative to the underlying store's batch threshold.
+		PageSizeBytes int
 	}
 
 	// HistoryDLQGetAckLevelsRequest specifies the shard and task category to query ack levels for.

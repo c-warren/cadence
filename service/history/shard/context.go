@@ -112,6 +112,7 @@ type (
 		AppendHistoryV2Events(ctx context.Context, request *persistence.AppendHistoryNodesRequest, domainID string, execution types.WorkflowExecution) (*persistence.AppendHistoryNodesResponse, error)
 
 		ReplicateFailoverMarkers(ctx context.Context, markers []*persistence.FailoverMarkerTask) error
+		ReinjectHistoryTasks(ctx context.Context, tasks []persistence.Task) error
 		AddingPendingFailoverMarker(*types.FailoverMarkerAttributes) error
 		ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarkerAttributes, error)
 	}
@@ -1534,10 +1535,97 @@ func (s *contextImpl) ReplicateFailoverMarkers(
 	return err
 }
 
+func (s *contextImpl) ReinjectHistoryTasks(
+	ctx context.Context,
+	tasks []persistence.Task,
+) error {
+	if err := s.closedError(); err != nil {
+		return err
+	}
+
+	// Group tasks by execution to allow allocateTaskIDsLocked to allocate IDs on a per-execution basis.
+	type executionKey struct {
+		domainID   string
+		workflowID string
+	}
+	tasksByExecution := make(map[executionKey]persistence.HistoryTasksByCategory)
+	for _, task := range tasks {
+		key := executionKey{domainID: task.GetDomainID(), workflowID: task.GetWorkflowID()}
+		if tasksByExecution[key] == nil {
+			tasksByExecution[key] = make(persistence.HistoryTasksByCategory)
+		}
+		category := task.GetTaskCategory()
+		tasksByExecution[key][category] = append(tasksByExecution[key][category], task)
+	}
+
+	// Resolve domain entries before taking the shard lock to minimize the time spent holding the lock.
+	// TODO(c-warren): Only timer tasks require a domain entry; transfer tasks are shard-global and don't need it.
+	// Either only resolve domain entries for timer tasks or accept the additional cache hits.
+	domainEntries := make(map[string]*cache.DomainCacheEntry)
+	for key := range tasksByExecution {
+		if _, ok := domainEntries[key.domainID]; ok {
+			continue
+		}
+		domainEntry, err := s.GetDomainCache().GetDomainByID(key.domainID)
+		if err != nil {
+			return err
+		}
+		domainEntries[key.domainID] = domainEntry
+	}
+
+	s.Lock()
+	defer s.Unlock()
+
+	immediateTaskMaxReadLevel := int64(0)
+	// tasksByCategory is built after allocation of taskIDs. It is used to build the persistence request.
+	tasksByCategory := make(persistence.HistoryTasksByCategory)
+	for key, executionTasks := range tasksByExecution {
+		if err := s.allocateTaskIDsLocked(
+			domainEntries[key.domainID],
+			key.workflowID,
+			executionTasks,
+			&immediateTaskMaxReadLevel,
+		); err != nil {
+			return err
+		}
+		for category, categoryTasks := range executionTasks {
+			tasksByCategory[category] = append(tasksByCategory[category], categoryTasks...)
+		}
+	}
+
+	if err := s.closedError(); err != nil {
+		return err
+	}
+	err := s.executionManager.CreateHistoryTasks(
+		ctx,
+		&persistence.CreateHistoryTasksRequest{
+			ShardID:         common.Ptr(s.shardID),
+			RangeID:         s.getRangeID(),
+			TasksByCategory: tasksByCategory,
+		},
+	)
+	if err == nil {
+		// Update MaxReadLevel if write to DB succeeds
+		s.updateMaxReadLevelLocked(immediateTaskMaxReadLevel)
+	} else if errors.As(err, new(*persistence.ShardOwnershipLostError)) {
+		// If Shard ownership has been lost, close the shard and return the error.
+		s.logger.Warn(
+			"Closing shard: ReinjectHistoryTasks failed due to stolen shard.",
+			tag.Error(err),
+		)
+		s.closeShard()
+	} else {
+		s.logger.Error(
+			"Failed to re-inject history DLQ tasks into the executions table.",
+			tag.Error(err),
+		)
+	}
+	return err
+}
+
 func (s *contextImpl) AddingPendingFailoverMarker(
 	marker *types.FailoverMarkerAttributes,
 ) error {
-
 	domainEntry, err := s.GetDomainCache().GetDomainByID(marker.GetDomainID())
 	if err != nil {
 		return err
@@ -1548,16 +1636,6 @@ func (s *contextImpl) AddingPendingFailoverMarker(
 	// if the domain is no longer pending-active and the marker belongs to that completed failover,
 	// the marker is stale and should be dropped to avoid an infinite re-notify loop
 	failoverCompleted := !domainEntry.IsDomainPendingActive() && domainEntry.GetFailoverVersion() >= marker.GetFailoverVersion()
-
-	// markerVersion > domainVersion violates the monotonic-version
-	// invariant. Always drop; only alert on the to-be-active cluster
-	// (where graceful-failover ordering guarantees the invariant). On
-	// passive replicas a transient regression can be a benign race
-	// between independent domain and marker replication queues.
-	if domainEntry.GetFailoverVersion() < marker.GetFailoverVersion() {
-		s.logMarkerRegressionIfOnActiveCluster(domainEntry, marker, "Skipped pending failover marker: marker version is greater than domain version")
-		return nil
-	}
 
 	if domainStatus == persistence.DomainStatusDeprecated || isActive || domainEntry.GetFailoverVersion() > marker.GetFailoverVersion() || failoverCompleted {
 		s.logger.Info("Skipped pending failover marker",
@@ -1587,31 +1665,6 @@ func failoverMarkerSkipReason(isActive, failoverCompleted bool, domainFailoverVe
 	default:
 		return "unknown"
 	}
-}
-
-// logMarkerRegressionIfOnActiveCluster emits an Error log + counter only when
-// the local cluster is the active for the domain — i.e. the cluster where
-// graceful-failover ordering guarantees the monotonic-version invariant must
-// hold. On passive replicas a transient regression can be a benign race
-// between the independent domain and marker replication queues, so we drop
-// the marker silently there. This is in-memory only by design: the caller
-// may be holding the shard RLock, and we must not perform I/O under it.
-func (s *contextImpl) logMarkerRegressionIfOnActiveCluster(
-	domainEntry *cache.DomainCacheEntry,
-	marker *types.FailoverMarkerAttributes,
-	logMessage string,
-) {
-	repl := domainEntry.GetReplicationConfig()
-	if repl == nil || repl.ActiveClusterName != s.GetClusterMetadata().GetCurrentClusterName() {
-		return
-	}
-	s.logger.Error(logMessage,
-		tag.WorkflowDomainName(domainEntry.GetInfo().Name),
-		tag.WorkflowDomainID(marker.GetDomainID()),
-		tag.Number(domainEntry.GetFailoverVersion()),
-		tag.NextNumber(marker.GetFailoverVersion()),
-	)
-	s.GetMetricsClient().Scope(metrics.FailoverMarkerScope, metrics.DomainTag(domainEntry.GetInfo().Name)).IncCounter(metrics.FailoverMarkerDroppedRegressedDomain)
 }
 
 func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarkerAttributes, error) {
@@ -1647,18 +1700,6 @@ func (s *contextImpl) ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarke
 		isActive := domainEntry.IsActiveIn(s.GetClusterMetadata().GetCurrentClusterName())
 		domainStatus := domainEntry.GetInfo().Status
 		failoverCompleted := !domainEntry.IsDomainPendingActive() && domainEntry.GetFailoverVersion() >= marker.GetFailoverVersion()
-
-		// markerVersion > domainVersion violates the monotonic-version
-		// invariant: a marker's FailoverVersion is set from the domain's
-		// FailoverVersion at the moment the marker is written. Always
-		// drop so it doesn't ship every 5s forever and falsely advertise
-		// an in-flight graceful failover; only alert on the to-be-active
-		// cluster where the ordering invariant must hold.
-		if domainEntry.GetFailoverVersion() < marker.GetFailoverVersion() {
-			s.logMarkerRegressionIfOnActiveCluster(domainEntry, marker, "Dropped pending failover marker: marker version is greater than domain version")
-			completedFailoverMarkers[marker] = struct{}{}
-			continue
-		}
 
 		// Drop failover markers if domain is deprecated
 		// or domain is already active in the currentCluster

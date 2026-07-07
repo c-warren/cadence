@@ -35,7 +35,7 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
-func (s *IntegrationSuite) TestQueryWorkflow_Sticky() {
+func (s *IntegrationSuite) TestQueryWorkflow_Sticky_SLOW() {
 	id := "interation-query-workflow-test-sticky"
 	wt := "interation-query-workflow-test-sticky-type"
 	tl := "interation-query-workflow-test-sticky-tasklist"
@@ -121,7 +121,11 @@ func (s *IntegrationSuite) TestQueryWorkflow_Sticky() {
 
 	// Make a request with stick tasklist to refresh the stickiness, otherwise we won't be able to add
 	// decisions to the sticky tasklist
-	ctx, cancel := createContext()
+	// Matching rejects tasks for a sticky TaskList if it has never seen a poller before
+	// We need to do a "quick poll" so that it has seen us, and the only way to guarantee it observed the request
+	// is for this request to time out and receive no task in response. If we go shorter than 2s matching will reject
+	// this request.
+	ctx, cancel := context.WithTimeout(s.T().Context(), time.Second*5)
 	defer cancel()
 	resp, err := poller.Engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
 		Domain:   poller.Domain,
@@ -771,7 +775,7 @@ func (s *IntegrationSuite) TestQueryWorkflow_Consistent_PiggybackQuery() {
 	s.Equal("consistent query result", queryResultString)
 }
 
-func (s *IntegrationSuite) TestQueryWorkflow_Consistent_Timeout() {
+func (s *IntegrationSuite) TestQueryWorkflow_Consistent_Timeout_SLOW() {
 	id := "integration-query-workflow-test-consistent-timeout"
 	wt := "integration-query-workflow-test-consistent-timeout-type"
 	tl := "integration-query-workflow-test-consistent-timeout-tasklist"
@@ -935,7 +939,7 @@ func (s *IntegrationSuite) TestQueryWorkflow_Consistent_Timeout() {
 	s.Error(queryResult.Err) // got a timeout error
 }
 
-func (s *IntegrationSuite) TestQueryWorkflow_Consistent_BlockedByStarted_NonSticky() {
+func (s *IntegrationSuite) TestQueryWorkflow_Consistent_BlockedByStarted_NonSticky_SLOW() {
 	id := "integration-query-workflow-test-consistent-blocked-by-started-non-sticky"
 	wt := "integration-query-workflow-test-consistent-blocked-by-started-non-sticky-type"
 	tl := "integration-query-workflow-test-consistent-blocked-by-started-non-sticky-tasklist"
@@ -1126,7 +1130,7 @@ func (s *IntegrationSuite) TestQueryWorkflow_Consistent_BlockedByStarted_NonStic
 	s.Equal("query-result", queryResultString)
 }
 
-func (s *IntegrationSuite) TestQueryWorkflow_Consistent_NewDecisionTask_Sticky() {
+func (s *IntegrationSuite) TestQueryWorkflow_Consistent_NewDecisionTask_Sticky_SLOW() {
 	id := "integration-query-workflow-test-consistent-new-decision-task-sticky"
 	wt := "integration-query-workflow-test-consistent-new-decision-task-sticky-type"
 	tl := "integration-query-workflow-test-consistent-new-decision-task-sticky-tasklist"
@@ -1222,7 +1226,7 @@ func (s *IntegrationSuite) TestQueryWorkflow_Consistent_NewDecisionTask_Sticky()
 
 	// Make a request with stick tasklist to refresh the stickiness, otherwise we won't be able to add
 	// decisions to the sticky tasklist
-	ctx, cancel := createContext()
+	ctx, cancel := context.WithTimeout(s.T().Context(), time.Second*5)
 	defer cancel()
 	resp, err := poller.Engine.PollForDecisionTask(ctx, &types.PollForDecisionTaskRequest{
 		Domain:   poller.Domain,
@@ -1404,7 +1408,8 @@ func (s *IntegrationSuite) TestQueryWorkflow_BeforeFirstDecision() {
 		RunID:      we.RunID,
 	}
 
-	ctx, cancel = createContext()
+	// This will wait until the context times out, so make it reasonably short
+	ctx, cancel = context.WithTimeout(s.T().Context(), 3*time.Second)
 	defer cancel()
 	// query workflow without any decision task should produce an error
 	_, err := s.Engine.QueryWorkflow(ctx, &types.QueryWorkflowRequest{

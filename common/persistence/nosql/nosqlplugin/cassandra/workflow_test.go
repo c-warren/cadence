@@ -2418,6 +2418,106 @@ func TestInsertReplicationTask(t *testing.T) {
 	}
 }
 
+func TestInsertHistoryTasks(t *testing.T) {
+	mkTransfer := func(taskID int64, blobSize int) *nosqlplugin.HistoryMigrationTask {
+		return &nosqlplugin.HistoryMigrationTask{
+			Transfer: &nosqlplugin.TransferTask{
+				DomainID:            "domainID",
+				WorkflowID:          "workflowID",
+				RunID:               "runID",
+				TaskID:              taskID,
+				VisibilityTimestamp: time.Unix(0, 100),
+			},
+			Task:   &persistence.DataBlob{Data: make([]byte, blobSize), Encoding: constants.EncodingTypeThriftRW},
+			TaskID: taskID,
+		}
+	}
+	transferCategory := func(tasks ...*nosqlplugin.HistoryMigrationTask) map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask {
+		return map[persistence.HistoryTaskCategory][]*nosqlplugin.HistoryMigrationTask{
+			persistence.HistoryTaskCategoryTransfer: tasks,
+		}
+	}
+	newDB := func(t *testing.T, session *fakeSession) *CDB {
+		return NewCassandraDBFromSession(nil, session, testlogger.New(t), nil, DbWithClient(gocql.NewMockClient(gomock.NewController(t))))
+	}
+	cond := nosqlplugin.ShardCondition{ShardID: 1, RangeID: 4}
+
+	t.Run("no tasks writes nothing", func(t *testing.T) {
+		session := &fakeSession{mapExecuteBatchCASApplied: true, iter: &fakeIter{}}
+		db := newDB(t, session)
+		if err := db.InsertHistoryTasks(context.Background(), nil, time.Unix(0, 1), cond); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(session.batches) != 0 {
+			t.Fatalf("got %v batches, want 0", len(session.batches))
+		}
+	})
+
+	t.Run("single atomic batch when under budget", func(t *testing.T) {
+		session := &fakeSession{mapExecuteBatchCASApplied: true, iter: &fakeIter{}}
+		db := newDB(t, session)
+		tasks := transferCategory(mkTransfer(1, 10), mkTransfer(2, 10), mkTransfer(3, 10))
+		if err := db.InsertHistoryTasks(context.Background(), tasks, time.Unix(0, 1), cond); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(session.batches) != 1 {
+			t.Fatalf("got %v batches, want 1", len(session.batches))
+		}
+		// 3 task queries + 1 assertShardRangeID guard.
+		if got := len(session.batches[0].queries); got != 4 {
+			t.Errorf("got %v queries in batch, want 4", got)
+		}
+	})
+
+	t.Run("all tasks written in a single atomic batch regardless of size", func(t *testing.T) {
+		session := &fakeSession{mapExecuteBatchCASApplied: true, iter: &fakeIter{}}
+		db := newDB(t, session)
+		// Large payloads that the previous chunking implementation would have split: the
+		// persistence layer no longer batches, so everything goes into one CAS.
+		big := 30 * 1024
+		tasks := transferCategory(mkTransfer(1, big), mkTransfer(2, big), mkTransfer(3, big))
+		if err := db.InsertHistoryTasks(context.Background(), tasks, time.Unix(0, 1), cond); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(session.batches) != 1 {
+			t.Fatalf("got %v batches, want 1", len(session.batches))
+		}
+		// 3 task queries + 1 assertShardRangeID guard, all in the same batch.
+		if got := len(session.batches[0].queries); got != 4 {
+			t.Errorf("got %v queries in batch, want 4", got)
+		}
+	})
+
+	t.Run("error executing the batch is returned", func(t *testing.T) {
+		session := &fakeSession{mapExecuteBatchCASErr: errors.New("boom"), iter: &fakeIter{}}
+		db := newDB(t, session)
+		tasks := transferCategory(mkTransfer(1, 10), mkTransfer(2, 10))
+		if err := db.InsertHistoryTasks(context.Background(), tasks, time.Unix(0, 1), cond); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+		if len(session.batches) != 1 {
+			t.Fatalf("got %v batches, want 1", len(session.batches))
+		}
+	})
+
+	t.Run("shard condition failure maps to ShardOperationConditionFailure", func(t *testing.T) {
+		session := &fakeSession{
+			mapExecuteBatchCASApplied: false,
+			mapExecuteBatchCASPrev:    map[string]any{"type": rowTypeShard, "range_id": int64(5)},
+			iter:                      &fakeIter{},
+		}
+		db := newDB(t, session)
+		err := db.InsertHistoryTasks(context.Background(), transferCategory(mkTransfer(1, 10)), time.Unix(0, 1), cond)
+		var condErr *nosqlplugin.ShardOperationConditionFailure
+		if !errors.As(err, &condErr) {
+			t.Fatalf("got error %v, want ShardOperationConditionFailure", err)
+		}
+		if condErr.RangeID != 5 {
+			t.Errorf("got RangeID %v, want 5", condErr.RangeID)
+		}
+	})
+}
+
 func TestSelectActiveClusterSelectionPolicy(t *testing.T) {
 	tests := []struct {
 		name       string

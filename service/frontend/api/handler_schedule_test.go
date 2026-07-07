@@ -575,7 +575,7 @@ func TestDescribeSchedule(t *testing.T) {
 			wantErr: false,
 		},
 		// If the close status stays CONTINUED_AS_NEW past the retry budget, the
-		// scheduler is stuck mid-transition; return Unavailable so clients retry.
+		// scheduler is stuck mid-transition; return CodeUnavailable so clients retry.
 		"scheduler mid-ContinueAsNew - retry budget exhausted": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {
@@ -741,8 +741,8 @@ func TestDescribeSchedule(t *testing.T) {
 			},
 		},
 		// If the scheduler does ContinueAsNew between the DWE probe and the query,
-		// the query is rejected with CONTINUED_AS_NEW. Return Unavailable so the
-		// client retries — the new run will be queryable momentarily.
+		// the query is rejected with CONTINUED_AS_NEW. Return CodeUnavailable so
+		// the client retries — the new run will be queryable momentarily.
 		"scheduler ContinueAsNew between DWE and Query - return Unavailable": {
 			request: validRequest,
 			mockFn: func(f *scheduleTestFixture) {

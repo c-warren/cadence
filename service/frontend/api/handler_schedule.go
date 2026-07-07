@@ -294,9 +294,7 @@ func (wh *WorkflowHandler) DescribeSchedule(
 	if info.CloseStatus != nil {
 		if *info.CloseStatus == types.WorkflowExecutionCloseStatusContinuedAsNew {
 			return nil, yarpcerrors.Newf(yarpcerrors.CodeUnavailable,
-				"schedule %q in domain %q: scheduler mid-ContinueAsNew, retry",
-				scheduleID, domainName,
-			)
+				"schedule %q in domain %q: scheduler mid-ContinueAsNew, retry", scheduleID, domainName)
 		}
 		return nil, &types.InternalServiceError{
 			Message: fmt.Sprintf(
@@ -321,9 +319,7 @@ func (wh *WorkflowHandler) DescribeSchedule(
 			closeStatus = queryResp.QueryRejected.CloseStatus.String()
 			if *queryResp.QueryRejected.CloseStatus == types.WorkflowExecutionCloseStatusContinuedAsNew {
 				return nil, yarpcerrors.Newf(yarpcerrors.CodeUnavailable,
-					"schedule %q in domain %q: scheduler mid-ContinueAsNew, retry",
-					scheduleID, domainName,
-				)
+					"schedule %q in domain %q: scheduler mid-ContinueAsNew, retry", scheduleID, domainName)
 			}
 		}
 		return nil, &types.InternalServiceError{
@@ -356,16 +352,21 @@ func (wh *WorkflowHandler) DescribeSchedule(
 				return &types.SchedulePauseInfo{
 					Reason:   desc.PauseReason,
 					PausedBy: desc.PausedBy,
+					PausedAt: desc.PausedAt,
 				}
 			}(),
 		},
 		Info: &types.ScheduleInfo{
-			LastRunTime:      desc.LastRunTime,
-			NextRunTime:      desc.NextRunTime,
-			TotalRuns:        desc.TotalRuns,
-			MissedRuns:       desc.MissedRuns,
-			SkippedRuns:      desc.SkippedRuns,
-			OngoingBackfills: ongoingBackfillsForResponse(desc.OngoingBackfills),
+			LastRunTime:          desc.LastRunTime,
+			NextRunTime:          desc.NextRunTime,
+			TotalRuns:            desc.TotalRuns,
+			MissedRuns:           desc.MissedRuns,
+			SkippedRuns:          desc.SkippedRuns,
+			BufferedFireCount:    desc.BufferedFireCount,
+			RunningWorkflowCount: desc.RunningWorkflowCount,
+			CreateTime:           desc.CreateTime,
+			LastUpdateTime:       desc.LastUpdateTime,
+			OngoingBackfills:     ongoingBackfillsForResponse(desc.OngoingBackfills),
 		},
 		Memo:             desc.Memo,
 		SearchAttributes: desc.SearchAttributes,

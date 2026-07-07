@@ -25,6 +25,7 @@ package failover
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -102,19 +103,31 @@ func (s *coordinatorSuite) TestNotifyFailoverMarkers() {
 		FailoverVersion: 1,
 		CreationTime:    common.Int64Ptr(1),
 	}
+
+	var mu sync.Mutex
+	seenShards := make(map[int32]struct{})
 	s.historyClient.EXPECT().NotifyFailoverMarkers(
-		context.Background(), &types.NotifyFailoverMarkersRequest{
-			FailoverMarkerTokens: []*types.FailoverMarkerToken{
-				{
-					ShardIDs:       []int32{1, 2},
-					FailoverMarker: attributes,
-				},
-			},
-		},
-	).DoAndReturn(func(ctx context.Context, request *types.NotifyFailoverMarkersRequest, opts ...yarpc.CallOption) error {
-		close(doneCh)
+		gomock.Any(), gomock.Any(),
+	).DoAndReturn(func(_ context.Context, request *types.NotifyFailoverMarkersRequest, _ ...yarpc.CallOption) error {
+		mu.Lock()
+		defer mu.Unlock()
+		s.Len(request.FailoverMarkerTokens, 1)
+		token := request.FailoverMarkerTokens[0]
+		s.Equal(attributes, token.FailoverMarker)
+		for _, shardID := range token.ShardIDs {
+			seenShards[shardID] = struct{}{}
+		}
+		if _, ok := seenShards[1]; ok {
+			if _, ok := seenShards[2]; ok {
+				select {
+				case <-doneCh:
+				default:
+					close(doneCh)
+				}
+			}
+		}
 		return nil
-	}).Times(1)
+	}).MinTimes(1)
 
 	s.coordinator.NotifyFailoverMarkers(
 		1,
@@ -130,7 +143,7 @@ func (s *coordinatorSuite) TestNotifyFailoverMarkers() {
 
 func (s *coordinatorSuite) TestNotifyRemoteCoordinator_Empty() {
 	requestByMarker := make(map[types.FailoverMarkerAttributes]*receiveRequest)
-	s.historyClient.EXPECT().NotifyFailoverMarkers(context.Background(), gomock.Any()).Times(0)
+	s.historyClient.EXPECT().NotifyFailoverMarkers(gomock.Any(), gomock.Any()).Times(0)
 	err := s.coordinator.notifyRemoteCoordinator(requestByMarker)
 	s.NoError(err)
 }
@@ -149,7 +162,7 @@ func (s *coordinatorSuite) TestNotifyRemoteCoordinator() {
 	}
 
 	s.historyClient.EXPECT().NotifyFailoverMarkers(
-		context.Background(), &types.NotifyFailoverMarkersRequest{
+		gomock.Any(), &types.NotifyFailoverMarkersRequest{
 			FailoverMarkerTokens: []*types.FailoverMarkerToken{
 				{
 					ShardIDs:       []int32{1, 2, 3},
@@ -177,7 +190,7 @@ func (s *coordinatorSuite) TestNotifyRemoteCoordinator_Error() {
 	}
 
 	s.historyClient.EXPECT().NotifyFailoverMarkers(
-		context.Background(), &types.NotifyFailoverMarkersRequest{
+		gomock.Any(), &types.NotifyFailoverMarkersRequest{
 			FailoverMarkerTokens: []*types.FailoverMarkerToken{
 				{
 					ShardIDs:       []int32{1, 2, 3},
