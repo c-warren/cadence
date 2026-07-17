@@ -237,6 +237,8 @@ func TestGetProducerByDomain(t *testing.T) {
 				mockProvider,
 				log.NewNoop(),
 				metrics.NewNoopMetricsClient(),
+				nil,
+				1024,
 			)
 			producerManager.(*producerManagerImpl).producerCache = mockProducerCache
 

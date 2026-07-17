@@ -28,6 +28,7 @@ import (
 	"github.com/uber/cadence/tools/common/commoncli"
 
 	_ "github.com/uber/cadence/common/archiver/gcloud"                                      // needed to load the optional gcloud archiver plugin
+	_ "github.com/uber/cadence/common/asyncworkflow/queue/history"                          // needed to load history asyncworkflow queue
 	_ "github.com/uber/cadence/common/asyncworkflow/queue/kafka"                            // needed to load kafka asyncworkflow queue
 	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra"              // needed to load cassandra plugin
 	_ "github.com/uber/cadence/common/persistence/nosql/nosqlplugin/cassandra/gocql/public" // needed to load the default gocql client

@@ -147,6 +147,8 @@ func NewWorkflowHandler(
 			resource.GetAsyncWorkflowQueueProvider(),
 			resource.GetLogger(),
 			resource.GetMetricsClient(),
+			resource.GetHistoryClient(),
+			config.NumHistoryShards,
 		),
 		thriftrwEncoder:  codec.NewThriftRWEncoder(),
 		requestValidator: NewRequestValidator(resource.GetLogger(), resource.GetMetricsClient(), config),
