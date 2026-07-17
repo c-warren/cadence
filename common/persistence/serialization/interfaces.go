@@ -234,6 +234,7 @@ type (
 		DomainNameDEPRECATED   string
 		WorkflowTypeName       string
 		ParentClosePolicy      int32
+		Priority               int32
 	}
 
 	// SignalInfo blob in a serialization agnostic format
@@ -259,6 +260,7 @@ type (
 		StartedID       int64
 		ExpiryTimestamp time.Time
 		TaskID          int64
+		Priority        int32
 	}
 
 	// TaskInfo blob in a serialization agnostic format
@@ -308,6 +310,7 @@ type (
 		VisibilityTimestamp     time.Time
 		OriginalTaskList        string
 		OriginalTaskListKind    types.TaskListKind
+		Priority                int32
 	}
 
 	// CrossClusterTaskInfo blob in a serialization agnostic format
@@ -328,6 +331,7 @@ type (
 		ScheduleAttempt int64
 		EventID         int64
 		TaskList        string
+		Priority        int32
 	}
 
 	// ReplicationTaskInfo blob in a serialization agnostic format

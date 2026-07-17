@@ -265,6 +265,7 @@ func (m *executionManagerImpl) DeserializeChildExecutionInfos(
 			DomainNameDEPRECATED:  v.DomainNameDEPRECATED,
 			WorkflowTypeName:      v.WorkflowTypeName,
 			ParentClosePolicy:     v.ParentClosePolicy,
+			Priority:              v.Priority,
 		}
 
 		// Needed for backward compatibility reason.
@@ -410,6 +411,7 @@ func (m *executionManagerImpl) SerializeUpsertChildExecutionInfos(
 			DomainNameDEPRECATED:  v.DomainNameDEPRECATED,
 			WorkflowTypeName:      v.WorkflowTypeName,
 			ParentClosePolicy:     v.ParentClosePolicy,
+			Priority:              v.Priority,
 		}
 		newInfos = append(newInfos, i)
 	}

@@ -195,7 +195,7 @@ type (
 		ReplicateSignalExternalWorkflowExecutionFailedEvent(*types.HistoryEvent) error
 		ReplicateSignalExternalWorkflowExecutionInitiatedEvent(int64, *types.HistoryEvent, string) (*persistence.SignalInfo, error)
 		ReplicateStartChildWorkflowExecutionFailedEvent(*types.HistoryEvent) error
-		ReplicateStartChildWorkflowExecutionInitiatedEvent(int64, *types.HistoryEvent, string) (*persistence.ChildExecutionInfo, error)
+		ReplicateStartChildWorkflowExecutionInitiatedEvent(int64, *types.HistoryEvent, string, persistence.TaskPriority) (*persistence.ChildExecutionInfo, error)
 		ReplicateTimerCanceledEvent(*types.HistoryEvent) error
 		ReplicateTimerFiredEvent(*types.HistoryEvent) error
 		ReplicateTimerStartedEvent(*types.HistoryEvent) (*persistence.TimerInfo, error)

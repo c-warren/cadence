@@ -14,9 +14,8 @@ import (
 	reflect "reflect"
 	time "time"
 
-	gomock "go.uber.org/mock/gomock"
-
 	types "github.com/uber/cadence/common/types"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockTask is a mock of Task interface.
@@ -97,6 +96,20 @@ func (m *MockTask) GetOriginalTaskListKind() types.TaskListKind {
 func (mr *MockTaskMockRecorder) GetOriginalTaskListKind() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOriginalTaskListKind", reflect.TypeOf((*MockTask)(nil).GetOriginalTaskListKind))
+}
+
+// GetPriority mocks base method.
+func (m *MockTask) GetPriority() TaskPriority {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPriority")
+	ret0, _ := ret[0].(TaskPriority)
+	return ret0
+}
+
+// GetPriority indicates an expected call of GetPriority.
+func (mr *MockTaskMockRecorder) GetPriority() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPriority", reflect.TypeOf((*MockTask)(nil).GetPriority))
 }
 
 // GetRunID mocks base method.

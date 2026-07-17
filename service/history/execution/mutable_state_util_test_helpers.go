@@ -207,6 +207,7 @@ func CopyTimerInfo(t *testing.T, sourceInfo *persistence.TimerInfo) *persistence
 		StartedID:  sourceInfo.StartedID,
 		ExpiryTime: sourceInfo.ExpiryTime,
 		TaskStatus: sourceInfo.TaskStatus,
+		Priority:   sourceInfo.Priority,
 	}
 }
 
@@ -247,6 +248,7 @@ func CopyChildInfo(t *testing.T, sourceInfo *persistence.ChildExecutionInfo) *pe
 		DomainNameDEPRECATED:  sourceInfo.DomainNameDEPRECATED,
 		WorkflowTypeName:      sourceInfo.WorkflowTypeName,
 		ParentClosePolicy:     sourceInfo.ParentClosePolicy,
+		Priority:              sourceInfo.Priority,
 		InitiatedEvent:        deepCopyHistoryEvent(t, sourceInfo.InitiatedEvent),
 		StartedEvent:          deepCopyHistoryEvent(t, sourceInfo.StartedEvent),
 	}

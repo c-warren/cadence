@@ -46,6 +46,7 @@ var (
 	SignalExternalWorkflowExecutionFailedCause = types.SignalExternalWorkflowExecutionFailedCauseUnknownExternalWorkflowExecution
 	TaskListKind                               = types.TaskListKindSticky
 	TaskListType                               = types.TaskListTypeActivity
+	TaskPriority                               = types.TaskPriorityAsync
 	TimeoutType                                = types.TimeoutTypeScheduleToStart
 	WorkflowExecutionCloseStatus               = types.WorkflowExecutionCloseStatusContinuedAsNew
 	WorkflowIDReusePolicy                      = types.WorkflowIDReusePolicyTerminateIfRunning

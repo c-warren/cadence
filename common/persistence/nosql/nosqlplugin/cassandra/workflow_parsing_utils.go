@@ -362,6 +362,8 @@ func parseTimerInfo(
 			// the purpose of indicating whether a timer task is
 			// generated for this timer info
 			info.TaskStatus = v.(int64)
+		case "priority":
+			info.Priority = persistence.TaskPriority(v.(int))
 		}
 	}
 	return info
@@ -409,6 +411,8 @@ func parseChildExecutionInfo(
 			info.WorkflowTypeName = v.(string)
 		case "parent_close_policy":
 			info.ParentClosePolicy = types.ParentClosePolicy(v.(int))
+		case "priority":
+			info.Priority = persistence.TaskPriority(v.(int))
 		}
 	}
 	info.InitiatedEvent = persistence.NewDataBlob(initiatedData, encoding)

@@ -1672,13 +1672,14 @@ func TestResetChildExecutionInfos(t *testing.T) {
 					DomainID:          "domain1",
 					WorkflowTypeName:  "workflowType1",
 					ParentClosePolicy: types.ParentClosePolicyAbandon,
+					Priority:          5,
 				},
 			},
 			wantQueries: []string{
 				`UPDATE executions SET child_executions_map = ` +
 					`map[1:map[` +
 					`create_request_id:createRequestID1 domain_id:domain1 domain_name: event_data_encoding:thriftrw ` +
-					`initiated_event:[] initiated_event_batch_id:2 initiated_id:1 parent_close_policy:0 ` +
+					`initiated_event:[] initiated_event_batch_id:2 initiated_id:1 parent_close_policy:0 priority:5 ` +
 					`started_event:[] started_id:3 started_run_id:startedRunID1 started_workflow_id:startedWorkflowID1 ` +
 					`version:1 workflow_type_name:workflowType1` +
 					`]], last_updated_time = 2025-01-06T15:00:00Z ` +
@@ -1716,7 +1717,7 @@ func TestResetChildExecutionInfos(t *testing.T) {
 				`UPDATE executions SET child_executions_map = ` +
 					`map[1:map[` +
 					`create_request_id:createRequestID1 domain_id:domain1 domain_name: event_data_encoding:thriftrw ` +
-					`initiated_event:[] initiated_event_batch_id:2 initiated_id:1 parent_close_policy:0 ` +
+					`initiated_event:[] initiated_event_batch_id:2 initiated_id:1 parent_close_policy:0 priority:0 ` +
 					`started_event:[] started_id:3 started_run_id:30000000-0000-f000-f000-000000000000 started_workflow_id:startedWorkflowID1 ` +
 					`version:1 workflow_type_name:workflowType1` +
 					`]], last_updated_time = 2025-01-06T15:00:00Z ` +
@@ -1781,6 +1782,7 @@ func TestUpdateChildExecutionInfos(t *testing.T) {
 					DomainID:          "domain1",
 					WorkflowTypeName:  "workflowType1",
 					ParentClosePolicy: types.ParentClosePolicyAbandon,
+					Priority:          5,
 				},
 			},
 			deleteInfos: []int64{2},
@@ -1789,7 +1791,7 @@ func TestUpdateChildExecutionInfos(t *testing.T) {
 					`version: 1, initiated_id: 1, initiated_event_batch_id: 2, initiated_event: [], ` +
 					`started_id: 3, started_workflow_id: startedWorkflowID1, started_run_id: startedRunID1, ` +
 					`started_event: [], create_request_id: createRequestID1, event_data_encoding: thriftrw, ` +
-					`domain_id: domain1, domain_name: , workflow_type_name: workflowType1, parent_close_policy: 0` +
+					`domain_id: domain1, domain_name: , workflow_type_name: workflowType1, parent_close_policy: 0, priority: 5` +
 					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
@@ -1844,11 +1846,12 @@ func TestResetTimerInfos(t *testing.T) {
 					StartedID:  2,
 					ExpiryTime: ts.UTC(),
 					TaskStatus: 1,
+					Priority:   4,
 				},
 			},
 			wantQueries: []string{
 				`UPDATE executions SET timer_map = map[` +
-					`timer1:map[expiry_time:2023-12-12 22:08:41 +0000 UTC started_id:2 task_id:1 timer_id:timer1 version:1]` +
+					`timer1:map[expiry_time:2023-12-12 22:08:41 +0000 UTC priority:4 started_id:2 task_id:1 timer_id:timer1 version:1]` +
 					`] , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,
@@ -1902,12 +1905,13 @@ func TestUpdateTimerInfos(t *testing.T) {
 					StartedID:  2,
 					ExpiryTime: ts.UTC(),
 					TaskStatus: 1,
+					Priority:   3,
 				},
 			},
 			deleteInfos: []string{"timer2"},
 			wantQueries: []string{
 				`UPDATE executions SET timer_map[ timer1 ] = {` +
-					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1` +
+					`version: 1, timer_id: timer1, started_id: 2, expiry_time: 2023-12-19T22:08:41Z, task_id: 1, priority: 3` +
 					`} , last_updated_time = 2025-01-06T15:00:00Z WHERE ` +
 					`shard_id = 1000 and type = 1 and domain_id = domain1 and workflow_id = workflow1 and ` +
 					`run_id = runid1 and visibility_ts = 946684800000 and task_id = -10 `,

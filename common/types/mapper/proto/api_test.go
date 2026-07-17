@@ -1624,6 +1624,10 @@ func CronOverlapPolicyFuzzer(e *types.CronOverlapPolicy, c fuzz.Continue) {
 	*e = types.CronOverlapPolicy(c.Intn(2)) // 0-1: Skipped, BufferOne
 }
 
+func TaskPriorityFuzzer(e *types.TaskPriority, c fuzz.Continue) {
+	*e = types.TaskPriority(c.Intn(4) + 1) // 1-4: High, Default, Low, Async (skip 0=Invalid which maps to nil)
+}
+
 func DecisionTypeFuzzer(e *types.DecisionType, c fuzz.Continue) {
 	*e = types.DecisionType(c.Intn(13))
 }
@@ -2691,6 +2695,7 @@ func TestStartTimerDecisionAttributesFuzz(t *testing.T) {
 	// StartToFireTimeoutSeconds is int64 but proto converts through int32
 	testutils.RunMapperFuzzTest(t, FromStartTimerDecisionAttributes, ToStartTimerDecisionAttributes,
 		testutils.WithCustomFuncs(
+			TaskPriorityFuzzer,
 			func(v *types.StartTimerDecisionAttributes, c fuzz.Continue) {
 				c.Fuzz(v)
 				if v.StartToFireTimeoutSeconds != nil {
@@ -3074,6 +3079,7 @@ func TestStartChildWorkflowExecutionDecisionAttributesFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromStartChildWorkflowExecutionDecisionAttributes, ToStartChildWorkflowExecutionDecisionAttributes,
 		testutils.WithCustomFuncs(
 			WorkflowIDReusePolicyFuzzer,
+			TaskPriorityFuzzer,
 		),
 	)
 }

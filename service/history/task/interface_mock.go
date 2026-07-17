@@ -13,13 +13,12 @@ import (
 	reflect "reflect"
 	time "time"
 
-	gomock "go.uber.org/mock/gomock"
-
 	future "github.com/uber/cadence/common/future"
 	persistence "github.com/uber/cadence/common/persistence"
 	task "github.com/uber/cadence/common/task"
 	types "github.com/uber/cadence/common/types"
 	shard "github.com/uber/cadence/service/history/shard"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockTask is a mock of Task interface.
@@ -166,6 +165,20 @@ func (m *MockTask) GetOriginalTaskListKind() types.TaskListKind {
 func (mr *MockTaskMockRecorder) GetOriginalTaskListKind() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOriginalTaskListKind", reflect.TypeOf((*MockTask)(nil).GetOriginalTaskListKind))
+}
+
+// GetPriority mocks base method.
+func (m *MockTask) GetPriority() persistence.TaskPriority {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPriority")
+	ret0, _ := ret[0].(persistence.TaskPriority)
+	return ret0
+}
+
+// GetPriority indicates an expected call of GetPriority.
+func (mr *MockTaskMockRecorder) GetPriority() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPriority", reflect.TypeOf((*MockTask)(nil).GetPriority))
 }
 
 // GetQueueType mocks base method.
@@ -654,6 +667,20 @@ func (m *MockCrossClusterTask) GetOriginalTaskListKind() types.TaskListKind {
 func (mr *MockCrossClusterTaskMockRecorder) GetOriginalTaskListKind() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOriginalTaskListKind", reflect.TypeOf((*MockCrossClusterTask)(nil).GetOriginalTaskListKind))
+}
+
+// GetPriority mocks base method.
+func (m *MockCrossClusterTask) GetPriority() persistence.TaskPriority {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPriority")
+	ret0, _ := ret[0].(persistence.TaskPriority)
+	return ret0
+}
+
+// GetPriority indicates an expected call of GetPriority.
+func (mr *MockCrossClusterTaskMockRecorder) GetPriority() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPriority", reflect.TypeOf((*MockCrossClusterTask)(nil).GetPriority))
 }
 
 // GetQueueType mocks base method.

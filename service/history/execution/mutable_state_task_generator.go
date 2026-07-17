@@ -497,7 +497,8 @@ func (r *mutableStateTaskGeneratorImpl) GenerateChildWorkflowTasks(
 		},
 		TaskData: persistence.TaskData{
 			// TaskID and VisibilityTimestamp are set by shard context
-			Version: childWorkflowInfo.Version,
+			Version:  childWorkflowInfo.Version,
+			Priority: childWorkflowInfo.Priority,
 		},
 		TargetDomainID:   targetDomainID,
 		TargetWorkflowID: childWorkflowInfo.StartedWorkflowID,

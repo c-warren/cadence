@@ -3835,6 +3835,56 @@ func ToParentClosePolicy(t *shared.ParentClosePolicy) *types.ParentClosePolicy {
 	panic("unexpected enum value")
 }
 
+// FromTaskPriority converts internal TaskPriority type to thrift
+func FromTaskPriority(t *types.TaskPriority) *shared.TaskPriority {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case types.TaskPriorityInvalid:
+		v := shared.TaskPriorityInvalid
+		return &v
+	case types.TaskPriorityHigh:
+		v := shared.TaskPriorityHigh
+		return &v
+	case types.TaskPriorityDefault:
+		v := shared.TaskPriorityDefault
+		return &v
+	case types.TaskPriorityLow:
+		v := shared.TaskPriorityLow
+		return &v
+	case types.TaskPriorityAsync:
+		v := shared.TaskPriorityAsync
+		return &v
+	}
+	panic("unexpected enum value")
+}
+
+// ToTaskPriority converts thrift TaskPriority type to internal
+func ToTaskPriority(t *shared.TaskPriority) *types.TaskPriority {
+	if t == nil {
+		return nil
+	}
+	switch *t {
+	case shared.TaskPriorityInvalid:
+		v := types.TaskPriorityInvalid
+		return &v
+	case shared.TaskPriorityHigh:
+		v := types.TaskPriorityHigh
+		return &v
+	case shared.TaskPriorityDefault:
+		v := types.TaskPriorityDefault
+		return &v
+	case shared.TaskPriorityLow:
+		v := types.TaskPriorityLow
+		return &v
+	case shared.TaskPriorityAsync:
+		v := types.TaskPriorityAsync
+		return &v
+	}
+	panic("unexpected enum value")
+}
+
 // FromPendingActivityInfo converts internal PendingActivityInfo type to thrift
 func FromPendingActivityInfo(t *types.PendingActivityInfo) *shared.PendingActivityInfo {
 	if t == nil {
@@ -5674,6 +5724,7 @@ func FromStartChildWorkflowExecutionDecisionAttributes(t *types.StartChildWorkfl
 		SearchAttributes:                    FromSearchAttributes(t.SearchAttributes),
 		CronOverlapPolicy:                   FromCronOverlapPolicy(t.CronOverlapPolicy),
 		ActiveClusterSelectionPolicy:        FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		Priority:                            FromTaskPriority(t.Priority),
 	}
 }
 
@@ -5700,6 +5751,7 @@ func ToStartChildWorkflowExecutionDecisionAttributes(t *shared.StartChildWorkflo
 		SearchAttributes:                    ToSearchAttributes(t.SearchAttributes),
 		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
 		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		Priority:                            ToTaskPriority(t.Priority),
 	}
 }
 
@@ -5825,6 +5877,7 @@ func FromStartTimerDecisionAttributes(t *types.StartTimerDecisionAttributes) *sh
 	return &shared.StartTimerDecisionAttributes{
 		TimerId:                   &t.TimerID,
 		StartToFireTimeoutSeconds: t.StartToFireTimeoutSeconds,
+		Priority:                  FromTaskPriority(t.Priority),
 	}
 }
 
@@ -5836,6 +5889,7 @@ func ToStartTimerDecisionAttributes(t *shared.StartTimerDecisionAttributes) *typ
 	return &types.StartTimerDecisionAttributes{
 		TimerID:                   t.GetTimerId(),
 		StartToFireTimeoutSeconds: t.StartToFireTimeoutSeconds,
+		Priority:                  ToTaskPriority(t.Priority),
 	}
 }
 

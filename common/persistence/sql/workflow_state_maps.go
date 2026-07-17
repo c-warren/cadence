@@ -237,7 +237,8 @@ func updateTimerInfos(
 				// TaskID is a misleading variable, it actually serves
 				// the purpose of indicating whether a timer task is
 				// generated for this timer info
-				TaskID: timerInfo.TaskStatus,
+				TaskID:   timerInfo.TaskStatus,
+				Priority: int32(timerInfo.Priority),
 			})
 			if err != nil {
 				return err
@@ -306,6 +307,7 @@ func getTimerInfoMap(
 			// the purpose of indicating whether a timer task is
 			// generated for this timer info
 			TaskStatus: info.GetTaskID(),
+			Priority:   persistence.TaskPriority(info.GetPriority()),
 		}
 	}
 
@@ -365,6 +367,7 @@ func updateChildExecutionInfos(
 				DomainNameDEPRECATED:   childExecutionInfo.DomainNameDEPRECATED,
 				WorkflowTypeName:       childExecutionInfo.WorkflowTypeName,
 				ParentClosePolicy:      int32(childExecutionInfo.ParentClosePolicy),
+				Priority:               int32(childExecutionInfo.Priority),
 			}
 			blob, err := parser.ChildExecutionInfoToBlob(info)
 			if err != nil {
@@ -438,6 +441,7 @@ func getChildExecutionInfoMap(
 			DomainNameDEPRECATED:  rowInfo.GetDomainNameDEPRECATED(),
 			WorkflowTypeName:      rowInfo.GetWorkflowTypeName(),
 			ParentClosePolicy:     types.ParentClosePolicy(rowInfo.GetParentClosePolicy()),
+			Priority:              persistence.TaskPriority(rowInfo.GetPriority()),
 		}
 		if rowInfo.InitiatedEvent != nil {
 			info.InitiatedEvent = persistence.NewDataBlob(rowInfo.InitiatedEvent, constants.EncodingType(rowInfo.GetInitiatedEventEncoding()))

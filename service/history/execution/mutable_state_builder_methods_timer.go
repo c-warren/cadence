@@ -35,6 +35,17 @@ func (e *mutableStateBuilder) GetPendingTimerInfos() map[string]*persistence.Tim
 	return e.pendingTimerInfoIDs
 }
 
+// fromTypesTaskPriority converts an API-level (types) task priority into the
+// persistence-level task priority. The two enums share identical numeric
+// values, so the mapping is 1:1. A nil pointer (priority unspecified by the
+// client) maps to persistence.TaskPriorityUnset.
+func fromTypesTaskPriority(priority *types.TaskPriority) persistence.TaskPriority {
+	if priority == nil {
+		return persistence.TaskPriorityUnset
+	}
+	return persistence.TaskPriority(*priority)
+}
+
 func (e *mutableStateBuilder) AddTimerStartedEvent(
 	decisionCompletedEventID int64,
 	request *types.StartTimerDecisionAttributes,
@@ -60,6 +71,12 @@ func (e *mutableStateBuilder) AddTimerStartedEvent(
 	if err != nil {
 		return nil, nil, err
 	}
+	// The client-supplied priority is not carried on the history event, so it is
+	// applied to the pending timer info here on the active path. Timer tasks are
+	// generated separately (see timerSequence.CreateNextUserTimer), which reads
+	// the priority back off this info.
+	ti.Priority = fromTypesTaskPriority(request.Priority)
+	e.updateTimerInfos[ti.TimerID] = ti
 	return event, ti, err
 }
 

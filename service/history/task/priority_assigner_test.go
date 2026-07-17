@@ -37,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/constants"
@@ -89,6 +90,15 @@ func (s *taskPriorityAssignerSuite) SetupTest() {
 
 func (s *taskPriorityAssignerSuite) TearDownTest() {
 	s.controller.Finish()
+}
+
+// unsetPriorityInfo returns a persistence.Task mock whose GetPriority reports the
+// unset (runtime default) priority, i.e. not async. Used by tests that exercise the
+// normal (non-async) assignment path, where Assign reads GetInfo().GetPriority().
+func (s *taskPriorityAssignerSuite) unsetPriorityInfo() *persistence.MockTask {
+	info := persistence.NewMockTask(s.controller)
+	info.EXPECT().GetPriority().Return(persistence.TaskPriorityUnset).Times(1)
+	return info
 }
 
 func (s *taskPriorityAssignerSuite) TestGetDomainInfo_Success_Active() {
@@ -155,6 +165,7 @@ func (s *taskPriorityAssignerSuite) TestAssign_StandbyTask_StandbyDomain() {
 	mockTask.EXPECT().GetWorkflowID().Return(constants.TestWorkflowID).Times(1)
 	mockTask.EXPECT().GetRunID().Return(constants.TestRunID).Times(1)
 	mockTask.EXPECT().Priority().Return(noPriority).Times(1)
+	mockTask.EXPECT().GetInfo().Return(s.unsetPriorityInfo()).Times(1)
 	mockTask.EXPECT().SetPriority(commonconstants.GetTaskPriority(commonconstants.LowPriorityClass, commonconstants.DefaultPrioritySubclass)).Times(1)
 
 	err := s.priorityAssigner.Assign(mockTask)
@@ -171,6 +182,7 @@ func (s *taskPriorityAssignerSuite) TestAssign_StandbyTask_ActiveDomain() {
 	mockTask.EXPECT().GetWorkflowID().Return(constants.TestWorkflowID).Times(1)
 	mockTask.EXPECT().GetRunID().Return(constants.TestRunID).Times(1)
 	mockTask.EXPECT().Priority().Return(noPriority).Times(1)
+	mockTask.EXPECT().GetInfo().Return(s.unsetPriorityInfo()).Times(1)
 	mockTask.EXPECT().SetPriority(commonconstants.GetTaskPriority(commonconstants.HighPriorityClass, commonconstants.DefaultPrioritySubclass)).Times(1)
 
 	err := s.priorityAssigner.Assign(mockTask)
@@ -187,6 +199,7 @@ func (s *taskPriorityAssignerSuite) TestAssign_ActiveTask_StandbyDomain() {
 	mockTask.EXPECT().GetWorkflowID().Return(constants.TestWorkflowID).Times(1)
 	mockTask.EXPECT().GetRunID().Return(constants.TestRunID).Times(1)
 	mockTask.EXPECT().Priority().Return(noPriority).Times(1)
+	mockTask.EXPECT().GetInfo().Return(s.unsetPriorityInfo()).Times(1)
 	mockTask.EXPECT().SetPriority(commonconstants.GetTaskPriority(commonconstants.HighPriorityClass, commonconstants.DefaultPrioritySubclass)).Times(1)
 
 	err := s.priorityAssigner.Assign(mockTask)
@@ -203,6 +216,7 @@ func (s *taskPriorityAssignerSuite) TestAssign_ActiveTransferTask_ActiveDomain()
 	mockTask.EXPECT().GetWorkflowID().Return(constants.TestWorkflowID).Times(1)
 	mockTask.EXPECT().GetRunID().Return(constants.TestRunID).Times(1)
 	mockTask.EXPECT().Priority().Return(noPriority).Times(1)
+	mockTask.EXPECT().GetInfo().Return(s.unsetPriorityInfo()).Times(1)
 	mockTask.EXPECT().SetPriority(commonconstants.GetTaskPriority(commonconstants.HighPriorityClass, commonconstants.DefaultPrioritySubclass)).Times(1)
 
 	err := s.priorityAssigner.Assign(mockTask)
@@ -219,6 +233,7 @@ func (s *taskPriorityAssignerSuite) TestAssign_ActiveTimerTask_ActiveDomain() {
 	mockTask.EXPECT().GetWorkflowID().Return(constants.TestWorkflowID).Times(1)
 	mockTask.EXPECT().GetRunID().Return(constants.TestRunID).Times(1)
 	mockTask.EXPECT().Priority().Return(noPriority).Times(1)
+	mockTask.EXPECT().GetInfo().Return(s.unsetPriorityInfo()).Times(1)
 	mockTask.EXPECT().SetPriority(commonconstants.GetTaskPriority(commonconstants.HighPriorityClass, commonconstants.DefaultPrioritySubclass)).Times(1)
 
 	err := s.priorityAssigner.Assign(mockTask)
@@ -236,6 +251,7 @@ func (s *taskPriorityAssignerSuite) TestAssign_ThrottledTask() {
 		mockTask.EXPECT().GetWorkflowID().Return(constants.TestWorkflowID).Times(1)
 		mockTask.EXPECT().GetRunID().Return(constants.TestRunID).Times(1)
 		mockTask.EXPECT().Priority().Return(noPriority).Times(1)
+		mockTask.EXPECT().GetInfo().Return(s.unsetPriorityInfo()).Times(1)
 		if i < s.testTaskProcessRPS {
 			mockTask.EXPECT().SetPriority(commonconstants.GetTaskPriority(commonconstants.HighPriorityClass, commonconstants.DefaultPrioritySubclass)).Times(1)
 		} else {
@@ -262,6 +278,57 @@ func (s *taskPriorityAssignerSuite) TestAssign_AlreadyAssigned() {
 	mockTask.EXPECT().GetAttempt().Return(s.config.TaskCriticalRetryCount() + 1).Times(1)
 	mockTask.EXPECT().SetPriority(lowTaskPriority).Times(1)
 	err = s.priorityAssigner.Assign(mockTask)
+	s.NoError(err)
+}
+
+func (s *taskPriorityAssignerSuite) TestAssign_AsyncPersistedPriority() {
+	// A task persisted with async intent is assigned the async scheduling priority,
+	// even though its queue type (active timer + active domain) would otherwise make
+	// it high priority. The async check short-circuits before any domain lookup, so
+	// no domain cache or active cluster interactions are expected.
+	info := persistence.NewMockTask(s.controller)
+	info.EXPECT().GetPriority().Return(persistence.TaskPriorityAsync).Times(1)
+
+	mockTask := NewMockTask(s.controller)
+	mockTask.EXPECT().Priority().Return(noPriority).Times(1)
+	mockTask.EXPECT().GetQueueType().Return(QueueTypeActiveTimer).Times(1)
+	mockTask.EXPECT().GetInfo().Return(info).Times(1)
+	mockTask.EXPECT().SetPriority(asyncTaskPriority).Times(1)
+
+	err := s.priorityAssigner.Assign(mockTask)
+	s.NoError(err)
+}
+
+func (s *taskPriorityAssignerSuite) TestAssign_AlreadyAsync_NotDemotedOnRetry() {
+	// An already-assigned async task must not be demoted to low priority on retry:
+	// low (16) is numerically higher-priority than async (24), so demotion would
+	// actually raise it. No SetPriority call is expected.
+	mockTask := NewMockTask(s.controller)
+	mockTask.EXPECT().Priority().Return(asyncTaskPriority).Times(1)
+
+	err := s.priorityAssigner.Assign(mockTask)
+	s.NoError(err)
+}
+
+func (s *taskPriorityAssignerSuite) TestAssign_UnsetPersistedPriority_Unaffected() {
+	// A task with no explicit persisted priority falls through to the existing
+	// active/domain logic and is assigned high priority as before.
+	s.mockDomainCache.EXPECT().GetDomainByID(constants.TestDomainID).Return(constants.TestGlobalDomainEntry, nil)
+	s.mockActiveClusterMgr.EXPECT().GetActiveClusterInfoByWorkflow(gomock.Any(), constants.TestDomainID, constants.TestWorkflowID, constants.TestRunID).Return(&types.ActiveClusterInfo{ActiveClusterName: cluster.TestCurrentClusterName}, nil)
+
+	info := persistence.NewMockTask(s.controller)
+	info.EXPECT().GetPriority().Return(persistence.TaskPriorityUnset).Times(1)
+
+	mockTask := NewMockTask(s.controller)
+	mockTask.EXPECT().Priority().Return(noPriority).Times(1)
+	mockTask.EXPECT().GetQueueType().Return(QueueTypeActiveTimer).AnyTimes()
+	mockTask.EXPECT().GetInfo().Return(info).Times(1)
+	mockTask.EXPECT().GetDomainID().Return(constants.TestDomainID).Times(1)
+	mockTask.EXPECT().GetWorkflowID().Return(constants.TestWorkflowID).Times(1)
+	mockTask.EXPECT().GetRunID().Return(constants.TestRunID).Times(1)
+	mockTask.EXPECT().SetPriority(commonconstants.GetTaskPriority(commonconstants.HighPriorityClass, commonconstants.DefaultPrioritySubclass)).Times(1)
+
+	err := s.priorityAssigner.Assign(mockTask)
 	s.NoError(err)
 }
 

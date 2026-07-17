@@ -273,6 +273,8 @@ const (
 	DefaultPriorityClass
 	// LowPriorityClass is the priority class for low priority tasks
 	LowPriorityClass
+	// AsyncPriorityClass is the priority class for deprioritized async tasks
+	AsyncPriorityClass
 )
 
 const (

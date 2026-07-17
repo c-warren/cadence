@@ -6189,5 +6189,6 @@ var (
 		constants.GetTaskPriority(constants.HighPriorityClass, constants.DefaultPrioritySubclass):    500,
 		constants.GetTaskPriority(constants.DefaultPriorityClass, constants.DefaultPrioritySubclass): 20,
 		constants.GetTaskPriority(constants.LowPriorityClass, constants.DefaultPrioritySubclass):     5,
+		constants.GetTaskPriority(constants.AsyncPriorityClass, constants.DefaultPrioritySubclass):   1,
 	}
 )

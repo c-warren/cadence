@@ -82,6 +82,7 @@ func (s *taskSerializerImpl) serializeTransferTask(task persistence.Task) (persi
 		TargetWorkflowID:    persistence.TransferTaskTransferTargetWorkflowID,
 		Version:             task.GetVersion(),
 		VisibilityTimestamp: task.GetVisibilityTimestamp(),
+		Priority:            int32(task.GetPriority()),
 	}
 	switch t := task.(type) {
 	case *persistence.ActivityTask:
@@ -189,6 +190,7 @@ func (s *taskSerializerImpl) deserializeTransferTask(blob *persistence.DataBlob)
 	taskData := persistence.TaskData{
 		Version:             info.GetVersion(),
 		VisibilityTimestamp: info.GetVisibilityTimestamp(),
+		Priority:            persistence.TaskPriority(info.GetPriority()),
 	}
 	switch info.GetTaskType() {
 	case persistence.TransferTaskTypeDecisionTask:
@@ -290,6 +292,7 @@ func (s *taskSerializerImpl) serializeTimerTask(task persistence.Task) (persiste
 		TaskType: int16(task.GetTaskType()),
 		Version:  task.GetVersion(),
 		EventID:  constants.EmptyEventID,
+		Priority: int32(task.GetPriority()),
 	}
 	switch t := task.(type) {
 	case *persistence.DecisionTimeoutTask:
@@ -357,7 +360,8 @@ func (s *taskSerializerImpl) deserializeTimerTask(blob *persistence.DataBlob) (p
 		RunID:      info.RunID.String(),
 	}
 	taskData := persistence.TaskData{
-		Version: info.GetVersion(),
+		Version:  info.GetVersion(),
+		Priority: persistence.TaskPriority(info.GetPriority()),
 	}
 	switch info.GetTaskType() {
 	case persistence.TaskTypeDecisionTimeout:

@@ -14,14 +14,13 @@ import (
 	reflect "reflect"
 	time "time"
 
-	gomock "go.uber.org/mock/gomock"
-
 	cache "github.com/uber/cadence/common/cache"
 	checksum "github.com/uber/cadence/common/checksum"
 	definition "github.com/uber/cadence/common/definition"
 	persistence "github.com/uber/cadence/common/persistence"
 	types "github.com/uber/cadence/common/types"
 	query "github.com/uber/cadence/service/history/query"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockMutableState is a mock of MutableState interface.
@@ -2165,18 +2164,18 @@ func (mr *MockMutableStateMockRecorder) ReplicateStartChildWorkflowExecutionFail
 }
 
 // ReplicateStartChildWorkflowExecutionInitiatedEvent mocks base method.
-func (m *MockMutableState) ReplicateStartChildWorkflowExecutionInitiatedEvent(arg0 int64, arg1 *types.HistoryEvent, arg2 string) (*persistence.ChildExecutionInfo, error) {
+func (m *MockMutableState) ReplicateStartChildWorkflowExecutionInitiatedEvent(arg0 int64, arg1 *types.HistoryEvent, arg2 string, arg3 persistence.TaskPriority) (*persistence.ChildExecutionInfo, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReplicateStartChildWorkflowExecutionInitiatedEvent", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "ReplicateStartChildWorkflowExecutionInitiatedEvent", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(*persistence.ChildExecutionInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // ReplicateStartChildWorkflowExecutionInitiatedEvent indicates an expected call of ReplicateStartChildWorkflowExecutionInitiatedEvent.
-func (mr *MockMutableStateMockRecorder) ReplicateStartChildWorkflowExecutionInitiatedEvent(arg0, arg1, arg2 any) *gomock.Call {
+func (mr *MockMutableStateMockRecorder) ReplicateStartChildWorkflowExecutionInitiatedEvent(arg0, arg1, arg2, arg3 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateStartChildWorkflowExecutionInitiatedEvent", reflect.TypeOf((*MockMutableState)(nil).ReplicateStartChildWorkflowExecutionInitiatedEvent), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateStartChildWorkflowExecutionInitiatedEvent", reflect.TypeOf((*MockMutableState)(nil).ReplicateStartChildWorkflowExecutionInitiatedEvent), arg0, arg1, arg2, arg3)
 }
 
 // ReplicateTimerCanceledEvent mocks base method.

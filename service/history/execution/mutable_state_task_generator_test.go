@@ -1026,6 +1026,7 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateChildWorkflowTasks() {
 			Version:           constants.TestVersion,
 			InitiatedID:       123,
 			StartedWorkflowID: constants.TestWorkflowID,
+			Priority:          persistence.TaskPriorityAsync,
 		}
 	}
 
@@ -1065,7 +1066,8 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateChildWorkflowTasks() {
 						RunID:      "rid",
 					},
 					TaskData: persistence.TaskData{
-						Version: childWorkflowInfo.Version,
+						Version:  childWorkflowInfo.Version,
+						Priority: persistence.TaskPriorityAsync,
 					},
 					TargetDomainID:   childWorkflowInfo.DomainID,
 					TargetWorkflowID: childWorkflowInfo.StartedWorkflowID,
@@ -1095,7 +1097,8 @@ func (s *mutableStateTaskGeneratorSuite) TestGenerateChildWorkflowTasks() {
 						RunID:      "rid",
 					},
 					TaskData: persistence.TaskData{
-						Version: childWorkflowInfo.Version,
+						Version:  childWorkflowInfo.Version,
+						Priority: persistence.TaskPriorityAsync,
 					},
 					TargetDomainID:   constants.TestDomainID,
 					TargetWorkflowID: childWorkflowInfo.StartedWorkflowID,

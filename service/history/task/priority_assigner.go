@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/quotas"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
@@ -40,6 +41,7 @@ var (
 	highTaskPriority    = constants.GetTaskPriority(constants.HighPriorityClass, constants.DefaultPrioritySubclass)
 	defaultTaskPriority = constants.GetTaskPriority(constants.DefaultPriorityClass, constants.DefaultPrioritySubclass)
 	lowTaskPriority     = constants.GetTaskPriority(constants.LowPriorityClass, constants.DefaultPrioritySubclass)
+	asyncTaskPriority   = constants.GetTaskPriority(constants.AsyncPriorityClass, constants.DefaultPrioritySubclass)
 )
 
 type priorityAssignerImpl struct {
@@ -78,7 +80,7 @@ func NewPriorityAssigner(
 
 func (a *priorityAssignerImpl) Assign(queueTask Task) error {
 	if priority := queueTask.Priority(); priority != noPriority {
-		if priority != lowTaskPriority && queueTask.GetAttempt() > a.config.TaskCriticalRetryCount() {
+		if priority != lowTaskPriority && priority != asyncTaskPriority && queueTask.GetAttempt() > a.config.TaskCriticalRetryCount() {
 			// automatically lower the priority if task attempt exceeds certain threshold
 			queueTask.SetPriority(lowTaskPriority)
 		}
@@ -89,6 +91,15 @@ func (a *priorityAssignerImpl) Assign(queueTask Task) error {
 
 	if queueType == QueueTypeReplication {
 		queueTask.SetPriority(lowTaskPriority)
+		return nil
+	}
+
+	// tasks persisted with async intent are scheduled on the deprioritized async
+	// priority class so they yield to higher-priority work under backlog. This wins
+	// regardless of active/standby/domain-active status, but not over the replication
+	// special-case above.
+	if queueTask.GetInfo().GetPriority() == persistence.TaskPriorityAsync {
+		queueTask.SetPriority(asyncTaskPriority)
 		return nil
 	}
 

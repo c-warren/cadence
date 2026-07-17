@@ -117,6 +117,7 @@ var expectedNil = map[string]map[string]any{
 		"GetVisibilityTimestamp":     zeroUnix,
 		"GetOriginalTaskList":        "",
 		"GetOriginalTaskListKind":    types.TaskListKindNormal,
+		"GetPriority":                int32(0),
 	},
 	"*serialization.TimerTaskInfo": {
 		"GetDomainID":        []uint8(nil),
@@ -128,6 +129,7 @@ var expectedNil = map[string]map[string]any{
 		"GetVersion":         int64(0),
 		"GetWorkflowID":      "",
 		"GetTaskList":        "",
+		"GetPriority":        int32(0),
 	},
 	"*serialization.ReplicationTaskInfo": {
 		"GetBranchToken":             []uint8(nil),
@@ -163,6 +165,7 @@ var expectedNil = map[string]map[string]any{
 		"GetStartedID":       int64(0),
 		"GetTaskID":          int64(0),
 		"GetVersion":         int64(0),
+		"GetPriority":        int32(0),
 	},
 	"*serialization.RequestCancelInfo": {
 		"GetCancelRequestID":       "",
@@ -185,6 +188,7 @@ var expectedNil = map[string]map[string]any{
 		"GetInitiatedEventBatchID":  int64(0),
 		"GetInitiatedEventEncoding": "",
 		"GetParentClosePolicy":      int32(0),
+		"GetPriority":               int32(0),
 		"GetStartedEvent":           []uint8(nil),
 		"GetStartedEventEncoding":   "",
 		"GetStartedID":              int64(0),
@@ -365,6 +369,7 @@ var expectedEmpty = map[string]map[string]any{
 		"GetVisibilityTimestamp":     time.Time{},
 		"GetOriginalTaskList":        "",
 		"GetOriginalTaskListKind":    types.TaskListKindNormal,
+		"GetPriority":                int32(0),
 	},
 	"*serialization.TimerTaskInfo": {
 		"GetDomainID":        []uint8(nil),
@@ -376,6 +381,7 @@ var expectedEmpty = map[string]map[string]any{
 		"GetVersion":         int64(0),
 		"GetWorkflowID":      "",
 		"GetTaskList":        "",
+		"GetPriority":        int32(0),
 	},
 	"*serialization.ReplicationTaskInfo": {
 		"GetBranchToken":             []uint8(nil),
@@ -411,6 +417,7 @@ var expectedEmpty = map[string]map[string]any{
 		"GetStartedID":       int64(0),
 		"GetTaskID":          int64(0),
 		"GetVersion":         int64(0),
+		"GetPriority":        int32(0),
 	},
 	"*serialization.RequestCancelInfo": {
 		"GetCancelRequestID":       "",
@@ -433,6 +440,7 @@ var expectedEmpty = map[string]map[string]any{
 		"GetInitiatedEventBatchID":  int64(0),
 		"GetInitiatedEventEncoding": "",
 		"GetParentClosePolicy":      int32(0),
+		"GetPriority":               int32(0),
 		"GetStartedEvent":           []uint8(nil),
 		"GetStartedEventEncoding":   "",
 		"GetStartedID":              int64(0),
@@ -615,6 +623,7 @@ var expectedNonEmpty = map[string]map[string]any{
 		"GetVisibilityTimestamp":     taskInfoCreateTime,
 		"GetOriginalTaskList":        "originalTaskList",
 		"GetOriginalTaskListKind":    types.TaskListKindEphemeral,
+		"GetPriority":                int32(6),
 	},
 	"*serialization.TimerTaskInfo": {
 		"GetDomainID":        []byte(taskDomainID),
@@ -626,6 +635,7 @@ var expectedNonEmpty = map[string]map[string]any{
 		"GetVersion":         int64(3),
 		"GetWorkflowID":      "workflowID",
 		"GetTaskList":        "taskList",
+		"GetPriority":        int32(6),
 	},
 	"*serialization.ReplicationTaskInfo": {
 		"GetBranchToken":             []byte("branchToken"),
@@ -661,6 +671,7 @@ var expectedNonEmpty = map[string]map[string]any{
 		"GetStartedID":       int64(2),
 		"GetTaskID":          int64(3),
 		"GetVersion":         int64(1),
+		"GetPriority":        int32(4),
 	},
 	"*serialization.RequestCancelInfo": {
 		"GetCancelRequestID":       "cancelRequestID",
@@ -683,6 +694,7 @@ var expectedNonEmpty = map[string]map[string]any{
 		"GetInitiatedEventBatchID":  int64(2),
 		"GetInitiatedEventEncoding": "initiatedEventEncoding",
 		"GetParentClosePolicy":      int32(1),
+		"GetPriority":               int32(4),
 		"GetStartedEvent":           []byte("startedEvent"),
 		"GetStartedEventEncoding":   "startedEventEncoding",
 		"GetStartedID":              int64(3),

@@ -481,6 +481,7 @@ func childExecutionInfoToThrift(info *ChildExecutionInfo) *sqlblobs.ChildExecuti
 		DomainName:             &info.DomainNameDEPRECATED,
 		WorkflowTypeName:       &info.WorkflowTypeName,
 		ParentClosePolicy:      &info.ParentClosePolicy,
+		Priority:               &info.Priority,
 	}
 }
 
@@ -503,6 +504,7 @@ func childExecutionInfoFromThrift(info *sqlblobs.ChildExecutionInfo) *ChildExecu
 		DomainNameDEPRECATED:   info.GetDomainName(),
 		WorkflowTypeName:       info.GetWorkflowTypeName(),
 		ParentClosePolicy:      info.GetParentClosePolicy(),
+		Priority:               info.GetPriority(),
 	}
 }
 
@@ -565,6 +567,7 @@ func timerInfoToThrift(info *TimerInfo) *sqlblobs.TimerInfo {
 		StartedID:       &info.StartedID,
 		ExpiryTimeNanos: timeToUnixNanoPtr(info.ExpiryTimestamp),
 		TaskID:          &info.TaskID,
+		Priority:        &info.Priority,
 	}
 }
 
@@ -577,6 +580,7 @@ func timerInfoFromThrift(info *sqlblobs.TimerInfo) *TimerInfo {
 		StartedID:       info.GetStartedID(),
 		ExpiryTimestamp: timeFromUnixNano(info.GetExpiryTimeNanos()),
 		TaskID:          info.GetTaskID(),
+		Priority:        info.GetPriority(),
 	}
 }
 
@@ -702,6 +706,7 @@ func transferTaskInfoToThrift(info *TransferTaskInfo) *sqlblobs.TransferTaskInfo
 		VisibilityTimestampNanos: timeToUnixNanoPtr(info.VisibilityTimestamp),
 		OriginalTaskList:         &info.OriginalTaskList,
 		OriginalTaskListKind:     thrift.FromTaskListKind(&info.OriginalTaskListKind),
+		Priority:                 &info.Priority,
 	}
 	if len(info.TargetDomainIDs) > 0 {
 		thriftTaskInfo.TargetDomainIDs = [][]byte{}
@@ -732,6 +737,7 @@ func transferTaskInfoFromThrift(info *sqlblobs.TransferTaskInfo) *TransferTaskIn
 		VisibilityTimestamp:     timeFromUnixNano(info.GetVisibilityTimestampNanos()),
 		OriginalTaskList:        info.GetOriginalTaskList(),
 		OriginalTaskListKind:    taskListKindFromThrift(info.OriginalTaskListKind),
+		Priority:                info.GetPriority(),
 	}
 	if len(info.GetTargetDomainIDs()) > 0 {
 		transferTaskInfo.TargetDomainIDs = []UUID{}
@@ -764,6 +770,7 @@ func timerTaskInfoToThrift(info *TimerTaskInfo) *sqlblobs.TimerTaskInfo {
 		ScheduleAttempt: &info.ScheduleAttempt,
 		EventID:         &info.EventID,
 		TaskList:        &info.TaskList,
+		Priority:        &info.Priority,
 	}
 }
 
@@ -781,6 +788,7 @@ func timerTaskInfoFromThrift(info *sqlblobs.TimerTaskInfo) *TimerTaskInfo {
 		ScheduleAttempt: info.GetScheduleAttempt(),
 		EventID:         info.GetEventID(),
 		TaskList:        info.GetTaskList(),
+		Priority:        info.GetPriority(),
 	}
 }
 

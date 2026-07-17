@@ -97,6 +97,7 @@ func (s *timerSequenceSuite) TestCreateNextUserTimer_NotCreated() {
 		StartedID:  456,
 		ExpiryTime: now.Add(100 * time.Second),
 		TaskStatus: TimerTaskStatusNone,
+		Priority:   persistence.TaskPriorityAsync,
 	}
 	timerInfos := map[string]*persistence.TimerInfo{timerInfo.TimerID: timerInfo}
 	s.mockMutableState.EXPECT().GetExecutionInfo().Return(&persistence.WorkflowExecutionInfo{
@@ -122,6 +123,7 @@ func (s *timerSequenceSuite) TestCreateNextUserTimer_NotCreated() {
 			// TaskID is set by shard
 			VisibilityTimestamp: timerInfo.ExpiryTime,
 			Version:             currentVersion,
+			Priority:            persistence.TaskPriorityAsync,
 		},
 		EventID:  timerInfo.StartedID,
 		TaskList: "task-list",

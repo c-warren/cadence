@@ -221,6 +221,7 @@ CREATE TYPE timer_info (
   -- the purpose of indicating whether a timer task is
   -- generated for this timer info
   task_id       bigint,
+  priority      int,
 );
 
 -- Child execution in progress mutable state
@@ -239,6 +240,7 @@ CREATE TYPE child_execution_info (
   domain_name               text, -- deprecated
   workflow_type_name        text,
   parent_close_policy       int,
+  priority                  int,
 );
 
 -- External workflow cancellation in progress mutable state

@@ -856,6 +856,7 @@ func resetChildExecutionInfoMap(childExecutionInfos map[int64]*persistence.Inter
 		cInfo["domain_name"] = c.DomainNameDEPRECATED
 		cInfo["workflow_type_name"] = c.WorkflowTypeName
 		cInfo["parent_close_policy"] = int32(c.ParentClosePolicy)
+		cInfo["priority"] = int32(c.Priority)
 
 		cMap[c.InitiatedID] = cInfo
 	}
@@ -890,6 +891,7 @@ func updateChildExecutionInfos(
 			c.DomainNameDEPRECATED,
 			c.WorkflowTypeName,
 			int32(c.ParentClosePolicy),
+			int32(c.Priority),
 			timeStamp,
 			shardID,
 			rowTypeExecution,
@@ -949,6 +951,7 @@ func resetTimerInfoMap(timerInfos map[string]*persistence.TimerInfo) map[string]
 		// the purpose of indicating whether a timer task is
 		// generated for this timer info
 		tInfo["task_id"] = t.TaskStatus
+		tInfo["priority"] = int32(t.Priority)
 
 		tMap[t.TimerID] = tInfo
 	}
@@ -974,6 +977,7 @@ func updateTimerInfos(
 			timerInfo.StartedID,
 			timerInfo.ExpiryTime,
 			timerInfo.TaskStatus,
+			int32(timerInfo.Priority),
 			timeStamp,
 			shardID,
 			rowTypeExecution,

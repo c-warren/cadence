@@ -186,7 +186,8 @@ const (
 		`timer_id: ?, ` +
 		`started_id: ?, ` +
 		`expiry_time: ?, ` +
-		`task_id: ?` +
+		`task_id: ?, ` +
+		`priority: ?` +
 		`}`
 
 	templateChildExecutionInfoType = `{` +
@@ -203,7 +204,8 @@ const (
 		`domain_id: ?, ` +
 		`domain_name: ?, ` +
 		`workflow_type_name: ?, ` +
-		`parent_close_policy: ?` +
+		`parent_close_policy: ?, ` +
+		`priority: ?` +
 		`}`
 
 	templateRequestCancelInfoType = `{` +

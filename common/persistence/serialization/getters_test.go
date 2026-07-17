@@ -167,6 +167,7 @@ func TestGettersForInfos(t *testing.T) {
 			VisibilityTimestamp:     taskInfoCreateTime,
 			OriginalTaskList:        "originalTaskList",
 			OriginalTaskListKind:    types.TaskListKindEphemeral,
+			Priority:                6,
 		},
 		&TimerTaskInfo{
 			DomainID:        taskDomainID,
@@ -178,6 +179,7 @@ func TestGettersForInfos(t *testing.T) {
 			ScheduleAttempt: 4,
 			EventID:         5,
 			TaskList:        "taskList",
+			Priority:        6,
 		},
 		&ReplicationTaskInfo{
 			DomainID:                replicationTaskDomainID,
@@ -215,6 +217,7 @@ func TestGettersForInfos(t *testing.T) {
 			StartedID:       2,
 			ExpiryTimestamp: timerInfoExpireTime,
 			TaskID:          3,
+			Priority:        4,
 		},
 		&RequestCancelInfo{
 			Version:               1,
@@ -243,6 +246,7 @@ func TestGettersForInfos(t *testing.T) {
 			DomainID:               "domainID",
 			WorkflowTypeName:       "workflowTypeName",
 			ParentClosePolicy:      1,
+			Priority:               4,
 		},
 		&ActivityInfo{
 			Version:                  1,

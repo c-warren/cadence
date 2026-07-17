@@ -4792,6 +4792,78 @@ const (
 	ParentClosePolicyTerminate
 )
 
+// TaskPriority is an internal type (TBD...)
+type TaskPriority int32
+
+// Ptr is a helper function for getting pointer value
+func (e TaskPriority) Ptr() *TaskPriority {
+	return &e
+}
+
+// String returns a readable string representation of TaskPriority.
+func (e TaskPriority) String() string {
+	w := int32(e)
+	switch w {
+	case 0:
+		return "TASK_PRIORITY_INVALID"
+	case 1:
+		return "TASK_PRIORITY_HIGH"
+	case 2:
+		return "TASK_PRIORITY_DEFAULT"
+	case 3:
+		return "TASK_PRIORITY_LOW"
+	case 4:
+		return "TASK_PRIORITY_ASYNC"
+	}
+	return fmt.Sprintf("TaskPriority(%d)", w)
+}
+
+// UnmarshalText parses enum value from string representation
+func (e *TaskPriority) UnmarshalText(value []byte) error {
+	switch s := strings.ToUpper(string(value)); s {
+	case "TASK_PRIORITY_INVALID":
+		*e = TaskPriorityInvalid
+		return nil
+	case "TASK_PRIORITY_HIGH":
+		*e = TaskPriorityHigh
+		return nil
+	case "TASK_PRIORITY_DEFAULT":
+		*e = TaskPriorityDefault
+		return nil
+	case "TASK_PRIORITY_LOW":
+		*e = TaskPriorityLow
+		return nil
+	case "TASK_PRIORITY_ASYNC":
+		*e = TaskPriorityAsync
+		return nil
+	default:
+		val, err := strconv.ParseInt(s, 10, 32)
+		if err != nil {
+			return fmt.Errorf("unknown enum value %q for %q: %v", s, "TaskPriority", err)
+		}
+		*e = TaskPriority(val)
+		return nil
+	}
+}
+
+// MarshalText encodes TaskPriority to text.
+func (e TaskPriority) MarshalText() ([]byte, error) {
+	return []byte(e.String()), nil
+}
+
+const (
+	// TaskPriorityInvalid is an option for TaskPriority
+	TaskPriorityInvalid TaskPriority = iota
+	// TaskPriorityHigh is an option for TaskPriority
+	TaskPriorityHigh
+	// TaskPriorityDefault is an option for TaskPriority
+	TaskPriorityDefault
+	// TaskPriorityLow is an option for TaskPriority
+	TaskPriorityLow
+	// TaskPriorityAsync is an option for TaskPriority
+	TaskPriorityAsync
+)
+
 // PendingActivityInfo is an internal type (TBD...)
 type PendingActivityInfo struct {
 	ActivityID             string                `json:"activityID,omitempty"`
@@ -7243,6 +7315,7 @@ type StartChildWorkflowExecutionDecisionAttributes struct {
 	SearchAttributes                    *SearchAttributes             `json:"searchAttributes,omitempty"`
 	CronOverlapPolicy                   *CronOverlapPolicy            `json:"cronOverlapPolicy,omitempty"`
 	ActiveClusterSelectionPolicy        *ActiveClusterSelectionPolicy `json:"activeClusterSelectionPolicy,omitempty"`
+	Priority                            *TaskPriority                 `json:"priority,omitempty"`
 }
 
 // GetDomain is an internal getter (TBD...)
@@ -7419,8 +7492,9 @@ func (v *StartTimeFilter) GetLatestTime() (o int64) {
 
 // StartTimerDecisionAttributes is an internal type (TBD...)
 type StartTimerDecisionAttributes struct {
-	TimerID                   string `json:"timerId,omitempty"`
-	StartToFireTimeoutSeconds *int64 `json:"startToFireTimeoutSeconds,omitempty"`
+	TimerID                   string        `json:"timerId,omitempty"`
+	StartToFireTimeoutSeconds *int64        `json:"startToFireTimeoutSeconds,omitempty"`
+	Priority                  *TaskPriority `json:"priority,omitempty"`
 }
 
 // GetTimerID is an internal getter (TBD...)

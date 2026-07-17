@@ -318,6 +318,11 @@ func (b *stateBuilderImpl) ApplyEvents(
 				// create a new request ID which is used by transfer queue processor
 				// if domain is failed over at this point
 				uuid.New(),
+				// Priority is not carried on the history event, so it cannot be
+				// recovered on the replication/replay path; it is only restored from
+				// persisted mutable state on same-cluster reload (same cross-cluster
+				// limitation as the user-timer priority path).
+				persistence.TaskPriorityUnset,
 			); err != nil {
 				return nil, err
 			}

@@ -2022,6 +2022,39 @@ func ToParentClosePolicy(t apiv1.ParentClosePolicy) *types.ParentClosePolicy {
 	return nil
 }
 
+func FromTaskPriority(t *types.TaskPriority) apiv1.TaskPriority {
+	if t == nil {
+		return apiv1.TaskPriority_TASK_PRIORITY_INVALID
+	}
+	switch *t {
+	case types.TaskPriorityHigh:
+		return apiv1.TaskPriority_TASK_PRIORITY_HIGH
+	case types.TaskPriorityDefault:
+		return apiv1.TaskPriority_TASK_PRIORITY_DEFAULT
+	case types.TaskPriorityLow:
+		return apiv1.TaskPriority_TASK_PRIORITY_LOW
+	case types.TaskPriorityAsync:
+		return apiv1.TaskPriority_TASK_PRIORITY_ASYNC
+	}
+	return apiv1.TaskPriority_TASK_PRIORITY_INVALID
+}
+
+func ToTaskPriority(t apiv1.TaskPriority) *types.TaskPriority {
+	switch t {
+	case apiv1.TaskPriority_TASK_PRIORITY_INVALID:
+		return nil
+	case apiv1.TaskPriority_TASK_PRIORITY_HIGH:
+		return types.TaskPriorityHigh.Ptr()
+	case apiv1.TaskPriority_TASK_PRIORITY_DEFAULT:
+		return types.TaskPriorityDefault.Ptr()
+	case apiv1.TaskPriority_TASK_PRIORITY_LOW:
+		return types.TaskPriorityLow.Ptr()
+	case apiv1.TaskPriority_TASK_PRIORITY_ASYNC:
+		return types.TaskPriorityAsync.Ptr()
+	}
+	return nil
+}
+
 func FromPendingActivityInfo(t *types.PendingActivityInfo) *apiv1.PendingActivityInfo {
 	if t == nil {
 		return nil
@@ -3604,6 +3637,7 @@ func FromStartChildWorkflowExecutionDecisionAttributes(t *types.StartChildWorkfl
 		SearchAttributes:             FromSearchAttributes(t.SearchAttributes),
 		CronOverlapPolicy:            FromCronOverlapPolicy(t.CronOverlapPolicy),
 		ActiveClusterSelectionPolicy: FromActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		Priority:                     FromTaskPriority(t.Priority),
 	}
 }
 
@@ -3629,6 +3663,7 @@ func ToStartChildWorkflowExecutionDecisionAttributes(t *apiv1.StartChildWorkflow
 		SearchAttributes:                    ToSearchAttributes(t.SearchAttributes),
 		CronOverlapPolicy:                   ToCronOverlapPolicy(t.CronOverlapPolicy),
 		ActiveClusterSelectionPolicy:        ToActiveClusterSelectionPolicy(t.ActiveClusterSelectionPolicy),
+		Priority:                            ToTaskPriority(t.Priority),
 	}
 }
 
@@ -3747,6 +3782,7 @@ func FromStartTimerDecisionAttributes(t *types.StartTimerDecisionAttributes) *ap
 	return &apiv1.StartTimerDecisionAttributes{
 		TimerId:            t.TimerID,
 		StartToFireTimeout: secondsToDuration(int64To32(t.StartToFireTimeoutSeconds)),
+		Priority:           FromTaskPriority(t.Priority),
 	}
 }
 
@@ -3757,6 +3793,7 @@ func ToStartTimerDecisionAttributes(t *apiv1.StartTimerDecisionAttributes) *type
 	return &types.StartTimerDecisionAttributes{
 		TimerID:                   t.TimerId,
 		StartToFireTimeoutSeconds: int32To64(durationToSeconds(t.StartToFireTimeout)),
+		Priority:                  ToTaskPriority(t.Priority),
 	}
 }
 

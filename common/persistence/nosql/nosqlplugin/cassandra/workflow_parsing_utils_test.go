@@ -476,6 +476,7 @@ func Test_parseTimerInfo(t *testing.T) {
 		"started_id":  int64(2),
 		"expiry_time": timeNow,
 		"task_id":     int64(3),
+		"priority":    int(4),
 	}
 	expected := &persistence.TimerInfo{
 		Version:    int64(1),
@@ -483,6 +484,7 @@ func Test_parseTimerInfo(t *testing.T) {
 		StartedID:  int64(2),
 		ExpiryTime: timeNow,
 		TaskStatus: int64(3),
+		Priority:   persistence.TaskPriority(4),
 	}
 	assert.Equal(t, expected, parseTimerInfo(testInput))
 }
@@ -505,6 +507,7 @@ func Test_parseChildExecutionInfo(t *testing.T) {
 		"domain_id":                domainID,
 		"workflow_type_name":       "workflow_type_name",
 		"parent_close_policy":      1,
+		"priority":                 5,
 	}
 	expected := &persistence.InternalChildExecutionInfo{
 		Version:               int64(1),
@@ -519,6 +522,7 @@ func Test_parseChildExecutionInfo(t *testing.T) {
 		DomainID:              domainID.String(),
 		WorkflowTypeName:      "workflow_type_name",
 		ParentClosePolicy:     1,
+		Priority:              persistence.TaskPriority(5),
 	}
 	assert.Equal(t, expected, parseChildExecutionInfo(testInput))
 

@@ -132,7 +132,16 @@ func (e *mutableStateBuilder) AddStartChildWorkflowExecutionInitiatedEvent(
 	e.eventsCache.PutEvent(e.executionInfo.DomainID, e.executionInfo.WorkflowID, e.executionInfo.RunID,
 		event.ID, event)
 
-	ci, err := e.ReplicateStartChildWorkflowExecutionInitiatedEvent(decisionCompletedEventID, event, createRequestID)
+	ci, err := e.ReplicateStartChildWorkflowExecutionInitiatedEvent(
+		decisionCompletedEventID,
+		event,
+		createRequestID,
+		// The client-supplied priority is not carried on the history event, so it
+		// is threaded in here on the active path. Replicate applies it to the
+		// pending child execution info before generating the StartChildExecutionTask,
+		// so the very first task carries the priority too.
+		fromTypesTaskPriority(attributes.Priority),
+	)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -143,6 +152,7 @@ func (e *mutableStateBuilder) ReplicateStartChildWorkflowExecutionInitiatedEvent
 	firstEventID int64,
 	event *types.HistoryEvent,
 	createRequestID string,
+	priority persistence.TaskPriority,
 ) (*persistence.ChildExecutionInfo, error) {
 
 	initiatedEventID := event.ID
@@ -169,6 +179,7 @@ func (e *mutableStateBuilder) ReplicateStartChildWorkflowExecutionInitiatedEvent
 		// DomainName:            attributes.GetDomain(),
 		WorkflowTypeName:  attributes.GetWorkflowType().GetName(),
 		ParentClosePolicy: attributes.GetParentClosePolicy(),
+		Priority:          priority,
 	}
 
 	e.pendingChildExecutionInfoIDs[ci.InitiatedID] = ci

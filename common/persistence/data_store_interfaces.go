@@ -520,6 +520,7 @@ type (
 		DomainNameDEPRECATED  string // deprecated: use DomainID field
 		WorkflowTypeName      string
 		ParentClosePolicy     types.ParentClosePolicy
+		Priority              TaskPriority
 	}
 
 	// InternalUpdateWorkflowExecutionRequest is used to update a workflow execution for Persistence Interface

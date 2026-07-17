@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.50",
+  "MinCompatibleVersion": "0.50",
+  "Description": "Add priority to timer_info and child_execution_info UDTs",
+  "SchemaUpdateCqlFiles": [
+    "info_priority.cql"
+  ]
+}

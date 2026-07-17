@@ -1282,6 +1282,14 @@ func (c *ChildExecutionInfo) GetStartedEvent() (o []byte) {
 	return
 }
 
+// GetPriority internal sql blob getter
+func (c *ChildExecutionInfo) GetPriority() (o int32) {
+	if c != nil {
+		return c.Priority
+	}
+	return
+}
+
 // GetVersion internal sql blob getter
 func (s *SignalInfo) GetVersion() (o int64) {
 	if s != nil {
@@ -1384,6 +1392,14 @@ func (t *TimerInfo) GetExpiryTimestamp() (o time.Time) {
 		return t.ExpiryTimestamp
 	}
 	return time.Unix(0, 0)
+}
+
+// GetPriority internal sql blob getter
+func (t *TimerInfo) GetPriority() (o int32) {
+	if t != nil {
+		return t.Priority
+	}
+	return
 }
 
 // GetWorkflowID internal sql blob getter
@@ -1590,6 +1606,14 @@ func (t *TransferTaskInfo) GetOriginalTaskListKind() (o types.TaskListKind) {
 	return
 }
 
+// GetPriority internal sql blob getter
+func (t *TransferTaskInfo) GetPriority() (o int32) {
+	if t != nil {
+		return t.Priority
+	}
+	return
+}
+
 // GetDomainID internal sql blob getter
 func (t *TimerTaskInfo) GetDomainID() (o []byte) {
 	if t != nil && t.DomainID != nil {
@@ -1658,6 +1682,14 @@ func (t *TimerTaskInfo) GetEventID() (o int64) {
 func (t *TimerTaskInfo) GetTaskList() (o string) {
 	if t != nil {
 		return t.TaskList
+	}
+	return
+}
+
+// GetPriority internal sql blob getter
+func (t *TimerTaskInfo) GetPriority() (o int32) {
+	if t != nil {
+		return t.Priority
 	}
 	return
 }

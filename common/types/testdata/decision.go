@@ -181,10 +181,12 @@ var (
 		Memo:                                &Memo,
 		SearchAttributes:                    &SearchAttributes,
 		CronOverlapPolicy:                   &CronOverlapPolicy,
+		Priority:                            &TaskPriority,
 	}
 	StartTimerDecisionAttributes = types.StartTimerDecisionAttributes{
 		TimerID:                   TimerID,
 		StartToFireTimeoutSeconds: common.Int64Ptr(int64(Duration1)),
+		Priority:                  &TaskPriority,
 	}
 	UpsertWorkflowSearchAttributesDecisionAttributes = types.UpsertWorkflowSearchAttributesDecisionAttributes{
 		SearchAttributes: &SearchAttributes,

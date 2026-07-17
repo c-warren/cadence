@@ -294,6 +294,43 @@ func TestAddChildEvents(t *testing.T) {
 			},
 		},
 		{
+			name: "StartChildWorkflowExecutionInitiated: stores priority on child info and first task",
+			mockAllowances: func(ctx *shard.TestContext) {
+				ctx.MockEventsCache.EXPECT().PutEvent(constants.TestDomainID, parentWfID, parentRunID, nextEventID, gomock.Any())
+			},
+			eventFn: func(builder *mutableStateBuilder) (*types.HistoryEvent, error) {
+				attrsWithPriority := *decisionAttributes
+				attrsWithPriority.Priority = types.TaskPriority(persistence.TaskPriorityAsync).Ptr()
+				event, _, e := builder.AddStartChildWorkflowExecutionInitiatedEvent(decisionID, requestID, &attrsWithPriority)
+				return event, e
+			},
+			expectedEvent: &types.HistoryEvent{
+				ID:        nextEventID,
+				Timestamp: &currentTimestamp,
+				EventType: types.EventTypeStartChildWorkflowExecutionInitiated.Ptr(),
+				Version:   commonconstants.EmptyVersion,
+				TaskID:    commonconstants.EmptyEventTaskID,
+				StartChildWorkflowExecutionInitiatedEventAttributes: initiatedAttributes,
+			},
+			assertFn: func(t *testing.T, builder *mutableStateBuilder) {
+				ci, ok := builder.GetChildExecutionInfo(nextEventID)
+				assert.True(t, ok)
+				assert.Equal(t, persistence.TaskPriorityAsync, ci.Priority)
+
+				// The StartChildExecutionTask generated inline at initiation must
+				// carry the priority too (not just the persisted child info).
+				var startChildTask *persistence.StartChildExecutionTask
+				for _, task := range builder.GetTransferTasks() {
+					if sct, ok := task.(*persistence.StartChildExecutionTask); ok {
+						startChildTask = sct
+						break
+					}
+				}
+				assert.NotNil(t, startChildTask, "expected a StartChildExecutionTask to be generated")
+				assert.Equal(t, persistence.TaskPriorityAsync, startChildTask.GetPriority())
+			},
+		},
+		{
 			name:    "StartChildWorkflowExecutionInitiated: not mutable",
 			wfState: persistence.WorkflowStateCompleted,
 			eventFn: func(builder *mutableStateBuilder) (*types.HistoryEvent, error) {
@@ -693,6 +730,9 @@ func TestAddChildEvents(t *testing.T) {
 
 			assert.Equal(t, testCase.expectedEvent, event)
 			assert.Equal(t, testCase.expectedErr, err)
+			if testCase.assertFn != nil {
+				testCase.assertFn(t, m)
+			}
 		})
 	}
 }

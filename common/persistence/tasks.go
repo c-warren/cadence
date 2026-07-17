@@ -32,6 +32,41 @@ import (
 	"github.com/uber/cadence/common/types"
 )
 
+// TaskPriority is a generic, client-chosen scheduling priority persisted with a task.
+// The zero value (TaskPriorityUnset) means "use the runtime default".
+type TaskPriority int32
+
+const (
+	// TaskPriorityUnset indicates no explicit priority was chosen; the runtime default applies.
+	TaskPriorityUnset = TaskPriority(iota)
+	// TaskPriorityHigh indicates the task should be scheduled with high priority.
+	TaskPriorityHigh
+	// TaskPriorityDefault indicates the task should be scheduled with the default priority.
+	TaskPriorityDefault
+	// TaskPriorityLow indicates the task should be scheduled with low priority.
+	TaskPriorityLow
+	// TaskPriorityAsync indicates the task should be scheduled asynchronously.
+	TaskPriorityAsync
+)
+
+// String returns the human-readable name of the task priority.
+func (p TaskPriority) String() string {
+	switch p {
+	case TaskPriorityUnset:
+		return "Unset"
+	case TaskPriorityHigh:
+		return "High"
+	case TaskPriorityDefault:
+		return "Default"
+	case TaskPriorityLow:
+		return "Low"
+	case TaskPriorityAsync:
+		return "Async"
+	default:
+		return fmt.Sprintf("TaskPriority(%d)", int32(p))
+	}
+}
+
 // Task is the generic interface for workflow tasks
 type Task interface {
 	GetTaskCategory() HistoryTaskCategory
@@ -55,6 +90,7 @@ type Task interface {
 	SetTaskID(id int64)
 	GetVisibilityTimestamp() time.Time
 	SetVisibilityTimestamp(timestamp time.Time)
+	GetPriority() TaskPriority
 	ByteSize() uint64
 	ToTransferTaskInfo() (*TransferTaskInfo, error)
 	ToTimerTaskInfo() (*TimerTaskInfo, error)
@@ -96,6 +132,7 @@ type (
 		Version             int64
 		TaskID              int64
 		VisibilityTimestamp time.Time
+		Priority            TaskPriority
 	}
 
 	// ActivityTask identifies a transfer task for activity
@@ -447,6 +484,16 @@ func (a *TaskData) SetVisibilityTimestamp(timestamp time.Time) {
 	a.VisibilityTimestamp = timestamp
 }
 
+// GetPriority returns the priority of the task
+func (a *TaskData) GetPriority() TaskPriority {
+	return a.Priority
+}
+
+// SetPriority sets the priority of the task
+func (a *TaskData) SetPriority(priority TaskPriority) {
+	a.Priority = priority
+}
+
 func (a *TaskData) ByteSize() uint64 {
 	return uint64(8 + 8 + 24) // time.Time is 24 bytes
 }
@@ -489,6 +536,7 @@ func (a *ActivityTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		TaskID:              a.TaskID,
 		VisibilityTimestamp: a.VisibilityTimestamp,
 		Version:             a.Version,
+		Priority:            a.Priority,
 		TargetDomainID:      a.TargetDomainID,
 		TaskList:            a.TaskList,
 		ScheduleID:          a.ScheduleID,
@@ -543,6 +591,7 @@ func (d *DecisionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		TaskID:               d.TaskID,
 		VisibilityTimestamp:  d.VisibilityTimestamp,
 		Version:              d.Version,
+		Priority:             d.Priority,
 		TargetDomainID:       d.TargetDomainID,
 		TaskList:             d.TaskList,
 		ScheduleID:           d.ScheduleID,
@@ -599,6 +648,7 @@ func (a *RecordWorkflowStartedTask) ToTransferTaskInfo() (*TransferTaskInfo, err
 		TaskID:              a.TaskID,
 		VisibilityTimestamp: a.VisibilityTimestamp,
 		Version:             a.Version,
+		Priority:            a.Priority,
 		TaskList:            a.TaskList,
 		TargetDomainID:      a.DomainID,
 		TargetWorkflowID:    TransferTaskTransferTargetWorkflowID,
@@ -652,6 +702,7 @@ func (a *ResetWorkflowTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		TaskID:              a.TaskID,
 		VisibilityTimestamp: a.VisibilityTimestamp,
 		Version:             a.Version,
+		Priority:            a.Priority,
 		TaskList:            a.TaskList,
 		TargetDomainID:      a.DomainID,
 		TargetWorkflowID:    TransferTaskTransferTargetWorkflowID,
@@ -705,6 +756,7 @@ func (a *CloseExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		TaskID:              a.TaskID,
 		VisibilityTimestamp: a.VisibilityTimestamp,
 		Version:             a.Version,
+		Priority:            a.Priority,
 		TaskList:            a.TaskList,
 		TargetDomainID:      a.DomainID,
 		TargetWorkflowID:    TransferTaskTransferTargetWorkflowID,
@@ -762,6 +814,7 @@ func (a *DeleteHistoryEventTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 		TaskID:              a.TaskID,
 		VisibilityTimestamp: a.VisibilityTimestamp,
 		Version:             a.Version,
+		Priority:            a.Priority,
 		TaskList:            a.TaskList,
 	}, nil
 }
@@ -812,6 +865,7 @@ func (d *DecisionTimeoutTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 		TaskID:              d.TaskID,
 		VisibilityTimestamp: d.VisibilityTimestamp,
 		Version:             d.Version,
+		Priority:            d.Priority,
 		EventID:             d.EventID,
 		ScheduleAttempt:     d.ScheduleAttempt,
 		TimeoutType:         d.TimeoutType,
@@ -865,6 +919,7 @@ func (a *ActivityTimeoutTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 		TaskID:              a.TaskID,
 		VisibilityTimestamp: a.VisibilityTimestamp,
 		Version:             a.Version,
+		Priority:            a.Priority,
 		EventID:             a.EventID,
 		ScheduleAttempt:     a.Attempt,
 		TimeoutType:         a.TimeoutType,
@@ -918,6 +973,7 @@ func (u *UserTimerTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 		TaskID:              u.TaskID,
 		VisibilityTimestamp: u.VisibilityTimestamp,
 		Version:             u.Version,
+		Priority:            u.Priority,
 		EventID:             u.EventID,
 		TaskList:            u.TaskList,
 	}, nil
@@ -969,6 +1025,7 @@ func (r *ActivityRetryTimerTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 		TaskID:              r.TaskID,
 		VisibilityTimestamp: r.VisibilityTimestamp,
 		Version:             r.Version,
+		Priority:            r.Priority,
 		EventID:             r.EventID,
 		ScheduleAttempt:     r.Attempt,
 		TaskList:            r.TaskList,
@@ -1021,6 +1078,7 @@ func (r *WorkflowBackoffTimerTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 		TaskID:              r.TaskID,
 		VisibilityTimestamp: r.VisibilityTimestamp,
 		Version:             r.Version,
+		Priority:            r.Priority,
 		TimeoutType:         r.TimeoutType,
 		TaskList:            r.TaskList,
 	}, nil
@@ -1072,6 +1130,7 @@ func (u *WorkflowTimeoutTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
 		TaskID:              u.TaskID,
 		VisibilityTimestamp: u.VisibilityTimestamp,
 		Version:             u.Version,
+		Priority:            u.Priority,
 		TaskList:            u.TaskList,
 	}, nil
 }
@@ -1122,6 +1181,7 @@ func (u *CancelExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		TaskID:                  u.TaskID,
 		VisibilityTimestamp:     u.VisibilityTimestamp,
 		Version:                 u.Version,
+		Priority:                u.Priority,
 		TargetDomainID:          u.TargetDomainID,
 		TargetWorkflowID:        u.TargetWorkflowID,
 		TargetRunID:             targetRunID,
@@ -1181,6 +1241,7 @@ func (u *SignalExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
 		TaskID:                  u.TaskID,
 		VisibilityTimestamp:     u.VisibilityTimestamp,
 		Version:                 u.Version,
+		Priority:                u.Priority,
 		TargetDomainID:          u.TargetDomainID,
 		TargetWorkflowID:        u.TargetWorkflowID,
 		TargetRunID:             targetRunID,
@@ -1240,6 +1301,7 @@ func (u *RecordChildExecutionCompletedTask) ToTransferTaskInfo() (*TransferTaskI
 		TaskID:              u.TaskID,
 		VisibilityTimestamp: u.VisibilityTimestamp,
 		Version:             u.Version,
+		Priority:            u.Priority,
 		TargetDomainID:      u.TargetDomainID,
 		TargetWorkflowID:    u.TargetWorkflowID,
 		TargetRunID:         targetRunID,
@@ -1293,6 +1355,7 @@ func (u *UpsertWorkflowSearchAttributesTask) ToTransferTaskInfo() (*TransferTask
 		TaskID:              u.TaskID,
 		VisibilityTimestamp: u.VisibilityTimestamp,
 		Version:             u.Version,
+		Priority:            u.Priority,
 		TaskList:            u.TaskList,
 		TargetDomainID:      u.DomainID,
 		TargetWorkflowID:    TransferTaskTransferTargetWorkflowID,
@@ -1346,6 +1409,7 @@ func (u *StartChildExecutionTask) ToTransferTaskInfo() (*TransferTaskInfo, error
 		TaskID:              u.TaskID,
 		VisibilityTimestamp: u.VisibilityTimestamp,
 		Version:             u.Version,
+		Priority:            u.Priority,
 		TargetDomainID:      u.TargetDomainID,
 		TargetWorkflowID:    u.TargetWorkflowID,
 		ScheduleID:          u.InitiatedID,
@@ -1400,6 +1464,7 @@ func (u *RecordWorkflowClosedTask) ToTransferTaskInfo() (*TransferTaskInfo, erro
 		TaskID:              u.TaskID,
 		VisibilityTimestamp: u.VisibilityTimestamp,
 		Version:             u.Version,
+		Priority:            u.Priority,
 		TaskList:            u.TaskList,
 		TargetDomainID:      u.DomainID,
 		TargetWorkflowID:    TransferTaskTransferTargetWorkflowID,

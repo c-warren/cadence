@@ -185,6 +185,33 @@ func Test__ReplicateTimerStartedEvent(t *testing.T) {
 	assert.Equal(t, expectedTimerInfo.TimerID, ti.TimerID)
 }
 
+func Test__AddTimerStartedEvent_SetsPriority(t *testing.T) {
+	startToFireTimeoutSeconds := int64(5)
+
+	t.Run("priority supplied is stored on the timer info", func(t *testing.T) {
+		mb := testMutableStateBuilder(t)
+		priority := types.TaskPriority(persistence.TaskPriorityAsync)
+		_, ti, err := mb.AddTimerStartedEvent(0, &types.StartTimerDecisionAttributes{
+			TimerID:                   "timer-with-priority",
+			StartToFireTimeoutSeconds: &startToFireTimeoutSeconds,
+			Priority:                  &priority,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, persistence.TaskPriorityAsync, ti.Priority)
+		assert.Equal(t, persistence.TaskPriorityAsync, mb.pendingTimerInfoIDs["timer-with-priority"].Priority)
+	})
+
+	t.Run("nil priority defaults to unset", func(t *testing.T) {
+		mb := testMutableStateBuilder(t)
+		_, ti, err := mb.AddTimerStartedEvent(0, &types.StartTimerDecisionAttributes{
+			TimerID:                   "timer-without-priority",
+			StartToFireTimeoutSeconds: &startToFireTimeoutSeconds,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, persistence.TaskPriorityUnset, ti.Priority)
+	})
+}
+
 func Test__GetPendingTimerInfos(t *testing.T) {
 	mb := testMutableStateBuilder(t)
 	pendingTimerInfo := map[string]*persistence.TimerInfo{

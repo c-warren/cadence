@@ -1261,6 +1261,7 @@ message TimerTaskInfo {
     int64 event_id = 9;
     int64 task_id = 10;
     google.protobuf.Timestamp task_timestamp = 11 [(gogoproto.stdtime) = true];
+    TaskPriority priority = 12;
 }
 
 message TransferTaskInfo {
@@ -1278,10 +1279,19 @@ message TransferTaskInfo {
     int64 task_id = 12;
     google.protobuf.Timestamp task_timestamp = 13 [(gogoproto.stdtime) = true];
     bool record_visibility = 14;
+    TaskPriority priority = 15;
 }
 
 enum WorkflowBackoffType {
     WORKFLOW_BACKOFF_TYPE_UNSPECIFIED = 0;
     WORKFLOW_BACKOFF_TYPE_RETRY = 1;
     WORKFLOW_BACKOFF_TYPE_CRON = 2;
+}
+
+enum TaskPriority {
+    TASK_PRIORITY_UNSPECIFIED = 0;
+    TASK_PRIORITY_HIGH = 1;
+    TASK_PRIORITY_DEFAULT = 2;
+    TASK_PRIORITY_LOW = 3;
+    TASK_PRIORITY_ASYNC = 4;
 }

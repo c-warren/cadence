@@ -510,6 +510,7 @@ type (
 		RecordVisibility        bool
 		OriginalTaskList        string
 		OriginalTaskListKind    types.TaskListKind
+		Priority                TaskPriority
 	}
 
 	// CrossClusterTaskInfo describes a cross-cluster task
@@ -548,6 +549,7 @@ type (
 		ScheduleAttempt     int64
 		Version             int64
 		TaskList            string
+		Priority            TaskPriority
 	}
 
 	// TaskListInfo describes a state of a task list implementation.
@@ -685,6 +687,7 @@ type (
 		StartedID  int64
 		ExpiryTime time.Time
 		TaskStatus int64
+		Priority   TaskPriority
 	}
 
 	// ChildExecutionInfo has details for pending child executions.
@@ -702,6 +705,7 @@ type (
 		DomainNameDEPRECATED  string // deprecated: please use DomainID field instead
 		WorkflowTypeName      string
 		ParentClosePolicy     types.ParentClosePolicy
+		Priority              TaskPriority
 	}
 
 	// RequestCancelInfo has details for pending external workflow cancellations
@@ -2082,6 +2086,7 @@ func (t *TransferTaskInfo) ToTask() (Task, error) {
 		Version:             t.Version,
 		TaskID:              t.TaskID,
 		VisibilityTimestamp: t.VisibilityTimestamp,
+		Priority:            t.Priority,
 	}
 	switch t.TaskType {
 	case TransferTaskTypeActivityTask:
@@ -2289,6 +2294,7 @@ func (t *TimerTaskInfo) ToTask() (Task, error) {
 		Version:             t.Version,
 		TaskID:              t.TaskID,
 		VisibilityTimestamp: t.VisibilityTimestamp,
+		Priority:            t.Priority,
 	}
 	switch t.TaskType {
 	case TaskTypeDecisionTimeout:

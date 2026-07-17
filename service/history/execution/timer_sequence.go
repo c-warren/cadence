@@ -161,6 +161,7 @@ func (t *timerSequenceImpl) CreateNextUserTimer() (bool, error) {
 			// TaskID is set by shard
 			VisibilityTimestamp: firstTimerTask.Timestamp,
 			Version:             t.mutableState.GetCurrentVersion(),
+			Priority:            timerInfo.Priority,
 		},
 		EventID:  firstTimerTask.EventID,
 		TaskList: executionInfo.TaskList,

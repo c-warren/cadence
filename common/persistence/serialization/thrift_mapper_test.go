@@ -415,6 +415,7 @@ func TestChildExecutionInfo(t *testing.T) {
 		DomainNameDEPRECATED:   "DomainName",
 		WorkflowTypeName:       "WorkflowTypeName",
 		ParentClosePolicy:      int32(rand.Intn(1000)),
+		Priority:               int32(rand.Intn(1000)),
 	}
 	actual := childExecutionInfoFromThrift(childExecutionInfoToThrift(expected))
 	assert.Equal(t, expected, actual)
@@ -455,11 +456,13 @@ func TestTimerInfo(t *testing.T) {
 		StartedID:       int64(rand.Intn(1000)),
 		ExpiryTimestamp: time.Now(),
 		TaskID:          int64(rand.Intn(1000)),
+		Priority:        int32(rand.Intn(1000)),
 	}
 	actual := timerInfoFromThrift(timerInfoToThrift(expected))
 	assert.Equal(t, expected.Version, actual.Version)
 	assert.Equal(t, expected.StartedID, actual.StartedID)
 	assert.Equal(t, expected.TaskID, actual.TaskID)
+	assert.Equal(t, expected.Priority, actual.Priority)
 	assert.Equal(t, expected.ExpiryTimestamp.Sub(actual.ExpiryTimestamp), time.Duration(0))
 	assert.Nil(t, timerInfoFromThrift(nil))
 	assert.Nil(t, timerInfoToThrift(nil))
@@ -544,6 +547,7 @@ func TestTransferTaskInfo(t *testing.T) {
 		ScheduleID:              int64(rand.Intn(1000)),
 		Version:                 int64(rand.Intn(1000)),
 		OriginalTaskList:        "OriginalTaskList",
+		Priority:                int32(rand.Intn(1000)),
 	}
 	actual := transferTaskInfoFromThrift(transferTaskInfoToThrift(expected))
 	assert.Equal(t, expected, actual)
@@ -562,6 +566,7 @@ func TestTimerTaskInfo(t *testing.T) {
 		ScheduleAttempt: int64(rand.Intn(1000)),
 		EventID:         int64(rand.Intn(1000)),
 		TaskList:        "TaskList",
+		Priority:        int32(rand.Intn(1000)),
 	}
 	actual := timerTaskInfoFromThrift(timerTaskInfoToThrift(expected))
 	assert.Equal(t, expected, actual)
