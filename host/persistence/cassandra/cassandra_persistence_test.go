@@ -104,6 +104,14 @@ func TestCassandraQueuePersistence(t *testing.T) {
 	suite.Run(t, s)
 }
 
+func TestCassandraAsyncWorkflowQueuePersistence(t *testing.T) {
+	testflags.RequireCassandra(t)
+	s := new(persistencetests.AsyncWorkflowQueuePersistenceSuite)
+	s.TestBase = public.NewTestBaseWithPublicCassandra(t, &persistencetests.TestBaseOptions{})
+	s.Setup()
+	suite.Run(t, s)
+}
+
 func TestCassandraConfigStorePersistence(t *testing.T) {
 	testflags.RequireCassandra(t)
 	s := new(persistencetests.ConfigStorePersistenceSuite)

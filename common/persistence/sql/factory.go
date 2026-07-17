@@ -149,6 +149,12 @@ func (f *Factory) NewQueue(queueType p.QueueType) (p.QueueStore, error) {
 	return newQueueStore(conn, f.logger, queueType)
 }
 
+// NewAsyncWorkflowQueue is not supported by the sql datastore. The history-backed async workflow
+// queue is only implemented for nosql (Cassandra) datastores.
+func (f *Factory) NewAsyncWorkflowQueue() (p.AsyncWorkflowQueueStore, error) {
+	return nil, fmt.Errorf("NewAsyncWorkflowQueue is not supported by the sql datastore")
+}
+
 // NewConfigStore returns a new config store backed by sql. Not Yet Implemented.
 func (f *Factory) NewConfigStore() (p.ConfigStore, error) {
 	conn, err := f.dbConn.get()

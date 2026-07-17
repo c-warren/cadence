@@ -88,6 +88,7 @@ type (
 		HistoryV2Mgr              persistence.HistoryManager
 		DomainManager             persistence.DomainManager
 		DomainReplicationQueueMgr persistence.QueueManager
+		AsyncWorkflowQueueMgr     persistence.AsyncWorkflowQueueManager
 		ShardInfo                 *persistence.ShardInfo
 		TaskIDGenerator           TransferTaskIDGenerator
 		ClusterMetadata           cluster.Metadata
@@ -299,6 +300,16 @@ func (s *TestBase) Setup() {
 	queue, err := factory.NewDomainReplicationQueueManager()
 	s.fatalOnError("Create DomainReplicationQueue", err)
 	s.DomainReplicationQueueMgr = queue
+
+	// The history-backed async workflow queue is only implemented for nosql (Cassandra) datastores.
+	// Leave the manager nil (rather than fatal) for datastores that don't support it, so their
+	// persistence suites still run; the async queue suite only runs under supported datastores.
+	asyncQueue, err := factory.NewAsyncWorkflowQueueManager()
+	if err != nil {
+		s.Logger.Warn("AsyncWorkflowQueueManager not supported by this datastore", tag.Error(err))
+	} else {
+		s.AsyncWorkflowQueueMgr = asyncQueue
+	}
 }
 
 func (s *TestBase) fatalOnError(msg string, err error) {

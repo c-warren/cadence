@@ -323,6 +323,14 @@ const (
 	PersistenceGetDLQAckLevelsScope
 	// PersistenceGetDLQSizeScope tracks GetDLQSize calls made by service to persistence layer
 	PersistenceGetDLQSizeScope
+	// PersistenceEnqueueScope tracks Enqueue calls to the async workflow queue persistence layer
+	PersistenceEnqueueScope
+	// PersistenceEnqueueToDLQScope tracks EnqueueToDLQ calls to the async workflow queue persistence layer
+	PersistenceEnqueueToDLQScope
+	// PersistenceGetAckLevelScope tracks GetAckLevel calls to the async workflow queue persistence layer
+	PersistenceGetAckLevelScope
+	// PersistenceRangeDeleteMessagesScope tracks RangeDeleteMessages calls to the async workflow queue persistence layer
+	PersistenceRangeDeleteMessagesScope
 	// PersistenceFetchDynamicConfigScope tracks FetchDynamicConfig calls made by service to persistence layer
 	PersistenceFetchDynamicConfigScope
 	// PersistenceUpdateDynamicConfigScope tracks UpdateDynamicConfig calls made by service to persistence layer
@@ -1653,6 +1661,10 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		PersistenceUpdateDLQAckLevelScope:                        {operation: "UpdateDLQAckLevel"},
 		PersistenceGetDLQAckLevelsScope:                          {operation: "GetDLQAckLevel"},
 		PersistenceGetDLQSizeScope:                               {operation: "GetDLQSize"},
+		PersistenceEnqueueScope:                                  {operation: "EnqueueAsyncWorkflowMessage"},
+		PersistenceEnqueueToDLQScope:                             {operation: "EnqueueAsyncWorkflowMessageToDLQ"},
+		PersistenceGetAckLevelScope:                              {operation: "GetAsyncWorkflowAckLevel"},
+		PersistenceRangeDeleteMessagesScope:                      {operation: "RangeDeleteAsyncWorkflowMessages"},
 		PersistenceFetchDynamicConfigScope:                       {operation: "FetchDynamicConfig"},
 		PersistenceUpdateDynamicConfigScope:                      {operation: "UpdateDynamicConfig"},
 		PersistenceShardRequestCountScope:                        {operation: "ShardIdPersistenceRequest"},

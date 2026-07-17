@@ -75,6 +75,8 @@ type (
 		NewVisibilityManager(params *Params, serviceConfig *service.Config) (p.VisibilityManager, error)
 		// NewDomainReplicationQueueManager returns a new queue for domain replication
 		NewDomainReplicationQueueManager() (p.QueueManager, error)
+		// NewAsyncWorkflowQueueManager returns a new manager for the history-backed async workflow queue
+		NewAsyncWorkflowQueueManager() (p.AsyncWorkflowQueueManager, error)
 		// NewConfigStoreManager returns a new config store manager
 		NewConfigStoreManager() (p.ConfigStoreManager, error)
 	}
@@ -102,6 +104,8 @@ type (
 		// be ordering by CloseTime. This will be removed when implementing https://github.com/uber/cadence/issues/3621
 		NewVisibilityStore(sortByCloseTime bool) (p.VisibilityStore, error)
 		NewQueue(queueType p.QueueType) (p.QueueStore, error)
+		// NewAsyncWorkflowQueue returns a new async workflow queue store
+		NewAsyncWorkflowQueue() (p.AsyncWorkflowQueueStore, error)
 		// NewConfigStore returns a new config store
 		NewConfigStore() (p.ConfigStore, error)
 	}
@@ -535,6 +539,26 @@ func (f *factoryImpl) NewDomainReplicationQueueManager() (p.QueueManager, error)
 	}
 	if f.metricsClient != nil {
 		result = metered.NewQueueManager(result, f.metricsClient, f.logger, f.config)
+	}
+
+	return result, nil
+}
+
+func (f *factoryImpl) NewAsyncWorkflowQueueManager() (p.AsyncWorkflowQueueManager, error) {
+	ds := f.datastores[storeTypeQueue]
+	store, err := ds.factory.NewAsyncWorkflowQueue()
+	if err != nil {
+		return nil, err
+	}
+	result := p.NewAsyncWorkflowQueueManager(store)
+	if errorRate := f.config.ErrorInjectionRate(); errorRate != 0 {
+		result = errorinjectors.NewAsyncWorkflowQueueManager(result, errorRate, f.logger, time.Now())
+	}
+	if ds.ratelimit != nil {
+		result = ratelimited.NewAsyncWorkflowQueueManager(result, ds.ratelimit, quotas.NewCallerBypass(f.dc.RateLimiterBypassCallerTypes))
+	}
+	if f.metricsClient != nil {
+		result = metered.NewAsyncWorkflowQueueManager(result, f.metricsClient, f.logger, f.config)
 	}
 
 	return result, nil
