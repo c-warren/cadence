@@ -160,6 +160,66 @@ func (c *historyClient) DescribeWorkflowExecution(ctx context.Context, hp1 *type
 	return
 }
 
+func (c *historyClient) EnqueueAsyncWorkflowMessage(ctx context.Context, ep1 *types.EnqueueAsyncWorkflowMessageRequest, p1 ...yarpc.CallOption) (ep2 *types.EnqueueAsyncWorkflowMessageResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		ep2, err = c.client.EnqueueAsyncWorkflowMessage(ctx, ep1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgHistoryInjectedFakeErr,
+			tag.HistoryClientOperationEnqueueAsyncWorkflowMessage,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *historyClient) EnqueueAsyncWorkflowMessageToDLQ(ctx context.Context, ep1 *types.EnqueueAsyncWorkflowMessageToDLQRequest, p1 ...yarpc.CallOption) (ep2 *types.EnqueueAsyncWorkflowMessageToDLQResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		ep2, err = c.client.EnqueueAsyncWorkflowMessageToDLQ(ctx, ep1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgHistoryInjectedFakeErr,
+			tag.HistoryClientOperationEnqueueAsyncWorkflowMessageToDLQ,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *historyClient) GetAsyncWorkflowMessages(ctx context.Context, gp1 *types.GetAsyncWorkflowMessagesRequest, p1 ...yarpc.CallOption) (gp2 *types.GetAsyncWorkflowMessagesResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		gp2, err = c.client.GetAsyncWorkflowMessages(ctx, gp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgHistoryInjectedFakeErr,
+			tag.HistoryClientOperationGetAsyncWorkflowMessages,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *historyClient) GetCrossClusterTasks(ctx context.Context, gp1 *types.GetCrossClusterTasksRequest, p1 ...yarpc.CallOption) (gp2 *types.GetCrossClusterTasksResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
@@ -910,6 +970,26 @@ func (c *historyClient) TerminateWorkflowExecution(ctx context.Context, hp1 *typ
 	if fakeErr != nil {
 		c.logger.Error(msgHistoryInjectedFakeErr,
 			tag.HistoryClientOperationTerminateWorkflowExecution,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *historyClient) UpdateAsyncWorkflowAckLevel(ctx context.Context, up1 *types.UpdateAsyncWorkflowAckLevelRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateAsyncWorkflowAckLevelResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		up2, err = c.client.UpdateAsyncWorkflowAckLevel(ctx, up1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgHistoryInjectedFakeErr,
+			tag.HistoryClientOperationUpdateAsyncWorkflowAckLevel,
 			tag.Error(fakeErr),
 			tag.Bool(forwardCall),
 			tag.ClientError(err),

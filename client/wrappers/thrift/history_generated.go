@@ -42,6 +42,18 @@ func (g historyClient) DescribeWorkflowExecution(ctx context.Context, hp1 *types
 	return thrift.ToHistoryDescribeWorkflowExecutionResponse(response), thrift.ToError(err)
 }
 
+func (g historyClient) EnqueueAsyncWorkflowMessage(ctx context.Context, ep1 *types.EnqueueAsyncWorkflowMessageRequest, p1 ...yarpc.CallOption) (ep2 *types.EnqueueAsyncWorkflowMessageResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
+func (g historyClient) EnqueueAsyncWorkflowMessageToDLQ(ctx context.Context, ep1 *types.EnqueueAsyncWorkflowMessageToDLQRequest, p1 ...yarpc.CallOption) (ep2 *types.EnqueueAsyncWorkflowMessageToDLQResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
+func (g historyClient) GetAsyncWorkflowMessages(ctx context.Context, gp1 *types.GetAsyncWorkflowMessagesRequest, p1 ...yarpc.CallOption) (gp2 *types.GetAsyncWorkflowMessagesResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
 func (g historyClient) GetCrossClusterTasks(ctx context.Context, gp1 *types.GetCrossClusterTasksRequest, p1 ...yarpc.CallOption) (gp2 *types.GetCrossClusterTasksResponse, err error) {
 	response, err := g.c.GetCrossClusterTasks(ctx, thrift.FromHistoryGetCrossClusterTasksRequest(gp1), p1...)
 	return thrift.ToHistoryGetCrossClusterTasksResponse(response), thrift.ToError(err)
@@ -230,4 +242,8 @@ func (g historyClient) SyncShardStatus(ctx context.Context, sp1 *types.SyncShard
 func (g historyClient) TerminateWorkflowExecution(ctx context.Context, hp1 *types.HistoryTerminateWorkflowExecutionRequest, p1 ...yarpc.CallOption) (err error) {
 	err = g.c.TerminateWorkflowExecution(ctx, thrift.FromHistoryTerminateWorkflowExecutionRequest(hp1), p1...)
 	return thrift.ToError(err)
+}
+
+func (g historyClient) UpdateAsyncWorkflowAckLevel(ctx context.Context, up1 *types.UpdateAsyncWorkflowAckLevelRequest, p1 ...yarpc.CallOption) (up2 *types.UpdateAsyncWorkflowAckLevelResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
 }

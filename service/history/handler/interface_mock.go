@@ -132,6 +132,51 @@ func (mr *MockHandlerMockRecorder) DescribeWorkflowExecution(arg0, arg1 any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeWorkflowExecution", reflect.TypeOf((*MockHandler)(nil).DescribeWorkflowExecution), arg0, arg1)
 }
 
+// EnqueueAsyncWorkflowMessage mocks base method.
+func (m *MockHandler) EnqueueAsyncWorkflowMessage(arg0 context.Context, arg1 *types.EnqueueAsyncWorkflowMessageRequest) (*types.EnqueueAsyncWorkflowMessageResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnqueueAsyncWorkflowMessage", arg0, arg1)
+	ret0, _ := ret[0].(*types.EnqueueAsyncWorkflowMessageResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EnqueueAsyncWorkflowMessage indicates an expected call of EnqueueAsyncWorkflowMessage.
+func (mr *MockHandlerMockRecorder) EnqueueAsyncWorkflowMessage(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueAsyncWorkflowMessage", reflect.TypeOf((*MockHandler)(nil).EnqueueAsyncWorkflowMessage), arg0, arg1)
+}
+
+// EnqueueAsyncWorkflowMessageToDLQ mocks base method.
+func (m *MockHandler) EnqueueAsyncWorkflowMessageToDLQ(arg0 context.Context, arg1 *types.EnqueueAsyncWorkflowMessageToDLQRequest) (*types.EnqueueAsyncWorkflowMessageToDLQResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnqueueAsyncWorkflowMessageToDLQ", arg0, arg1)
+	ret0, _ := ret[0].(*types.EnqueueAsyncWorkflowMessageToDLQResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EnqueueAsyncWorkflowMessageToDLQ indicates an expected call of EnqueueAsyncWorkflowMessageToDLQ.
+func (mr *MockHandlerMockRecorder) EnqueueAsyncWorkflowMessageToDLQ(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueAsyncWorkflowMessageToDLQ", reflect.TypeOf((*MockHandler)(nil).EnqueueAsyncWorkflowMessageToDLQ), arg0, arg1)
+}
+
+// GetAsyncWorkflowMessages mocks base method.
+func (m *MockHandler) GetAsyncWorkflowMessages(arg0 context.Context, arg1 *types.GetAsyncWorkflowMessagesRequest) (*types.GetAsyncWorkflowMessagesResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAsyncWorkflowMessages", arg0, arg1)
+	ret0, _ := ret[0].(*types.GetAsyncWorkflowMessagesResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAsyncWorkflowMessages indicates an expected call of GetAsyncWorkflowMessages.
+func (mr *MockHandlerMockRecorder) GetAsyncWorkflowMessages(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAsyncWorkflowMessages", reflect.TypeOf((*MockHandler)(nil).GetAsyncWorkflowMessages), arg0, arg1)
+}
+
 // GetCrossClusterTasks mocks base method.
 func (m *MockHandler) GetCrossClusterTasks(arg0 context.Context, arg1 *types.GetCrossClusterTasksRequest) (*types.GetCrossClusterTasksResponse, error) {
 	m.ctrl.T.Helper()
@@ -734,4 +779,19 @@ func (m *MockHandler) TerminateWorkflowExecution(arg0 context.Context, arg1 *typ
 func (mr *MockHandlerMockRecorder) TerminateWorkflowExecution(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TerminateWorkflowExecution", reflect.TypeOf((*MockHandler)(nil).TerminateWorkflowExecution), arg0, arg1)
+}
+
+// UpdateAsyncWorkflowAckLevel mocks base method.
+func (m *MockHandler) UpdateAsyncWorkflowAckLevel(arg0 context.Context, arg1 *types.UpdateAsyncWorkflowAckLevelRequest) (*types.UpdateAsyncWorkflowAckLevelResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateAsyncWorkflowAckLevel", arg0, arg1)
+	ret0, _ := ret[0].(*types.UpdateAsyncWorkflowAckLevelResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateAsyncWorkflowAckLevel indicates an expected call of UpdateAsyncWorkflowAckLevel.
+func (mr *MockHandlerMockRecorder) UpdateAsyncWorkflowAckLevel(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateAsyncWorkflowAckLevel", reflect.TypeOf((*MockHandler)(nil).UpdateAsyncWorkflowAckLevel), arg0, arg1)
 }

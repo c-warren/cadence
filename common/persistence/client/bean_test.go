@@ -46,6 +46,7 @@ type beanmocks struct {
 	historyManager        *persistence.MockHistoryManager
 	configManager         *persistence.MockConfigStoreManager
 	historyTaskDLQManager *persistence.MockHistoryTaskDLQManager
+	asyncWFQueueManager   *persistence.MockAsyncWorkflowQueueManager
 }
 
 func beanSetup(t *testing.T) (f *MockFactory, m beanmocks, defaultMocks func()) {
@@ -61,6 +62,7 @@ func beanSetup(t *testing.T) (f *MockFactory, m beanmocks, defaultMocks func()) 
 		historyManager:        persistence.NewMockHistoryManager(ctrl),
 		configManager:         persistence.NewMockConfigStoreManager(ctrl),
 		historyTaskDLQManager: persistence.NewMockHistoryTaskDLQManager(ctrl),
+		asyncWFQueueManager:   persistence.NewMockAsyncWorkflowQueueManager(ctrl),
 	}
 	f = NewMockFactory(ctrl)
 	defaultMocks = func() {
@@ -74,6 +76,7 @@ func beanSetup(t *testing.T) (f *MockFactory, m beanmocks, defaultMocks func()) 
 		f.EXPECT().NewHistoryManager().Return(m.historyManager, nil).MaxTimes(1)
 		f.EXPECT().NewConfigStoreManager().Return(m.configManager, nil).MaxTimes(1)
 		f.EXPECT().NewHistoryTaskDLQManager().Return(m.historyTaskDLQManager, nil).MaxTimes(1)
+		f.EXPECT().NewAsyncWorkflowQueueManager().Return(m.asyncWFQueueManager, nil).MaxTimes(1)
 	}
 	return f, m, defaultMocks
 }
@@ -141,6 +144,12 @@ func TestBeanCoverage(t *testing.T) {
 				},
 				err: "no history task DLQ manager",
 			},
+			"async workflow queue manager error": {
+				mockSetup: func(t *testing.T, f *MockFactory) {
+					f.EXPECT().NewAsyncWorkflowQueueManager().Return(nil, fmt.Errorf("no async workflow queue manager"))
+				},
+				err: "no async workflow queue manager",
+			},
 		}
 		for name, test := range tests {
 			name, test := name, test
@@ -177,6 +186,7 @@ func TestBeanCoverage(t *testing.T) {
 		g.Go(errgroupAssertEqual(t, m.historyManager, impl.GetHistoryManager))
 		g.Go(errgroupAssertEqual(t, m.configManager, impl.GetConfigStoreManager))
 		g.Go(errgroupAssertEqual(t, m.historyTaskDLQManager, impl.GetHistoryTaskDLQManager))
+		g.Go(errgroupAssertEqual(t, m.asyncWFQueueManager, impl.GetAsyncWorkflowQueueManager))
 		require.NoError(t, g.Wait())
 		// execution managers are per shard, checked separately
 	})
@@ -200,6 +210,7 @@ func TestBeanCoverage(t *testing.T) {
 		g.Go(errgroupAssertSets(t, m2.historyManager, impl.SetHistoryManager, impl.GetHistoryManager))
 		g.Go(errgroupAssertSets(t, m2.configManager, impl.SetConfigStoreManager, impl.GetConfigStoreManager))
 		g.Go(errgroupAssertSets(t, m2.historyTaskDLQManager, impl.SetHistoryTaskDLQManager, impl.GetHistoryTaskDLQManager))
+		g.Go(errgroupAssertSets(t, m2.asyncWFQueueManager, impl.SetAsyncWorkflowQueueManager, impl.GetAsyncWorkflowQueueManager))
 		require.NoError(t, g.Wait())
 		// execution managers are per shard, checked separately
 	})
@@ -274,6 +285,7 @@ func TestBeanCoverage(t *testing.T) {
 		ex1.EXPECT().Close().Return().Times(1)
 		ex2.EXPECT().Close().Return().Times(1)
 		m.historyTaskDLQManager.EXPECT().Close().Return().Times(1)
+		m.asyncWFQueueManager.EXPECT().Close().Return().Times(1)
 		// which includes the execution-manager-factory itself
 		f.EXPECT().Close().Return().Times(1)
 

@@ -292,6 +292,9 @@ func TestNewConfig(t *testing.T) {
 		"HistoryTaskDLQMode":                                   {dynamicproperties.HistoryTaskDLQMode, "enabled"},
 		"HistoryTaskDLQProcessorInterval":                      {dynamicproperties.HistoryTaskDLQProcessorInterval, time.Second},
 		"HistoryTaskDLQProcessorEnabled":                       {dynamicproperties.HistoryTaskDLQProcessorEnabled, true},
+		"AsyncWorkflowQueueGCEnabled":                          {dynamicproperties.AsyncWorkflowQueueGCEnabled, true},
+		"AsyncWorkflowQueueGCInterval":                         {dynamicproperties.AsyncWorkflowQueueGCInterval, time.Second},
+		"AsyncWorkflowQueueGCQueueNames":                       {dynamicproperties.AsyncWorkflowQueueGCQueueNames, []interface{}{"queue-a"}},
 	}
 	client := dynamicconfig.NewInMemoryClient()
 	for fieldName, expected := range fields {
@@ -383,6 +386,8 @@ func getValue(f *reflect.Value) interface{} {
 			return fn("domain")
 		case dynamicproperties.BoolPropertyFnWithShardIDFilter:
 			return fn(0)
+		case dynamicproperties.ListPropertyFn:
+			return fn()
 		case func() []string:
 			return fn()
 		default:

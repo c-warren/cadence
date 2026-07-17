@@ -21,6 +21,8 @@
 package testdata
 
 import (
+	"time"
+
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/types"
 )
@@ -302,4 +304,56 @@ var (
 	HistoryGetCrossClusterTasksResponse              = GetCrossClusterTasksResponse
 	HistoryRespondCrossClusterTasksCompletedRequest  = RespondCrossClusterTasksCompletedRequest
 	HistoryRespondCrossClusterTasksCompletedResponse = RespondCrossClusterTasksCompletedResponse
+)
+
+var (
+	asyncWorkflowMessageTime = time.Date(2026, 7, 16, 10, 30, 0, 0, time.UTC)
+
+	HistoryAsyncWorkflowMessage = types.AsyncWorkflowMessage{
+		MessageID:    42,
+		Payload:      []byte("async-workflow-payload"),
+		Encoding:     "thriftrw",
+		PartitionKey: "partition-key-1",
+		CreatedTime:  asyncWorkflowMessageTime,
+	}
+
+	HistoryEnqueueAsyncWorkflowMessageRequest = types.EnqueueAsyncWorkflowMessageRequest{
+		ShardID:      ShardID,
+		QueueName:    "async-workflow-queue",
+		Payload:      []byte("async-workflow-payload"),
+		Encoding:     "thriftrw",
+		PartitionKey: "partition-key-1",
+	}
+	HistoryEnqueueAsyncWorkflowMessageResponse = types.EnqueueAsyncWorkflowMessageResponse{
+		MessageID: 42,
+	}
+
+	HistoryGetAsyncWorkflowMessagesRequest = types.GetAsyncWorkflowMessagesRequest{
+		ShardID:       ShardID,
+		QueueName:     "async-workflow-queue",
+		LastMessageID: 100,
+		PageSize:      50,
+	}
+	HistoryGetAsyncWorkflowMessagesResponse = types.GetAsyncWorkflowMessagesResponse{
+		Messages: []*types.AsyncWorkflowMessage{&HistoryAsyncWorkflowMessage},
+		AckLevel: 99,
+	}
+
+	HistoryUpdateAsyncWorkflowAckLevelRequest = types.UpdateAsyncWorkflowAckLevelRequest{
+		ShardID:   ShardID,
+		QueueName: "async-workflow-queue",
+		AckLevel:  99,
+	}
+	HistoryUpdateAsyncWorkflowAckLevelResponse = types.UpdateAsyncWorkflowAckLevelResponse{}
+
+	HistoryEnqueueAsyncWorkflowMessageToDLQRequest = types.EnqueueAsyncWorkflowMessageToDLQRequest{
+		ShardID:      ShardID,
+		QueueName:    "async-workflow-queue",
+		Payload:      []byte("async-workflow-dlq-payload"),
+		Encoding:     "thriftrw",
+		PartitionKey: "partition-key-1",
+	}
+	HistoryEnqueueAsyncWorkflowMessageToDLQResponse = types.EnqueueAsyncWorkflowMessageToDLQResponse{
+		MessageID: 43,
+	}
 )

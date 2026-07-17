@@ -43,6 +43,7 @@ import (
 	"github.com/uber/cadence/common/reconciliation/invariant"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/proto"
+	"github.com/uber/cadence/service/history/asyncworkflowqueue"
 	hcommon "github.com/uber/cadence/service/history/common"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/decision"
@@ -110,6 +111,7 @@ type historyEngineImpl struct {
 	replicationDLQHandler     replication.DLQHandler
 	failoverMarkerNotifier    failover.MarkerNotifier
 	dlqProcessor              taskdlq.Processor
+	asyncQueueGCProcessor     asyncworkflowqueue.Processor
 
 	updateWithActionFn func(
 		context.Context,
@@ -303,6 +305,13 @@ func NewEngineWithShardContext(
 		config.HistoryTaskDLQProcessorEnabled,
 	)
 
+	historyEngImpl.asyncQueueGCProcessor = asyncworkflowqueue.NewProcessorFromShard(
+		shard,
+		config.AsyncWorkflowQueueGCQueueNames,
+		config.AsyncWorkflowQueueGCEnabled,
+		config.AsyncWorkflowQueueGCInterval,
+	)
+
 	shard.SetEngine(historyEngImpl)
 	return historyEngImpl
 }
@@ -318,6 +327,7 @@ func (e *historyEngineImpl) Start() {
 		processor.Start()
 	}
 	e.dlqProcessor.Start()
+	e.asyncQueueGCProcessor.Start()
 	e.replicationDLQHandler.Start()
 	e.replicationMetricsEmitter.Start()
 
@@ -346,6 +356,7 @@ func (e *historyEngineImpl) Stop() {
 		processor.Stop()
 	}
 	e.dlqProcessor.Stop()
+	e.asyncQueueGCProcessor.Stop()
 	e.replicationDLQHandler.Stop()
 	e.replicationMetricsEmitter.Stop()
 
