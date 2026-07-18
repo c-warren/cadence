@@ -1,0 +1,25 @@
+clusterno: 1
+asyncwfqueues:
+  # test-async-wf-queue is the name of the predefined queue referenced by the
+  # domain's AsyncWorkflowConfiguration.PredefinedQueueName in async_wf_history_test.go.
+  #
+  # Unlike the kafka-backed queue, the history-backed queue needs no external broker:
+  # the producer enqueues via the history EnqueueAsyncWorkflowMessage RPC and the
+  # consumer pulls via GetAsyncWorkflowMessages, both persisting to the
+  # async_workflow_queue* Cassandra tables. queueName selects the logical queue.
+  test-async-wf-queue:
+    type: "history"
+    config:
+      queueName: "test-async-wf-queue"
+messagingclientconfig:
+  usemock: true
+historyconfig:
+  numhistoryshards: 4
+  numhistoryhosts: 1
+matchingconfig:
+  nummatchinghosts: 1
+workerconfig:
+  enableasyncwfconsumer: true
+dynamicclientconfig:
+  filepath: "testdata/dynamicconfig/integration_test.yaml"
+  pollInterval: "10s"

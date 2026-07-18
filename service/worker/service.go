@@ -500,6 +500,10 @@ func (s *Service) startAsyncWorkflowConsumerManager() common.Daemon {
 		s.GetDomainCache(),
 		s.Resource.GetAsyncWorkflowQueueProvider(),
 		s.GetFrontendClient(),
+		s.GetHistoryClient(),
+		s.GetMembershipResolver(),
+		s.params.PersistenceConfig.NumHistoryShards,
+		asyncworkflow.WithTimeSource(s.GetTimeSource()),
 		asyncworkflow.WithEnabledPropertyFn(s.config.EnableAsyncWorkflowConsumption),
 	)
 	cm.Start()

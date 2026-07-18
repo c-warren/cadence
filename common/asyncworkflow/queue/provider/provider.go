@@ -29,7 +29,9 @@ import (
 
 	"github.com/uber/cadence/client/frontend"
 	historyclient "github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/syncmap"
@@ -38,11 +40,13 @@ import (
 
 type (
 	Params struct {
-		Logger           log.Logger
-		MetricsClient    metrics.Client
-		FrontendClient   frontend.Client
-		HistoryClient    historyclient.Client
-		NumHistoryShards int
+		Logger             log.Logger
+		MetricsClient      metrics.Client
+		FrontendClient     frontend.Client
+		HistoryClient      historyclient.Client
+		NumHistoryShards   int
+		MembershipResolver membership.Resolver
+		TimeSource         clock.TimeSource
 	}
 
 	Decoder interface {
