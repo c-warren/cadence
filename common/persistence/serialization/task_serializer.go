@@ -445,6 +445,11 @@ func (s *taskSerializerImpl) serializeReplicationTask(task persistence.Task) (pe
 		info.ScheduledID = t.ScheduledID
 	case *persistence.FailoverMarkerTask:
 		info.DomainID = MustParseUUID(t.DomainID)
+	case *persistence.AsyncWorkflowRequestTask:
+		info.AsyncWorkflowQueueName = t.QueueName
+		info.AsyncWorkflowPayload = t.Payload
+		info.AsyncWorkflowEncoding = t.Encoding
+		info.AsyncWorkflowPartitionKey = t.PartitionKey
 	default:
 		return persistence.DataBlob{}, &types.InternalServiceError{
 			Message: fmt.Sprintf("Unknown replication task: %v", task.GetTaskType()),
@@ -491,6 +496,14 @@ func (s *taskSerializerImpl) deserializeReplicationTask(blob *persistence.DataBl
 		task = &persistence.FailoverMarkerTask{
 			DomainID: info.DomainID.String(),
 			TaskData: taskData,
+		}
+	case persistence.ReplicationTaskTypeAsyncWorkflowRequest:
+		task = &persistence.AsyncWorkflowRequestTask{
+			TaskData:     taskData,
+			QueueName:    info.AsyncWorkflowQueueName,
+			Payload:      info.AsyncWorkflowPayload,
+			Encoding:     info.AsyncWorkflowEncoding,
+			PartitionKey: info.AsyncWorkflowPartitionKey,
 		}
 	}
 	return task, nil

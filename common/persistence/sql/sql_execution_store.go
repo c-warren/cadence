@@ -1071,6 +1071,57 @@ func (m *sqlExecutionStore) CreateFailoverMarkerTasks(
 	})
 }
 
+func (m *sqlExecutionStore) CreateAsyncWorkflowReplicationTasks(
+	ctx context.Context,
+	request *p.CreateAsyncWorkflowReplicationTasksRequest,
+) error {
+	shardID := m.effectiveShardID(request.ShardID, "CreateAsyncWorkflowReplicationTasks")
+	dbShardID := sqlplugin.GetDBShardIDFromHistoryShardID(shardID, m.db.GetTotalNumDBShards())
+	return m.txExecuteShardLockedFn(ctx, shardID, dbShardID, "CreateAsyncWorkflowReplicationTasks", request.RangeID, func(tx sqlplugin.Tx) error {
+		replicationTasksRows := make([]sqlplugin.ReplicationTasksRow, len(request.Tasks))
+		for i, task := range request.Tasks {
+			blob, err := m.parser.ReplicationTaskInfoToBlob(&serialization.ReplicationTaskInfo{
+				DomainID:                  serialization.MustParseUUID(emptyReplicationRunID),
+				WorkflowID:                emptyWorkflowID,
+				RunID:                     serialization.MustParseUUID(emptyReplicationRunID),
+				TaskType:                  int16(task.GetTaskType()),
+				FirstEventID:              constants.EmptyEventID,
+				NextEventID:               constants.EmptyEventID,
+				Version:                   task.GetVersion(),
+				ScheduledID:               constants.EmptyEventID,
+				EventStoreVersion:         p.EventStoreVersion,
+				NewRunEventStoreVersion:   p.EventStoreVersion,
+				BranchToken:               nil,
+				NewRunBranchToken:         nil,
+				CreationTimestamp:         task.GetVisibilityTimestamp(),
+				AsyncWorkflowQueueName:    task.QueueName,
+				AsyncWorkflowPayload:      task.Payload,
+				AsyncWorkflowEncoding:     task.Encoding,
+				AsyncWorkflowPartitionKey: task.PartitionKey,
+			})
+			if err != nil {
+				return err
+			}
+			replicationTasksRows[i].ShardID = shardID
+			replicationTasksRows[i].TaskID = task.GetTaskID()
+			replicationTasksRows[i].Data = blob.Data
+			replicationTasksRows[i].DataEncoding = string(blob.Encoding)
+		}
+		result, err := tx.InsertIntoReplicationTasks(ctx, replicationTasksRows)
+		if err != nil {
+			return convertCommonErrors(tx, "CreateAsyncWorkflowReplicationTasks", "", err)
+		}
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return &types.InternalServiceError{Message: fmt.Sprintf("CreateAsyncWorkflowReplicationTasks failed. Could not verify number of rows inserted. Error: %v", err)}
+		}
+		if int(rowsAffected) != len(replicationTasksRows) {
+			return &types.InternalServiceError{Message: fmt.Sprintf("CreateAsyncWorkflowReplicationTasks failed. Inserted %v instead of %v rows into replication_tasks.", rowsAffected, len(replicationTasksRows))}
+		}
+		return nil
+	})
+}
+
 func (m *sqlExecutionStore) CreateHistoryTasks(
 	ctx context.Context,
 	request *p.CreateHistoryTasksRequest,

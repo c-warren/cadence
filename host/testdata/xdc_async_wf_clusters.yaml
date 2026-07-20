@@ -1,0 +1,134 @@
+# Two-cluster (active/standby) config for the cross-region (xdc) history-backed
+# async workflow integration test (host/xdc/async_wf_test.go, build tag
+# asyncwfxdcintegration).
+#
+# It is based on xdc_integration_test_clusters.yaml (the working xdc replication
+# harness: clustergroupmetadata + enablereplicator: true + kafka messaging) and
+# merges in the Phase 4 single-region async config
+# (integration_async_wf_with_history_cluster.yaml):
+#   - the asyncwfqueues history-backed queue map (queue "test-async-wf-queue")
+#   - workerconfig.enableasyncwfconsumer: true (kept alongside enablereplicator)
+#
+# The history-backed async queue itself needs no kafka (producer enqueues via the
+# history EnqueueAsyncWorkflowMessage RPC, consumer pulls via
+# GetAsyncWorkflowMessages, both persisting to the async_workflow_queue* tables).
+# Kafka messaging is retained only because the xdc replication path requires it,
+# so the test is runnable later against a real 2-cluster stack.
+#
+# numhistoryshards MUST be identical across both clusters (shard derivation is
+# global); dynamicclientconfig.filepath is resolved relative to the test package
+# working directory (host/xdc), hence the ../testdata prefix.
+- persistence:
+    dbname: integration_async_active
+  clustergroupmetadata:
+    failoverVersionIncrement: 10
+    primaryClusterName: "active"
+    currentClusterName: "active"
+    clusterGroup:
+      active:
+        enabled: true
+        initialFailoverVersion: 0
+        rpcName: "cadence-frontend"
+        rpcAddress: "127.0.0.1:7114"
+        rpcTransport: "grpc"
+      standby:
+        enabled: true
+        initialFailoverVersion: 1
+        rpcName: "cadence-frontend"
+        rpcAddress: "127.0.0.1:8114"
+        rpcTransport: "grpc"
+  enablearchival: false
+  workerconfig:
+    enablearchiver: false
+    enablereplicator: true
+    enableindexer: false
+    enableasyncwfconsumer: true
+  clusterno: 0
+  asyncwfqueues:
+    # test-async-wf-queue is the predefined queue referenced by the domain's
+    # AsyncWorkflowConfiguration.PredefinedQueueName in async_wf_test.go. Both the
+    # frontend producer and the worker consumer resolve it to the same
+    # history-backed provider.
+    test-async-wf-queue:
+      type: "history"
+      config:
+        queueName: "test-async-wf-queue"
+  historyconfig:
+    numhistoryshards: 4
+    numhistoryhosts: 1
+  matchingconfig:
+    nummatchinghosts: 1
+  dynamicclientconfig:
+    filepath: "../testdata/dynamicconfig/integration_test.yaml"
+    pollInterval: "10s"
+  messagingclientconfig:
+    usemock: false
+    kafkaconfig:
+      clusters:
+        test:
+          brokers:
+            - "${KAFKA_SEEDS}:9092"
+      topics:
+        active:
+          cluster: test
+        active-dlq:
+          cluster: test
+        standby:
+          cluster: test
+        standby-dlq:
+          cluster: test
+      cadence-cluster-topics:
+        active:
+          topic: active
+          dlq-topic: active-dlq
+        standby:
+          topic: standby
+          dlq-topic: standby-dlq
+      applications: { }
+- persistence:
+    dbname: integration_async_standby
+  clustergroupmetadata:
+    failoverVersionIncrement: 10
+    primaryClusterName: "active"
+    currentClusterName: "standby"
+    clusterGroup:
+      active:
+        enabled: true
+        initialFailoverVersion: 0
+        rpcName: "cadence-frontend"
+        rpcAddress: "127.0.0.1:7114"
+        rpcTransport: "grpc"
+      standby:
+        enabled: true
+        initialFailoverVersion: 1
+        rpcName: "cadence-frontend"
+        rpcAddress: "127.0.0.1:8114"
+        rpcTransport: "grpc"
+  enablearchival: false
+  workerconfig:
+    enablearchiver: false
+    enablereplicator: true
+    enableindexer: false
+    enableasyncwfconsumer: true
+  clusterno: 1
+  asyncwfqueues:
+    test-async-wf-queue:
+      type: "history"
+      config:
+        queueName: "test-async-wf-queue"
+  historyconfig:
+    numhistoryshards: 4
+    numhistoryhosts: 1
+  matchingconfig:
+    nummatchinghosts: 1
+  dynamicclientconfig:
+    filepath: "../testdata/dynamicconfig/integration_test.yaml"
+    pollInterval: "10s"
+  messagingclientconfig:
+    usemock: false
+    kafkaconfig:
+      clusters:
+        test:
+          brokers:
+            - "${KAFKA_SEEDS}:9092"
+      applications: { }

@@ -15,6 +15,7 @@ import (
 
 	gomock "go.uber.org/mock/gomock"
 
+	persistence "github.com/uber/cadence/common/persistence"
 	types "github.com/uber/cadence/common/types"
 	common "github.com/uber/cadence/service/history/common"
 	events "github.com/uber/cadence/service/history/events"
@@ -385,6 +386,20 @@ func (m *MockEngine) RemoveSignalMutableState(ctx context.Context, request *type
 func (mr *MockEngineMockRecorder) RemoveSignalMutableState(ctx, request any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveSignalMutableState", reflect.TypeOf((*MockEngine)(nil).RemoveSignalMutableState), ctx, request)
+}
+
+// ReplicateAsyncWorkflowRequest mocks base method.
+func (m *MockEngine) ReplicateAsyncWorkflowRequest(ctx context.Context, tasks []*persistence.AsyncWorkflowRequestTask) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReplicateAsyncWorkflowRequest", ctx, tasks)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReplicateAsyncWorkflowRequest indicates an expected call of ReplicateAsyncWorkflowRequest.
+func (mr *MockEngineMockRecorder) ReplicateAsyncWorkflowRequest(ctx, tasks any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateAsyncWorkflowRequest", reflect.TypeOf((*MockEngine)(nil).ReplicateAsyncWorkflowRequest), ctx, tasks)
 }
 
 // ReplicateEventsV2 mocks base method.

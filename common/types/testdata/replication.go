@@ -95,12 +95,19 @@ var (
 		FailoverMarkerAttributes: &FailoverMarkerAttributes,
 		CreationTime:             &Timestamp1,
 	}
+	ReplicationTask_AsyncWorkflowRequest = types.ReplicationTask{
+		TaskType:                           types.ReplicationTaskTypeAsyncWorkflowRequest.Ptr(),
+		SourceTaskID:                       TaskID,
+		AsyncWorkflowRequestTaskAttributes: &AsyncWorkflowRequestTaskAttributes,
+		CreationTime:                       &Timestamp1,
+	}
 	ReplicationTaskArray = []*types.ReplicationTask{
 		&ReplicationTask_Domain,
 		&ReplicationTask_SyncShard,
 		&ReplicationTask_SyncActivity,
 		&ReplicationTask_History,
 		&ReplicationTask_Failover,
+		&ReplicationTask_AsyncWorkflowRequest,
 	}
 	DomainTaskAttributes = types.DomainTaskAttributes{
 		DomainOperation:         types.DomainOperationUpdate.Ptr(),
@@ -149,6 +156,12 @@ var (
 	}
 	FailoverMarkerAttributesArray = []*types.FailoverMarkerAttributes{
 		&FailoverMarkerAttributes,
+	}
+	AsyncWorkflowRequestTaskAttributes = types.AsyncWorkflowRequestTaskAttributes{
+		QueueName:    "async-queue",
+		Payload:      []byte("async-payload"),
+		Encoding:     "thriftrw",
+		PartitionKey: "partition-key",
 	}
 	PersistenceFeatures = []*types.PersistenceFeature{
 		{

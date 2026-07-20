@@ -21,6 +21,414 @@ import (
 	shared "github.com/uber/cadence/.gen/go/shared"
 )
 
+type AsyncWorkflowRequestTaskAttributes struct {
+	QueueName    *string `json:"queueName,omitempty"`
+	Payload      []byte  `json:"payload,omitempty"`
+	Encoding     *string `json:"encoding,omitempty"`
+	PartitionKey *string `json:"partitionKey,omitempty"`
+}
+
+// ToWire translates a AsyncWorkflowRequestTaskAttributes struct into a Thrift-level intermediate
+// representation. This intermediate representation may be serialized
+// into bytes using a ThriftRW protocol implementation.
+//
+// An error is returned if the struct or any of its fields failed to
+// validate.
+//
+//	x, err := v.ToWire()
+//	if err != nil {
+//		return err
+//	}
+//
+//	if err := binaryProtocol.Encode(x, writer); err != nil {
+//		return err
+//	}
+func (v *AsyncWorkflowRequestTaskAttributes) ToWire() (wire.Value, error) {
+	var (
+		fields [4]wire.Field
+		i      int = 0
+		w      wire.Value
+		err    error
+	)
+
+	if v.QueueName != nil {
+		w, err = wire.NewValueString(*(v.QueueName)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 10, Value: w}
+		i++
+	}
+	if v.Payload != nil {
+		w, err = wire.NewValueBinary(v.Payload), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 20, Value: w}
+		i++
+	}
+	if v.Encoding != nil {
+		w, err = wire.NewValueString(*(v.Encoding)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 30, Value: w}
+		i++
+	}
+	if v.PartitionKey != nil {
+		w, err = wire.NewValueString(*(v.PartitionKey)), error(nil)
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 40, Value: w}
+		i++
+	}
+
+	return wire.NewValueStruct(wire.Struct{Fields: fields[:i]}), nil
+}
+
+// FromWire deserializes a AsyncWorkflowRequestTaskAttributes struct from its Thrift-level
+// representation. The Thrift-level representation may be obtained
+// from a ThriftRW protocol implementation.
+//
+// An error is returned if we were unable to build a AsyncWorkflowRequestTaskAttributes struct
+// from the provided intermediate representation.
+//
+//	x, err := binaryProtocol.Decode(reader, wire.TStruct)
+//	if err != nil {
+//		return nil, err
+//	}
+//
+//	var v AsyncWorkflowRequestTaskAttributes
+//	if err := v.FromWire(x); err != nil {
+//		return nil, err
+//	}
+//	return &v, nil
+func (v *AsyncWorkflowRequestTaskAttributes) FromWire(w wire.Value) error {
+	var err error
+
+	for _, field := range w.GetStruct().Fields {
+		switch field.ID {
+		case 10:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.QueueName = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 20:
+			if field.Value.Type() == wire.TBinary {
+				v.Payload, err = field.Value.GetBinary(), error(nil)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 30:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.Encoding = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		case 40:
+			if field.Value.Type() == wire.TBinary {
+				var x string
+				x, err = field.Value.GetString(), error(nil)
+				v.PartitionKey = &x
+				if err != nil {
+					return err
+				}
+
+			}
+		}
+	}
+
+	return nil
+}
+
+// Encode serializes a AsyncWorkflowRequestTaskAttributes struct directly into bytes, without going
+// through an intermediary type.
+//
+// An error is returned if a AsyncWorkflowRequestTaskAttributes struct could not be encoded.
+func (v *AsyncWorkflowRequestTaskAttributes) Encode(sw stream.Writer) error {
+	if err := sw.WriteStructBegin(); err != nil {
+		return err
+	}
+
+	if v.QueueName != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 10, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.QueueName)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Payload != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 20, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteBinary(v.Payload); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.Encoding != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 30, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.Encoding)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	if v.PartitionKey != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 40, Type: wire.TBinary}); err != nil {
+			return err
+		}
+		if err := sw.WriteString(*(v.PartitionKey)); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
+	return sw.WriteStructEnd()
+}
+
+// Decode deserializes a AsyncWorkflowRequestTaskAttributes struct directly from its Thrift-level
+// representation, without going through an intemediary type.
+//
+// An error is returned if a AsyncWorkflowRequestTaskAttributes struct could not be generated from the wire
+// representation.
+func (v *AsyncWorkflowRequestTaskAttributes) Decode(sr stream.Reader) error {
+
+	if err := sr.ReadStructBegin(); err != nil {
+		return err
+	}
+
+	fh, ok, err := sr.ReadFieldBegin()
+	if err != nil {
+		return err
+	}
+
+	for ok {
+		switch {
+		case fh.ID == 10 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.QueueName = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 20 && fh.Type == wire.TBinary:
+			v.Payload, err = sr.ReadBinary()
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 30 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.Encoding = &x
+			if err != nil {
+				return err
+			}
+
+		case fh.ID == 40 && fh.Type == wire.TBinary:
+			var x string
+			x, err = sr.ReadString()
+			v.PartitionKey = &x
+			if err != nil {
+				return err
+			}
+
+		default:
+			if err := sr.Skip(fh.Type); err != nil {
+				return err
+			}
+		}
+
+		if err := sr.ReadFieldEnd(); err != nil {
+			return err
+		}
+
+		if fh, ok, err = sr.ReadFieldBegin(); err != nil {
+			return err
+		}
+	}
+
+	if err := sr.ReadStructEnd(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// String returns a readable string representation of a AsyncWorkflowRequestTaskAttributes
+// struct.
+func (v *AsyncWorkflowRequestTaskAttributes) String() string {
+	if v == nil {
+		return "<nil>"
+	}
+
+	var fields [4]string
+	i := 0
+	if v.QueueName != nil {
+		fields[i] = fmt.Sprintf("QueueName: %v", *(v.QueueName))
+		i++
+	}
+	if v.Payload != nil {
+		fields[i] = fmt.Sprintf("Payload: %v", v.Payload)
+		i++
+	}
+	if v.Encoding != nil {
+		fields[i] = fmt.Sprintf("Encoding: %v", *(v.Encoding))
+		i++
+	}
+	if v.PartitionKey != nil {
+		fields[i] = fmt.Sprintf("PartitionKey: %v", *(v.PartitionKey))
+		i++
+	}
+
+	return fmt.Sprintf("AsyncWorkflowRequestTaskAttributes{%v}", strings.Join(fields[:i], ", "))
+}
+
+func _String_EqualsPtr(lhs, rhs *string) bool {
+	if lhs != nil && rhs != nil {
+
+		x := *lhs
+		y := *rhs
+		return (x == y)
+	}
+	return lhs == nil && rhs == nil
+}
+
+// Equals returns true if all the fields of this AsyncWorkflowRequestTaskAttributes match the
+// provided AsyncWorkflowRequestTaskAttributes.
+//
+// This function performs a deep comparison.
+func (v *AsyncWorkflowRequestTaskAttributes) Equals(rhs *AsyncWorkflowRequestTaskAttributes) bool {
+	if v == nil {
+		return rhs == nil
+	} else if rhs == nil {
+		return false
+	}
+	if !_String_EqualsPtr(v.QueueName, rhs.QueueName) {
+		return false
+	}
+	if !((v.Payload == nil && rhs.Payload == nil) || (v.Payload != nil && rhs.Payload != nil && bytes.Equal(v.Payload, rhs.Payload))) {
+		return false
+	}
+	if !_String_EqualsPtr(v.Encoding, rhs.Encoding) {
+		return false
+	}
+	if !_String_EqualsPtr(v.PartitionKey, rhs.PartitionKey) {
+		return false
+	}
+
+	return true
+}
+
+// MarshalLogObject implements zapcore.ObjectMarshaler, enabling
+// fast logging of AsyncWorkflowRequestTaskAttributes.
+func (v *AsyncWorkflowRequestTaskAttributes) MarshalLogObject(enc zapcore.ObjectEncoder) (err error) {
+	if v == nil {
+		return nil
+	}
+	if v.QueueName != nil {
+		enc.AddString("queueName", *v.QueueName)
+	}
+	if v.Payload != nil {
+		enc.AddString("payload", base64.StdEncoding.EncodeToString(v.Payload))
+	}
+	if v.Encoding != nil {
+		enc.AddString("encoding", *v.Encoding)
+	}
+	if v.PartitionKey != nil {
+		enc.AddString("partitionKey", *v.PartitionKey)
+	}
+	return err
+}
+
+// GetQueueName returns the value of QueueName if it is set or its
+// zero value if it is unset.
+func (v *AsyncWorkflowRequestTaskAttributes) GetQueueName() (o string) {
+	if v != nil && v.QueueName != nil {
+		return *v.QueueName
+	}
+
+	return
+}
+
+// IsSetQueueName returns true if QueueName is not nil.
+func (v *AsyncWorkflowRequestTaskAttributes) IsSetQueueName() bool {
+	return v != nil && v.QueueName != nil
+}
+
+// GetPayload returns the value of Payload if it is set or its
+// zero value if it is unset.
+func (v *AsyncWorkflowRequestTaskAttributes) GetPayload() (o []byte) {
+	if v != nil && v.Payload != nil {
+		return v.Payload
+	}
+
+	return
+}
+
+// IsSetPayload returns true if Payload is not nil.
+func (v *AsyncWorkflowRequestTaskAttributes) IsSetPayload() bool {
+	return v != nil && v.Payload != nil
+}
+
+// GetEncoding returns the value of Encoding if it is set or its
+// zero value if it is unset.
+func (v *AsyncWorkflowRequestTaskAttributes) GetEncoding() (o string) {
+	if v != nil && v.Encoding != nil {
+		return *v.Encoding
+	}
+
+	return
+}
+
+// IsSetEncoding returns true if Encoding is not nil.
+func (v *AsyncWorkflowRequestTaskAttributes) IsSetEncoding() bool {
+	return v != nil && v.Encoding != nil
+}
+
+// GetPartitionKey returns the value of PartitionKey if it is set or its
+// zero value if it is unset.
+func (v *AsyncWorkflowRequestTaskAttributes) GetPartitionKey() (o string) {
+	if v != nil && v.PartitionKey != nil {
+		return *v.PartitionKey
+	}
+
+	return
+}
+
+// IsSetPartitionKey returns true if PartitionKey is not nil.
+func (v *AsyncWorkflowRequestTaskAttributes) IsSetPartitionKey() bool {
+	return v != nil && v.PartitionKey != nil
+}
+
 type DLQType int32
 
 const (
@@ -941,16 +1349,6 @@ func _DomainOperation_EqualsPtr(lhs, rhs *DomainOperation) bool {
 		x := *lhs
 		y := *rhs
 		return x.Equals(y)
-	}
-	return lhs == nil && rhs == nil
-}
-
-func _String_EqualsPtr(lhs, rhs *string) bool {
-	if lhs != nil && rhs != nil {
-
-		x := *lhs
-		y := *rhs
-		return (x == y)
 	}
 	return lhs == nil && rhs == nil
 }
@@ -7090,14 +7488,15 @@ func (v *ReplicationMessages) IsSetSyncShardStatus() bool {
 }
 
 type ReplicationTask struct {
-	TaskType                      *ReplicationTaskType           `json:"taskType,omitempty"`
-	SourceTaskId                  *int64                         `json:"sourceTaskId,omitempty"`
-	DomainTaskAttributes          *DomainTaskAttributes          `json:"domainTaskAttributes,omitempty"`
-	SyncShardStatusTaskAttributes *SyncShardStatusTaskAttributes `json:"syncShardStatusTaskAttributes,omitempty"`
-	SyncActivityTaskAttributes    *SyncActivityTaskAttributes    `json:"syncActivityTaskAttributes,omitempty"`
-	HistoryTaskV2Attributes       *HistoryTaskV2Attributes       `json:"historyTaskV2Attributes,omitempty"`
-	FailoverMarkerAttributes      *FailoverMarkerAttributes      `json:"failoverMarkerAttributes,omitempty"`
-	CreationTime                  *int64                         `json:"creationTime,omitempty"`
+	TaskType                           *ReplicationTaskType                `json:"taskType,omitempty"`
+	SourceTaskId                       *int64                              `json:"sourceTaskId,omitempty"`
+	DomainTaskAttributes               *DomainTaskAttributes               `json:"domainTaskAttributes,omitempty"`
+	SyncShardStatusTaskAttributes      *SyncShardStatusTaskAttributes      `json:"syncShardStatusTaskAttributes,omitempty"`
+	SyncActivityTaskAttributes         *SyncActivityTaskAttributes         `json:"syncActivityTaskAttributes,omitempty"`
+	HistoryTaskV2Attributes            *HistoryTaskV2Attributes            `json:"historyTaskV2Attributes,omitempty"`
+	FailoverMarkerAttributes           *FailoverMarkerAttributes           `json:"failoverMarkerAttributes,omitempty"`
+	AsyncWorkflowRequestTaskAttributes *AsyncWorkflowRequestTaskAttributes `json:"asyncWorkflowRequestTaskAttributes,omitempty"`
+	CreationTime                       *int64                              `json:"creationTime,omitempty"`
 }
 
 // ToWire translates a ReplicationTask struct into a Thrift-level intermediate
@@ -7117,7 +7516,7 @@ type ReplicationTask struct {
 //	}
 func (v *ReplicationTask) ToWire() (wire.Value, error) {
 	var (
-		fields [8]wire.Field
+		fields [9]wire.Field
 		i      int = 0
 		w      wire.Value
 		err    error
@@ -7179,6 +7578,14 @@ func (v *ReplicationTask) ToWire() (wire.Value, error) {
 		fields[i] = wire.Field{ID: 80, Value: w}
 		i++
 	}
+	if v.AsyncWorkflowRequestTaskAttributes != nil {
+		w, err = v.AsyncWorkflowRequestTaskAttributes.ToWire()
+		if err != nil {
+			return w, err
+		}
+		fields[i] = wire.Field{ID: 85, Value: w}
+		i++
+	}
 	if v.CreationTime != nil {
 		w, err = wire.NewValueI64(*(v.CreationTime)), error(nil)
 		if err != nil {
@@ -7217,6 +7624,12 @@ func _SyncActivityTaskAttributes_Read(w wire.Value) (*SyncActivityTaskAttributes
 
 func _HistoryTaskV2Attributes_Read(w wire.Value) (*HistoryTaskV2Attributes, error) {
 	var v HistoryTaskV2Attributes
+	err := v.FromWire(w)
+	return &v, err
+}
+
+func _AsyncWorkflowRequestTaskAttributes_Read(w wire.Value) (*AsyncWorkflowRequestTaskAttributes, error) {
+	var v AsyncWorkflowRequestTaskAttributes
 	err := v.FromWire(w)
 	return &v, err
 }
@@ -7298,6 +7711,14 @@ func (v *ReplicationTask) FromWire(w wire.Value) error {
 		case 80:
 			if field.Value.Type() == wire.TStruct {
 				v.FailoverMarkerAttributes, err = _FailoverMarkerAttributes_Read(field.Value)
+				if err != nil {
+					return err
+				}
+
+			}
+		case 85:
+			if field.Value.Type() == wire.TStruct {
+				v.AsyncWorkflowRequestTaskAttributes, err = _AsyncWorkflowRequestTaskAttributes_Read(field.Value)
 				if err != nil {
 					return err
 				}
@@ -7412,6 +7833,18 @@ func (v *ReplicationTask) Encode(sw stream.Writer) error {
 		}
 	}
 
+	if v.AsyncWorkflowRequestTaskAttributes != nil {
+		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 85, Type: wire.TStruct}); err != nil {
+			return err
+		}
+		if err := v.AsyncWorkflowRequestTaskAttributes.Encode(sw); err != nil {
+			return err
+		}
+		if err := sw.WriteFieldEnd(); err != nil {
+			return err
+		}
+	}
+
 	if v.CreationTime != nil {
 		if err := sw.WriteFieldBegin(stream.FieldHeader{ID: 90, Type: wire.TI64}); err != nil {
 			return err
@@ -7453,6 +7886,12 @@ func _SyncActivityTaskAttributes_Decode(sr stream.Reader) (*SyncActivityTaskAttr
 
 func _HistoryTaskV2Attributes_Decode(sr stream.Reader) (*HistoryTaskV2Attributes, error) {
 	var v HistoryTaskV2Attributes
+	err := v.Decode(sr)
+	return &v, err
+}
+
+func _AsyncWorkflowRequestTaskAttributes_Decode(sr stream.Reader) (*AsyncWorkflowRequestTaskAttributes, error) {
+	var v AsyncWorkflowRequestTaskAttributes
 	err := v.Decode(sr)
 	return &v, err
 }
@@ -7521,6 +7960,12 @@ func (v *ReplicationTask) Decode(sr stream.Reader) error {
 				return err
 			}
 
+		case fh.ID == 85 && fh.Type == wire.TStruct:
+			v.AsyncWorkflowRequestTaskAttributes, err = _AsyncWorkflowRequestTaskAttributes_Decode(sr)
+			if err != nil {
+				return err
+			}
+
 		case fh.ID == 90 && fh.Type == wire.TI64:
 			var x int64
 			x, err = sr.ReadInt64()
@@ -7558,7 +8003,7 @@ func (v *ReplicationTask) String() string {
 		return "<nil>"
 	}
 
-	var fields [8]string
+	var fields [9]string
 	i := 0
 	if v.TaskType != nil {
 		fields[i] = fmt.Sprintf("TaskType: %v", *(v.TaskType))
@@ -7586,6 +8031,10 @@ func (v *ReplicationTask) String() string {
 	}
 	if v.FailoverMarkerAttributes != nil {
 		fields[i] = fmt.Sprintf("FailoverMarkerAttributes: %v", v.FailoverMarkerAttributes)
+		i++
+	}
+	if v.AsyncWorkflowRequestTaskAttributes != nil {
+		fields[i] = fmt.Sprintf("AsyncWorkflowRequestTaskAttributes: %v", v.AsyncWorkflowRequestTaskAttributes)
 		i++
 	}
 	if v.CreationTime != nil {
@@ -7637,6 +8086,9 @@ func (v *ReplicationTask) Equals(rhs *ReplicationTask) bool {
 	if !((v.FailoverMarkerAttributes == nil && rhs.FailoverMarkerAttributes == nil) || (v.FailoverMarkerAttributes != nil && rhs.FailoverMarkerAttributes != nil && v.FailoverMarkerAttributes.Equals(rhs.FailoverMarkerAttributes))) {
 		return false
 	}
+	if !((v.AsyncWorkflowRequestTaskAttributes == nil && rhs.AsyncWorkflowRequestTaskAttributes == nil) || (v.AsyncWorkflowRequestTaskAttributes != nil && rhs.AsyncWorkflowRequestTaskAttributes != nil && v.AsyncWorkflowRequestTaskAttributes.Equals(rhs.AsyncWorkflowRequestTaskAttributes))) {
+		return false
+	}
 	if !_I64_EqualsPtr(v.CreationTime, rhs.CreationTime) {
 		return false
 	}
@@ -7670,6 +8122,9 @@ func (v *ReplicationTask) MarshalLogObject(enc zapcore.ObjectEncoder) (err error
 	}
 	if v.FailoverMarkerAttributes != nil {
 		err = multierr.Append(err, enc.AddObject("failoverMarkerAttributes", v.FailoverMarkerAttributes))
+	}
+	if v.AsyncWorkflowRequestTaskAttributes != nil {
+		err = multierr.Append(err, enc.AddObject("asyncWorkflowRequestTaskAttributes", v.AsyncWorkflowRequestTaskAttributes))
 	}
 	if v.CreationTime != nil {
 		enc.AddInt64("creationTime", *v.CreationTime)
@@ -7780,6 +8235,21 @@ func (v *ReplicationTask) GetFailoverMarkerAttributes() (o *FailoverMarkerAttrib
 // IsSetFailoverMarkerAttributes returns true if FailoverMarkerAttributes is not nil.
 func (v *ReplicationTask) IsSetFailoverMarkerAttributes() bool {
 	return v != nil && v.FailoverMarkerAttributes != nil
+}
+
+// GetAsyncWorkflowRequestTaskAttributes returns the value of AsyncWorkflowRequestTaskAttributes if it is set or its
+// zero value if it is unset.
+func (v *ReplicationTask) GetAsyncWorkflowRequestTaskAttributes() (o *AsyncWorkflowRequestTaskAttributes) {
+	if v != nil && v.AsyncWorkflowRequestTaskAttributes != nil {
+		return v.AsyncWorkflowRequestTaskAttributes
+	}
+
+	return
+}
+
+// IsSetAsyncWorkflowRequestTaskAttributes returns true if AsyncWorkflowRequestTaskAttributes is not nil.
+func (v *ReplicationTask) IsSetAsyncWorkflowRequestTaskAttributes() bool {
+	return v != nil && v.AsyncWorkflowRequestTaskAttributes != nil
 }
 
 // GetCreationTime returns the value of CreationTime if it is set or its
@@ -8532,13 +9002,14 @@ func (v *ReplicationTaskInfo) IsSetScheduledID() bool {
 type ReplicationTaskType int32
 
 const (
-	ReplicationTaskTypeDomain          ReplicationTaskType = 0
-	ReplicationTaskTypeHistory         ReplicationTaskType = 1
-	ReplicationTaskTypeSyncShardStatus ReplicationTaskType = 2
-	ReplicationTaskTypeSyncActivity    ReplicationTaskType = 3
-	ReplicationTaskTypeHistoryMetadata ReplicationTaskType = 4
-	ReplicationTaskTypeHistoryV2       ReplicationTaskType = 5
-	ReplicationTaskTypeFailoverMarker  ReplicationTaskType = 6
+	ReplicationTaskTypeDomain               ReplicationTaskType = 0
+	ReplicationTaskTypeHistory              ReplicationTaskType = 1
+	ReplicationTaskTypeSyncShardStatus      ReplicationTaskType = 2
+	ReplicationTaskTypeSyncActivity         ReplicationTaskType = 3
+	ReplicationTaskTypeHistoryMetadata      ReplicationTaskType = 4
+	ReplicationTaskTypeHistoryV2            ReplicationTaskType = 5
+	ReplicationTaskTypeFailoverMarker       ReplicationTaskType = 6
+	ReplicationTaskTypeAsyncWorkflowRequest ReplicationTaskType = 7
 )
 
 // ReplicationTaskType_Values returns all recognized values of ReplicationTaskType.
@@ -8551,6 +9022,7 @@ func ReplicationTaskType_Values() []ReplicationTaskType {
 		ReplicationTaskTypeHistoryMetadata,
 		ReplicationTaskTypeHistoryV2,
 		ReplicationTaskTypeFailoverMarker,
+		ReplicationTaskTypeAsyncWorkflowRequest,
 	}
 }
 
@@ -8581,6 +9053,9 @@ func (v *ReplicationTaskType) UnmarshalText(value []byte) error {
 		return nil
 	case "FailoverMarker":
 		*v = ReplicationTaskTypeFailoverMarker
+		return nil
+	case "AsyncWorkflowRequest":
+		*v = ReplicationTaskTypeAsyncWorkflowRequest
 		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
@@ -8614,6 +9089,8 @@ func (v ReplicationTaskType) MarshalText() ([]byte, error) {
 		return []byte("HistoryV2"), nil
 	case 6:
 		return []byte("FailoverMarker"), nil
+	case 7:
+		return []byte("AsyncWorkflowRequest"), nil
 	}
 	return []byte(strconv.FormatInt(int64(v), 10)), nil
 }
@@ -8639,6 +9116,8 @@ func (v ReplicationTaskType) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 		enc.AddString("name", "HistoryV2")
 	case 6:
 		enc.AddString("name", "FailoverMarker")
+	case 7:
+		enc.AddString("name", "AsyncWorkflowRequest")
 	}
 	return nil
 }
@@ -8721,6 +9200,8 @@ func (v ReplicationTaskType) String() string {
 		return "HistoryV2"
 	case 6:
 		return "FailoverMarker"
+	case 7:
+		return "AsyncWorkflowRequest"
 	}
 	return fmt.Sprintf("ReplicationTaskType(%d)", w)
 }
@@ -8753,6 +9234,8 @@ func (v ReplicationTaskType) MarshalJSON() ([]byte, error) {
 		return ([]byte)("\"HistoryV2\""), nil
 	case 6:
 		return ([]byte)("\"FailoverMarker\""), nil
+	case 7:
+		return ([]byte)("\"AsyncWorkflowRequest\""), nil
 	}
 	return ([]byte)(strconv.FormatInt(int64(v), 10)), nil
 }
@@ -10862,11 +11345,11 @@ var ThriftModule = &thriftreflect.ThriftModule{
 	Name:     "replicator",
 	Package:  "github.com/uber/cadence/.gen/go/replicator",
 	FilePath: "replicator.thrift",
-	SHA1:     "3ec11471346b90a0b3295914ddfd0627f0c4afc6",
+	SHA1:     "70f6abc05d9780176e5e2708c61693e71e0b5448",
 	Includes: []*thriftreflect.ThriftModule{
 		shared.ThriftModule,
 	},
 	Raw: rawIDL,
 }
 
-const rawIDL = "// Copyright (c) 2017 Uber Technologies, Inc.\n//\n// Permission is hereby granted, free of charge, to any person obtaining a copy\n// of this software and associated documentation files (the \"Software\"), to deal\n// in the Software without restriction, including without limitation the rights\n// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n// copies of the Software, and to permit persons to whom the Software is\n// furnished to do so, subject to the following conditions:\n//\n// The above copyright notice and this permission notice shall be included in\n// all copies or substantial portions of the Software.\n//\n// THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n// THE SOFTWARE.\n\nnamespace java com.uber.cadence.replicator\n\ninclude \"shared.thrift\"\n\nenum ReplicationTaskType {\n  Domain\n  History\n  SyncShardStatus\n  SyncActivity\n  HistoryMetadata\n  HistoryV2\n  FailoverMarker\n}\n\nenum DomainOperation {\n  Create\n  Update\n  Delete\n}\n\nstruct DomainTaskAttributes {\n  05: optional DomainOperation domainOperation\n  10: optional string id\n  20: optional shared.DomainInfo info\n  30: optional shared.DomainConfiguration config\n  40: optional shared.DomainReplicationConfiguration replicationConfig\n  50: optional i64 (js.type = \"Long\") configVersion\n  60: optional i64 (js.type = \"Long\") failoverVersion\n  70: optional i64 (js.type = \"Long\") previousFailoverVersion\n}\n\nstruct SyncShardStatusTaskAttributes {\n  10: optional string sourceCluster\n  20: optional i64 (js.type = \"Long\") shardId\n  30: optional i64 (js.type = \"Long\") timestamp\n}\n\nstruct SyncActivityTaskAttributes {\n  10: optional string domainId\n  20: optional string workflowId\n  30: optional string runId\n  40: optional i64 (js.type = \"Long\") version\n  50: optional i64 (js.type = \"Long\") scheduledId\n  60: optional i64 (js.type = \"Long\") scheduledTime\n  70: optional i64 (js.type = \"Long\") startedId\n  80: optional i64 (js.type = \"Long\") startedTime\n  90: optional i64 (js.type = \"Long\") lastHeartbeatTime\n  100: optional binary details\n  110: optional i32 attempt\n  120: optional string lastFailureReason\n  130: optional string lastWorkerIdentity\n  140: optional binary lastFailureDetails\n  145: optional shared.FailureOptions lastFailureOptions\n  150: optional shared.VersionHistory versionHistory\n}\n\nstruct HistoryTaskV2Attributes {\n  05: optional i64 (js.type = \"Long\") taskId\n  10: optional string domainId\n  20: optional string workflowId\n  30: optional string runId\n  40: optional list<shared.VersionHistoryItem> versionHistoryItems\n  50: optional shared.DataBlob events\n  // new run events does not need version history since there is no prior events\n  70: optional shared.DataBlob newRunEvents\n}\n\nstruct FailoverMarkerAttributes{\n\t10: optional string domainID\n\t20: optional i64 (js.type = \"Long\") failoverVersion\n\t30: optional i64 (js.type = \"Long\") creationTime\n}\n\nstruct FailoverMarkers{\n\t10: optional list<FailoverMarkerAttributes> failoverMarkers\n}\n\nstruct ReplicationTask {\n  10: optional ReplicationTaskType taskType\n  11: optional i64 (js.type = \"Long\") sourceTaskId\n  20: optional DomainTaskAttributes domainTaskAttributes\n  40: optional SyncShardStatusTaskAttributes syncShardStatusTaskAttributes\n  50: optional SyncActivityTaskAttributes syncActivityTaskAttributes\n  70: optional HistoryTaskV2Attributes historyTaskV2Attributes\n  80: optional FailoverMarkerAttributes failoverMarkerAttributes\n  90: optional i64 (js.type = \"Long\") creationTime\n}\n\nstruct ReplicationToken {\n  10: optional i32 shardID\n  // lastRetrivedMessageId is where the next fetch should begin with\n  20: optional i64 (js.type = \"Long\") lastRetrievedMessageId\n  // lastProcessedMessageId is the last messageId that is processed on the passive side.\n  // This can be different than lastRetrievedMessageId if passive side supports prefetching messages.\n  30: optional i64 (js.type = \"Long\") lastProcessedMessageId\n}\n\nstruct SyncShardStatus {\n  10: optional i64 (js.type = \"Long\") timestamp\n}\n\nstruct ReplicationMessages {\n  10: optional list<ReplicationTask> replicationTasks\n  // This can be different than the last taskId in the above list, because sender can decide to skip tasks (e.g. for completed workflows).\n  20: optional i64 (js.type = \"Long\") lastRetrievedMessageId\n  30: optional bool hasMore // Hint for flow control\n  40: optional SyncShardStatus syncShardStatus\n}\n\nstruct ReplicationTaskInfo {\n  10: optional string domainID\n  20: optional string workflowID\n  30: optional string runID\n  40: optional i16 taskType\n  50: optional i64 (js.type = \"Long\") taskID\n  60: optional i64 (js.type = \"Long\") version\n  70: optional i64 (js.type = \"Long\") firstEventID\n  80: optional i64 (js.type = \"Long\") nextEventID\n  90: optional i64 (js.type = \"Long\") scheduledID\n}\n\nstruct GetReplicationMessagesRequest {\n  10: optional list<ReplicationToken> tokens\n  20: optional string clusterName\n}\n\nstruct GetReplicationMessagesResponse {\n  10: optional map<i32, ReplicationMessages> messagesByShard\n}\n\nstruct GetDomainReplicationMessagesRequest {\n  // lastRetrievedMessageId is where the next fetch should begin with\n  10: optional i64 (js.type = \"Long\") lastRetrievedMessageId\n  // lastProcessedMessageId is the last messageId that is processed on the passive side.\n  // This can be different than lastRetrievedMessageId if passive side supports prefetching messages.\n  20: optional i64 (js.type = \"Long\") lastProcessedMessageId\n  // clusterName is the name of the pulling cluster\n  30: optional string clusterName\n}\n\nstruct GetDomainReplicationMessagesResponse {\n  10: optional ReplicationMessages messages\n}\n\nstruct GetDLQReplicationMessagesRequest {\n  10: optional list<ReplicationTaskInfo> taskInfos\n}\n\nstruct GetDLQReplicationMessagesResponse {\n  10: optional list<ReplicationTask> replicationTasks\n}\n\nenum DLQType {\n  Replication,\n  Domain,\n}\n\nstruct ReadDLQMessagesRequest{\n  10: optional DLQType type\n  20: optional i32 shardID\n  30: optional string sourceCluster\n  40: optional i64 (js.type = \"Long\") inclusiveEndMessageID\n  50: optional i32 maximumPageSize\n  60: optional binary nextPageToken\n}\n\nstruct ReadDLQMessagesResponse{\n  10: optional DLQType type\n  20: optional list<ReplicationTask> replicationTasks\n  30: optional binary nextPageToken\n  40: optional list<ReplicationTaskInfo> replicationTasksInfo\n}\n\nstruct PurgeDLQMessagesRequest{\n  10: optional DLQType type\n  20: optional i32 shardID\n  30: optional string sourceCluster\n  40: optional i64 (js.type = \"Long\") inclusiveEndMessageID\n}\n\nstruct MergeDLQMessagesRequest{\n  10: optional DLQType type\n  20: optional i32 shardID\n  30: optional string sourceCluster\n  40: optional i64 (js.type = \"Long\") inclusiveEndMessageID\n  50: optional i32 maximumPageSize\n  60: optional binary nextPageToken\n}\n\nstruct MergeDLQMessagesResponse{\n  10: optional binary nextPageToken\n}\n"
+const rawIDL = "// Copyright (c) 2017 Uber Technologies, Inc.\n//\n// Permission is hereby granted, free of charge, to any person obtaining a copy\n// of this software and associated documentation files (the \"Software\"), to deal\n// in the Software without restriction, including without limitation the rights\n// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n// copies of the Software, and to permit persons to whom the Software is\n// furnished to do so, subject to the following conditions:\n//\n// The above copyright notice and this permission notice shall be included in\n// all copies or substantial portions of the Software.\n//\n// THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n// THE SOFTWARE.\n\nnamespace java com.uber.cadence.replicator\n\ninclude \"shared.thrift\"\n\nenum ReplicationTaskType {\n  Domain\n  History\n  SyncShardStatus\n  SyncActivity\n  HistoryMetadata\n  HistoryV2\n  FailoverMarker\n  AsyncWorkflowRequest\n}\n\nenum DomainOperation {\n  Create\n  Update\n  Delete\n}\n\nstruct DomainTaskAttributes {\n  05: optional DomainOperation domainOperation\n  10: optional string id\n  20: optional shared.DomainInfo info\n  30: optional shared.DomainConfiguration config\n  40: optional shared.DomainReplicationConfiguration replicationConfig\n  50: optional i64 (js.type = \"Long\") configVersion\n  60: optional i64 (js.type = \"Long\") failoverVersion\n  70: optional i64 (js.type = \"Long\") previousFailoverVersion\n}\n\nstruct SyncShardStatusTaskAttributes {\n  10: optional string sourceCluster\n  20: optional i64 (js.type = \"Long\") shardId\n  30: optional i64 (js.type = \"Long\") timestamp\n}\n\nstruct SyncActivityTaskAttributes {\n  10: optional string domainId\n  20: optional string workflowId\n  30: optional string runId\n  40: optional i64 (js.type = \"Long\") version\n  50: optional i64 (js.type = \"Long\") scheduledId\n  60: optional i64 (js.type = \"Long\") scheduledTime\n  70: optional i64 (js.type = \"Long\") startedId\n  80: optional i64 (js.type = \"Long\") startedTime\n  90: optional i64 (js.type = \"Long\") lastHeartbeatTime\n  100: optional binary details\n  110: optional i32 attempt\n  120: optional string lastFailureReason\n  130: optional string lastWorkerIdentity\n  140: optional binary lastFailureDetails\n  145: optional shared.FailureOptions lastFailureOptions\n  150: optional shared.VersionHistory versionHistory\n}\n\nstruct HistoryTaskV2Attributes {\n  05: optional i64 (js.type = \"Long\") taskId\n  10: optional string domainId\n  20: optional string workflowId\n  30: optional string runId\n  40: optional list<shared.VersionHistoryItem> versionHistoryItems\n  50: optional shared.DataBlob events\n  // new run events does not need version history since there is no prior events\n  70: optional shared.DataBlob newRunEvents\n}\n\nstruct FailoverMarkerAttributes{\n\t10: optional string domainID\n\t20: optional i64 (js.type = \"Long\") failoverVersion\n\t30: optional i64 (js.type = \"Long\") creationTime\n}\n\nstruct FailoverMarkers{\n\t10: optional list<FailoverMarkerAttributes> failoverMarkers\n}\n\nstruct AsyncWorkflowRequestTaskAttributes{\n\t10: optional string queueName\n\t20: optional binary payload\n\t30: optional string encoding\n\t40: optional string partitionKey\n}\n\nstruct ReplicationTask {\n  10: optional ReplicationTaskType taskType\n  11: optional i64 (js.type = \"Long\") sourceTaskId\n  20: optional DomainTaskAttributes domainTaskAttributes\n  40: optional SyncShardStatusTaskAttributes syncShardStatusTaskAttributes\n  50: optional SyncActivityTaskAttributes syncActivityTaskAttributes\n  70: optional HistoryTaskV2Attributes historyTaskV2Attributes\n  80: optional FailoverMarkerAttributes failoverMarkerAttributes\n  85: optional AsyncWorkflowRequestTaskAttributes asyncWorkflowRequestTaskAttributes\n  90: optional i64 (js.type = \"Long\") creationTime\n}\n\nstruct ReplicationToken {\n  10: optional i32 shardID\n  // lastRetrivedMessageId is where the next fetch should begin with\n  20: optional i64 (js.type = \"Long\") lastRetrievedMessageId\n  // lastProcessedMessageId is the last messageId that is processed on the passive side.\n  // This can be different than lastRetrievedMessageId if passive side supports prefetching messages.\n  30: optional i64 (js.type = \"Long\") lastProcessedMessageId\n}\n\nstruct SyncShardStatus {\n  10: optional i64 (js.type = \"Long\") timestamp\n}\n\nstruct ReplicationMessages {\n  10: optional list<ReplicationTask> replicationTasks\n  // This can be different than the last taskId in the above list, because sender can decide to skip tasks (e.g. for completed workflows).\n  20: optional i64 (js.type = \"Long\") lastRetrievedMessageId\n  30: optional bool hasMore // Hint for flow control\n  40: optional SyncShardStatus syncShardStatus\n}\n\nstruct ReplicationTaskInfo {\n  10: optional string domainID\n  20: optional string workflowID\n  30: optional string runID\n  40: optional i16 taskType\n  50: optional i64 (js.type = \"Long\") taskID\n  60: optional i64 (js.type = \"Long\") version\n  70: optional i64 (js.type = \"Long\") firstEventID\n  80: optional i64 (js.type = \"Long\") nextEventID\n  90: optional i64 (js.type = \"Long\") scheduledID\n}\n\nstruct GetReplicationMessagesRequest {\n  10: optional list<ReplicationToken> tokens\n  20: optional string clusterName\n}\n\nstruct GetReplicationMessagesResponse {\n  10: optional map<i32, ReplicationMessages> messagesByShard\n}\n\nstruct GetDomainReplicationMessagesRequest {\n  // lastRetrievedMessageId is where the next fetch should begin with\n  10: optional i64 (js.type = \"Long\") lastRetrievedMessageId\n  // lastProcessedMessageId is the last messageId that is processed on the passive side.\n  // This can be different than lastRetrievedMessageId if passive side supports prefetching messages.\n  20: optional i64 (js.type = \"Long\") lastProcessedMessageId\n  // clusterName is the name of the pulling cluster\n  30: optional string clusterName\n}\n\nstruct GetDomainReplicationMessagesResponse {\n  10: optional ReplicationMessages messages\n}\n\nstruct GetDLQReplicationMessagesRequest {\n  10: optional list<ReplicationTaskInfo> taskInfos\n}\n\nstruct GetDLQReplicationMessagesResponse {\n  10: optional list<ReplicationTask> replicationTasks\n}\n\nenum DLQType {\n  Replication,\n  Domain,\n}\n\nstruct ReadDLQMessagesRequest{\n  10: optional DLQType type\n  20: optional i32 shardID\n  30: optional string sourceCluster\n  40: optional i64 (js.type = \"Long\") inclusiveEndMessageID\n  50: optional i32 maximumPageSize\n  60: optional binary nextPageToken\n}\n\nstruct ReadDLQMessagesResponse{\n  10: optional DLQType type\n  20: optional list<ReplicationTask> replicationTasks\n  30: optional binary nextPageToken\n  40: optional list<ReplicationTaskInfo> replicationTasksInfo\n}\n\nstruct PurgeDLQMessagesRequest{\n  10: optional DLQType type\n  20: optional i32 shardID\n  30: optional string sourceCluster\n  40: optional i64 (js.type = \"Long\") inclusiveEndMessageID\n}\n\nstruct MergeDLQMessagesRequest{\n  10: optional DLQType type\n  20: optional i32 shardID\n  30: optional string sourceCluster\n  40: optional i64 (js.type = \"Long\") inclusiveEndMessageID\n  50: optional i32 maximumPageSize\n  60: optional binary nextPageToken\n}\n\nstruct MergeDLQMessagesResponse{\n  10: optional binary nextPageToken\n}\n"

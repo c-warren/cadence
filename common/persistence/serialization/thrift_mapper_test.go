@@ -569,18 +569,22 @@ func TestTimerTaskInfo(t *testing.T) {
 
 func TestReplicationTaskInfo(t *testing.T) {
 	expected := &ReplicationTaskInfo{
-		DomainID:                UUID(uuid.New()),
-		WorkflowID:              "WorkflowID",
-		RunID:                   UUID(uuid.New()),
-		TaskType:                int16(rand.Intn(1000)),
-		Version:                 int64(rand.Intn(1000)),
-		FirstEventID:            int64(rand.Intn(1000)),
-		NextEventID:             int64(rand.Intn(1000)),
-		ScheduledID:             int64(rand.Intn(1000)),
-		EventStoreVersion:       int32(rand.Intn(1000)),
-		NewRunEventStoreVersion: int32(rand.Intn(1000)),
-		BranchToken:             []byte("BranchToken"),
-		NewRunBranchToken:       []byte("NewRunBranchToken"),
+		DomainID:                  UUID(uuid.New()),
+		WorkflowID:                "WorkflowID",
+		RunID:                     UUID(uuid.New()),
+		TaskType:                  int16(rand.Intn(1000)),
+		Version:                   int64(rand.Intn(1000)),
+		FirstEventID:              int64(rand.Intn(1000)),
+		NextEventID:               int64(rand.Intn(1000)),
+		ScheduledID:               int64(rand.Intn(1000)),
+		EventStoreVersion:         int32(rand.Intn(1000)),
+		NewRunEventStoreVersion:   int32(rand.Intn(1000)),
+		BranchToken:               []byte("BranchToken"),
+		NewRunBranchToken:         []byte("NewRunBranchToken"),
+		AsyncWorkflowQueueName:    "AsyncWorkflowQueueName",
+		AsyncWorkflowPayload:      []byte("AsyncWorkflowPayload"),
+		AsyncWorkflowEncoding:     "AsyncWorkflowEncoding",
+		AsyncWorkflowPartitionKey: "AsyncWorkflowPartitionKey",
 	}
 	actual := replicationTaskInfoFromThrift(replicationTaskInfoToThrift(expected))
 	assert.Equal(t, expected, actual)

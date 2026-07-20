@@ -54,6 +54,14 @@ func (c *ratelimitedExecutionManager) ConflictResolveWorkflowExecution(ctx conte
 	return c.wrapped.ConflictResolveWorkflowExecution(ctx, request)
 }
 
+func (c *ratelimitedExecutionManager) CreateAsyncWorkflowReplicationTasks(ctx context.Context, request *_sourcePersistence.CreateAsyncWorkflowReplicationTasksRequest) (err error) {
+	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
+		err = ErrPersistenceLimitExceeded
+		return
+	}
+	return c.wrapped.CreateAsyncWorkflowReplicationTasks(ctx, request)
+}
+
 func (c *ratelimitedExecutionManager) CreateFailoverMarkerTasks(ctx context.Context, request *_sourcePersistence.CreateFailoverMarkersRequest) (err error) {
 	if !c.callerBypass.AllowLimiter(ctx, c.rateLimiter) {
 		err = ErrPersistenceLimitExceeded

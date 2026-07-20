@@ -130,6 +130,37 @@ func TestTaskHydrator_HydrateFailoverMarkerTask(t *testing.T) {
 	assert.Equal(t, &expected, actual)
 }
 
+func TestTaskHydrator_HydrateAsyncWorkflowRequestTask(t *testing.T) {
+	task := &persistence.AsyncWorkflowRequestTask{
+		TaskData: persistence.TaskData{
+			TaskID:              testTaskID,
+			Version:             testVersion,
+			VisibilityTimestamp: time.Unix(0, testCreationTime),
+		},
+		QueueName:    "testQueue",
+		Payload:      []byte("payload"),
+		Encoding:     "json",
+		PartitionKey: "pk",
+	}
+
+	expected := types.ReplicationTask{
+		TaskType:     types.ReplicationTaskTypeAsyncWorkflowRequest.Ptr(),
+		SourceTaskID: testTaskID,
+		AsyncWorkflowRequestTaskAttributes: &types.AsyncWorkflowRequestTaskAttributes{
+			QueueName:    "testQueue",
+			Payload:      []byte("payload"),
+			Encoding:     "json",
+			PartitionKey: "pk",
+		},
+		CreationTime: common.Int64Ptr(testCreationTime),
+	}
+
+	th := TaskHydrator{}
+	actual, err := th.Hydrate(context.Background(), task)
+	assert.NoError(t, err)
+	assert.Equal(t, &expected, actual)
+}
+
 func TestTaskHydrator_HydrateSyncActivityTask(t *testing.T) {
 	task := &persistence.SyncActivityTask{
 		WorkflowIdentifier: persistence.WorkflowIdentifier{

@@ -26,6 +26,7 @@ import (
 	"context"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	hcommon "github.com/uber/cadence/service/history/common"
 	"github.com/uber/cadence/service/history/events"
@@ -74,6 +75,8 @@ type (
 		ResetTimerQueue(ctx context.Context, clusterName string) error
 		DescribeTransferQueue(ctx context.Context, clusterName string) (*types.DescribeQueueResponse, error)
 		DescribeTimerQueue(ctx context.Context, clusterName string) (*types.DescribeQueueResponse, error)
+
+		ReplicateAsyncWorkflowRequest(ctx context.Context, tasks []*persistence.AsyncWorkflowRequestTask) error
 
 		NotifyNewHistoryEvent(event *events.Notification)
 		NotifyNewTransferTasks(info *hcommon.NotifyTaskInfo)

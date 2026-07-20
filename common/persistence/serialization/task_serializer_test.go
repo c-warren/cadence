@@ -320,6 +320,20 @@ func TestTaskSerializerThriftRW(t *testing.T) {
 				},
 			},
 		},
+		{
+			category: persistence.HistoryTaskCategoryReplication,
+			task: &persistence.AsyncWorkflowRequestTask{
+				TaskData: persistence.TaskData{
+					Version:             21,
+					TaskID:              21,
+					VisibilityTimestamp: time.Unix(21, 21),
+				},
+				QueueName:    "async-queue",
+				Payload:      []byte("async-payload"),
+				Encoding:     "thriftrw",
+				PartitionKey: "partition-key",
+			},
+		},
 	}
 
 	for _, tc := range testCases {

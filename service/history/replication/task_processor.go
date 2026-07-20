@@ -65,6 +65,8 @@ var (
 	ErrUnknownReplicationTask = &types.BadRequestError{Message: "unknown replication task"}
 	// ErrEmptyFailoverMarkerAttributes is the error returned when a failover marker replication task has nil attributes
 	ErrEmptyFailoverMarkerAttributes = &types.BadRequestError{Message: "empty failover marker attributes"}
+	// ErrEmptyAsyncWorkflowRequestAttributes is the error returned when an async workflow request replication task has nil attributes
+	ErrEmptyAsyncWorkflowRequestAttributes = &types.BadRequestError{Message: "empty async workflow request attributes"}
 )
 
 type (

@@ -379,6 +379,10 @@ func (e *historyEngineImpl) ReplicateEventsV2(ctx context.Context, replicateRequ
 	return e.nDCReplicator.ApplyEvents(ctx, replicateRequest)
 }
 
+func (e *historyEngineImpl) ReplicateAsyncWorkflowRequest(ctx context.Context, tasks []*persistence.AsyncWorkflowRequestTask) error {
+	return e.shard.ReplicateAsyncWorkflowRequest(ctx, tasks)
+}
+
 func (e *historyEngineImpl) SyncShardStatus(ctx context.Context, request *types.SyncShardStatusRequest) error {
 
 	clusterName := request.GetSourceCluster()

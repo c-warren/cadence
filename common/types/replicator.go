@@ -266,6 +266,61 @@ func (v *FailoverMarkerAttributes) ByteSize() uint64 {
 	return size
 }
 
+// AsyncWorkflowRequestTaskAttributes is an internal type (TBD...)
+type AsyncWorkflowRequestTaskAttributes struct {
+	QueueName    string `json:"queueName,omitempty"`
+	Payload      []byte `json:"payload,omitempty"`
+	Encoding     string `json:"encoding,omitempty"`
+	PartitionKey string `json:"partitionKey,omitempty"`
+}
+
+// GetQueueName is an internal getter (TBD...)
+func (v *AsyncWorkflowRequestTaskAttributes) GetQueueName() (o string) {
+	if v != nil {
+		return v.QueueName
+	}
+	return
+}
+
+// GetPayload is an internal getter (TBD...)
+func (v *AsyncWorkflowRequestTaskAttributes) GetPayload() (o []byte) {
+	if v != nil {
+		return v.Payload
+	}
+	return
+}
+
+// GetEncoding is an internal getter (TBD...)
+func (v *AsyncWorkflowRequestTaskAttributes) GetEncoding() (o string) {
+	if v != nil {
+		return v.Encoding
+	}
+	return
+}
+
+// GetPartitionKey is an internal getter (TBD...)
+func (v *AsyncWorkflowRequestTaskAttributes) GetPartitionKey() (o string) {
+	if v != nil {
+		return v.PartitionKey
+	}
+	return
+}
+
+// ByteSize returns the approximate memory used in bytes
+func (v *AsyncWorkflowRequestTaskAttributes) ByteSize() uint64 {
+	if v == nil {
+		return 0
+	}
+
+	size := uint64(unsafe.Sizeof(*v))
+	size += uint64(len(v.QueueName))
+	size += uint64(len(v.Payload))
+	size += uint64(len(v.Encoding))
+	size += uint64(len(v.PartitionKey))
+
+	return size
+}
+
 // FailoverMarkers is an internal type (TBD...)
 type FailoverMarkers struct {
 	FailoverMarkers []*FailoverMarkerAttributes `json:"failoverMarkers,omitempty"`
@@ -726,14 +781,15 @@ type ReplicationTaskSizeFn func(v *ReplicationTask) int
 
 // ReplicationTask is an internal type (TBD...)
 type ReplicationTask struct {
-	TaskType                      *ReplicationTaskType           `json:"taskType,omitempty"`
-	SourceTaskID                  int64                          `json:"sourceTaskId,omitempty"`
-	DomainTaskAttributes          *DomainTaskAttributes          `json:"domainTaskAttributes,omitempty"`
-	SyncShardStatusTaskAttributes *SyncShardStatusTaskAttributes `json:"syncShardStatusTaskAttributes,omitempty"`
-	SyncActivityTaskAttributes    *SyncActivityTaskAttributes    `json:"syncActivityTaskAttributes,omitempty"`
-	HistoryTaskV2Attributes       *HistoryTaskV2Attributes       `json:"historyTaskV2Attributes,omitempty"`
-	FailoverMarkerAttributes      *FailoverMarkerAttributes      `json:"failoverMarkerAttributes,omitempty"`
-	CreationTime                  *int64                         `json:"creationTime,omitempty"`
+	TaskType                           *ReplicationTaskType                `json:"taskType,omitempty"`
+	SourceTaskID                       int64                               `json:"sourceTaskId,omitempty"`
+	DomainTaskAttributes               *DomainTaskAttributes               `json:"domainTaskAttributes,omitempty"`
+	SyncShardStatusTaskAttributes      *SyncShardStatusTaskAttributes      `json:"syncShardStatusTaskAttributes,omitempty"`
+	SyncActivityTaskAttributes         *SyncActivityTaskAttributes         `json:"syncActivityTaskAttributes,omitempty"`
+	HistoryTaskV2Attributes            *HistoryTaskV2Attributes            `json:"historyTaskV2Attributes,omitempty"`
+	FailoverMarkerAttributes           *FailoverMarkerAttributes           `json:"failoverMarkerAttributes,omitempty"`
+	AsyncWorkflowRequestTaskAttributes *AsyncWorkflowRequestTaskAttributes `json:"asyncWorkflowRequestTaskAttributes,omitempty"`
+	CreationTime                       *int64                              `json:"creationTime,omitempty"`
 }
 
 // GetTaskType is an internal getter (TBD...)
@@ -797,6 +853,14 @@ func (v *ReplicationTask) GetCreationTime() (o int64) {
 	return
 }
 
+// GetAsyncWorkflowRequestTaskAttributes is an internal getter (TBD...)
+func (v *ReplicationTask) GetAsyncWorkflowRequestTaskAttributes() (o *AsyncWorkflowRequestTaskAttributes) {
+	if v != nil && v.AsyncWorkflowRequestTaskAttributes != nil {
+		return v.AsyncWorkflowRequestTaskAttributes
+	}
+	return
+}
+
 // ByteSize returns the approximate memory used in bytes
 func (v *ReplicationTask) ByteSize() uint64 {
 	if v == nil {
@@ -810,6 +874,7 @@ func (v *ReplicationTask) ByteSize() uint64 {
 	size += v.SyncActivityTaskAttributes.ByteSize()
 	size += v.HistoryTaskV2Attributes.ByteSize()
 	size += v.FailoverMarkerAttributes.ByteSize()
+	size += v.AsyncWorkflowRequestTaskAttributes.ByteSize()
 	if v.CreationTime != nil {
 		size += uint64(unsafe.Sizeof(*v.CreationTime))
 	}
@@ -928,6 +993,8 @@ func (e ReplicationTaskType) String() string {
 		return "HistoryV2"
 	case 6:
 		return "FailoverMarker"
+	case 7:
+		return "AsyncWorkflowRequest"
 	}
 	return fmt.Sprintf("ReplicationTaskType(%d)", w)
 }
@@ -955,6 +1022,9 @@ func (e *ReplicationTaskType) UnmarshalText(value []byte) error {
 		return nil
 	case "FAILOVERMARKER":
 		*e = ReplicationTaskTypeFailoverMarker
+		return nil
+	case "ASYNCWORKFLOWREQUEST":
+		*e = ReplicationTaskTypeAsyncWorkflowRequest
 		return nil
 	default:
 		val, err := strconv.ParseInt(s, 10, 32)
@@ -986,6 +1056,8 @@ const (
 	ReplicationTaskTypeHistoryV2
 	// ReplicationTaskTypeFailoverMarker is an option for ReplicationTaskType
 	ReplicationTaskTypeFailoverMarker
+	// ReplicationTaskTypeAsyncWorkflowRequest is an option for ReplicationTaskType
+	ReplicationTaskTypeAsyncWorkflowRequest
 )
 
 // ByteSize returns the approximate memory used in bytes

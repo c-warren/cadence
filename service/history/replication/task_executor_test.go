@@ -21,6 +21,7 @@
 package replication
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -569,4 +570,103 @@ func (s *taskExecutorSuite) TestProcess_UnknownTask() {
 	_, err := s.taskHandler.execute(task, true)
 	s.Error(err)
 	s.ErrorIs(err, ErrUnknownReplicationTask)
+}
+
+func TestHandleAsyncWorkflowRequestTask(t *testing.T) {
+	const shardID = 0
+	enqueueErr := errors.New("enqueue failed")
+
+	tests := []struct {
+		name        string
+		task        *types.ReplicationTask
+		setupMock   func(m *persistence.MockAsyncWorkflowQueueManager)
+		expectedErr error
+	}{
+		{
+			name: "nil attributes returns sentinel error and does not enqueue",
+			task: &types.ReplicationTask{
+				TaskType:                           types.ReplicationTaskTypeAsyncWorkflowRequest.Ptr(),
+				AsyncWorkflowRequestTaskAttributes: nil,
+			},
+			setupMock:   func(m *persistence.MockAsyncWorkflowQueueManager) {},
+			expectedErr: ErrEmptyAsyncWorkflowRequestAttributes,
+		},
+		{
+			name: "valid attributes enqueues once and succeeds",
+			task: &types.ReplicationTask{
+				TaskType: types.ReplicationTaskTypeAsyncWorkflowRequest.Ptr(),
+				AsyncWorkflowRequestTaskAttributes: &types.AsyncWorkflowRequestTaskAttributes{
+					QueueName:    "test-queue",
+					Payload:      []byte("payload"),
+					Encoding:     "thriftrw",
+					PartitionKey: "wf-id",
+				},
+			},
+			setupMock: func(m *persistence.MockAsyncWorkflowQueueManager) {
+				m.EXPECT().Enqueue(gomock.Any(), &persistence.EnqueueAsyncWorkflowMessageRequest{
+					QueueName:    "test-queue",
+					ShardID:      shardID,
+					Payload:      []byte("payload"),
+					Encoding:     "thriftrw",
+					PartitionKey: "wf-id",
+				}).Return(&persistence.EnqueueAsyncWorkflowMessageResponse{MessageID: 1}, nil).Times(1)
+			},
+			expectedErr: nil,
+		},
+		{
+			name: "propagates enqueue error",
+			task: &types.ReplicationTask{
+				TaskType: types.ReplicationTaskTypeAsyncWorkflowRequest.Ptr(),
+				AsyncWorkflowRequestTaskAttributes: &types.AsyncWorkflowRequestTaskAttributes{
+					QueueName:    "test-queue",
+					Payload:      []byte("payload"),
+					Encoding:     "thriftrw",
+					PartitionKey: "wf-id",
+				},
+			},
+			setupMock: func(m *persistence.MockAsyncWorkflowQueueManager) {
+				m.EXPECT().Enqueue(gomock.Any(), gomock.Any()).Return(nil, enqueueErr).Times(1)
+			},
+			expectedErr: enqueueErr,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+			cfg := config.NewForTestByShardNumber(2)
+			mockShard := shard.NewTestContext(
+				t,
+				controller,
+				&persistence.ShardInfo{
+					ShardID:                shardID,
+					RangeID:                1,
+					ReplicationDLQAckLevel: map[string]int64{"test": -1},
+				},
+				cfg,
+			)
+			defer mockShard.Finish(t)
+
+			mockQueueMgr := mockShard.Resource.GetAsyncWorkflowQueueManager().(*persistence.MockAsyncWorkflowQueueManager)
+			tc.setupMock(mockQueueMgr)
+
+			e := NewTaskExecutor(
+				"source-cluster",
+				mockShard,
+				mockShard.Resource.DomainCache,
+				ndc.NewMockHistoryResender(controller),
+				engine.NewMockEngine(controller),
+				metrics.NewClient(tally.NoopScope, metrics.History, metrics.MigrationConfig{}),
+				mockShard.GetLogger(),
+			).(*taskExecutorImpl)
+
+			scope, err := e.execute(tc.task, true)
+			require.Equal(t, metrics.AsyncWorkflowRequestTaskScope, scope)
+			if tc.expectedErr != nil {
+				require.ErrorIs(t, err, tc.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }

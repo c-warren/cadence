@@ -97,6 +97,30 @@ func (c *meteredExecutionManager) ConflictResolveWorkflowExecution(ctx context.C
 	return
 }
 
+func (c *meteredExecutionManager) CreateAsyncWorkflowReplicationTasks(ctx context.Context, request *_sourcePersistence.CreateAsyncWorkflowReplicationTasksRequest) (err error) {
+	op := func() error {
+		err = c.wrapped.CreateAsyncWorkflowReplicationTasks(ctx, request)
+		return err
+	}
+
+	retryCount := getRetryCountFromContext(ctx)
+	if domainName, hasDomainName := getDomainNameFromRequest(request); hasDomainName {
+		logTags := append([]tag.Tag{tag.WorkflowDomainName(domainName)}, getCustomLogTags(request)...)
+		c.logger.Debug("Persistence CreateAsyncWorkflowReplicationTasks called", logTags...)
+		if c.enableShardIDMetrics() {
+			err = c.callWithDomainAndShardScope(metrics.PersistenceCreateAsyncWorkflowReplicationTasksScope, op, metrics.DomainTag(domainName),
+				metrics.ShardIDTag(c.GetShardID()), metrics.IsRetryTag(retryCount > 0))
+		} else {
+			err = c.call(metrics.PersistenceCreateAsyncWorkflowReplicationTasksScope, op, metrics.DomainTag(domainName), metrics.IsRetryTag(retryCount > 0))
+		}
+		return
+	}
+
+	err = c.callWithoutDomainTag(metrics.PersistenceCreateAsyncWorkflowReplicationTasksScope, op, append(getCustomMetricTags(request), metrics.IsRetryTag(retryCount > 0))...)
+
+	return
+}
+
 func (c *meteredExecutionManager) CreateFailoverMarkerTasks(ctx context.Context, request *_sourcePersistence.CreateFailoverMarkersRequest) (err error) {
 	op := func() error {
 		err = c.wrapped.CreateFailoverMarkerTasks(ctx, request)

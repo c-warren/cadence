@@ -330,19 +330,23 @@ type (
 
 	// ReplicationTaskInfo blob in a serialization agnostic format
 	ReplicationTaskInfo struct {
-		DomainID                UUID
-		WorkflowID              string
-		RunID                   UUID
-		TaskType                int16
-		Version                 int64
-		FirstEventID            int64
-		NextEventID             int64
-		ScheduledID             int64
-		EventStoreVersion       int32
-		NewRunEventStoreVersion int32
-		BranchToken             []byte
-		NewRunBranchToken       []byte
-		CreationTimestamp       time.Time
+		DomainID                  UUID
+		WorkflowID                string
+		RunID                     UUID
+		TaskType                  int16
+		Version                   int64
+		FirstEventID              int64
+		NextEventID               int64
+		ScheduledID               int64
+		EventStoreVersion         int32
+		NewRunEventStoreVersion   int32
+		BranchToken               []byte
+		NewRunBranchToken         []byte
+		CreationTimestamp         time.Time
+		AsyncWorkflowQueueName    string
+		AsyncWorkflowPayload      []byte
+		AsyncWorkflowEncoding     string
+		AsyncWorkflowPartitionKey string
 	}
 )
 

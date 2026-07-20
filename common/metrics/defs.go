@@ -211,6 +211,8 @@ const (
 	PersistenceRangeDeleteReplicationTaskFromDLQScope
 	// PersistenceCreateFailoverMarkerTasksScope tracks CreateFailoverMarkerTasks calls made by service to persistence layer
 	PersistenceCreateFailoverMarkerTasksScope
+	// PersistenceCreateAsyncWorkflowReplicationTasksScope tracks CreateAsyncWorkflowReplicationTasks calls made by service to persistence layer
+	PersistenceCreateAsyncWorkflowReplicationTasksScope
 	// PersistenceCreateHistoryTasksScope tracks CreateHistoryTasks calls made by service to persistence layer
 	PersistenceCreateHistoryTasksScope
 	// PersistenceGetTimerIndexTasksScope tracks GetTimerIndexTasks calls made by service to persistence layer
@@ -1493,6 +1495,8 @@ const (
 	HistoryTaskDLQProcessorScope
 	// AsyncWorkflowQueueGCScope is the scope used by the per-shard async workflow queue GC daemon
 	AsyncWorkflowQueueGCScope
+	// AsyncWorkflowRequestTaskScope is the scope used by the async workflow request replication task applier
+	AsyncWorkflowRequestTaskScope
 	NumHistoryScopes
 )
 
@@ -1614,6 +1618,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		PersistenceDeleteReplicationTaskFromDLQScope:             {operation: "DeleteReplicationTaskFromDLQ"},
 		PersistenceRangeDeleteReplicationTaskFromDLQScope:        {operation: "RangeDeleteReplicationTaskFromDLQ"},
 		PersistenceCreateFailoverMarkerTasksScope:                {operation: "CreateFailoverMarkerTasks"},
+		PersistenceCreateAsyncWorkflowReplicationTasksScope:      {operation: "CreateAsyncWorkflowReplicationTasks"},
 		PersistenceCreateHistoryTasksScope:                       {operation: "CreateHistoryTasks"},
 		PersistenceGetTimerIndexTasksScope:                       {operation: "GetTimerIndexTasks"},
 		PersistenceCompleteTimerTaskScope:                        {operation: "CompleteTimerTask"},
@@ -2260,6 +2265,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		WorkflowCorruptionRepairScope:                                   {operation: "WorkflowCorruptionRepair"},
 		HistoryTaskDLQProcessorScope:                                    {operation: "HistoryTaskDLQProcessor"},
 		AsyncWorkflowQueueGCScope:                                       {operation: "AsyncWorkflowQueueGC"},
+		AsyncWorkflowRequestTaskScope:                                   {operation: "AsyncWorkflowRequestTask"},
 	},
 	// Matching Scope Names
 	Matching: {
@@ -3688,10 +3694,10 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TaskScheduleSubmittedPerTaskList:          {metricName: "task_schedule_submitted_per_task_list", metricType: Counter},
 		TaskScheduleThrottledPerTaskList:          {metricName: "task_schedule_throttled_per_task_list", metricType: Counter},
 
-		HistoryTaskDLQReinjectFailuresCounter:      {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
-		HistoryTaskDLQPageSizeBytes:                {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
-		AsyncWorkflowQueueGCFailuresCounter: {metricName: "async_workflow_queue_gc_failures", metricType: Counter},
-		AsyncWorkflowQueueGCSweepsCounter:   {metricName: "async_workflow_queue_gc_sweeps", metricType: Counter},
+		HistoryTaskDLQReinjectFailuresCounter: {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
+		HistoryTaskDLQPageSizeBytes:           {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
+		AsyncWorkflowQueueGCFailuresCounter:   {metricName: "async_workflow_queue_gc_failures", metricType: Counter},
+		AsyncWorkflowQueueGCSweepsCounter:     {metricName: "async_workflow_queue_gc_sweeps", metricType: Counter},
 
 		TaskBatchCompleteCounter:                                      {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                      {metricName: "task_batch_complete_error", metricType: Counter},

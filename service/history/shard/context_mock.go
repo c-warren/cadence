@@ -551,6 +551,20 @@ func (mr *MockContextMockRecorder) ReinjectHistoryTasks(ctx, tasks any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReinjectHistoryTasks", reflect.TypeOf((*MockContext)(nil).ReinjectHistoryTasks), ctx, tasks)
 }
 
+// ReplicateAsyncWorkflowRequest mocks base method.
+func (m *MockContext) ReplicateAsyncWorkflowRequest(ctx context.Context, tasks []*persistence.AsyncWorkflowRequestTask) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReplicateAsyncWorkflowRequest", ctx, tasks)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ReplicateAsyncWorkflowRequest indicates an expected call of ReplicateAsyncWorkflowRequest.
+func (mr *MockContextMockRecorder) ReplicateAsyncWorkflowRequest(ctx, tasks any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReplicateAsyncWorkflowRequest", reflect.TypeOf((*MockContext)(nil).ReplicateAsyncWorkflowRequest), ctx, tasks)
+}
+
 // ReplicateFailoverMarkers mocks base method.
 func (m *MockContext) ReplicateFailoverMarkers(ctx context.Context, markers []*persistence.FailoverMarkerTask) error {
 	m.ctrl.T.Helper()

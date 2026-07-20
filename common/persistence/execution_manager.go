@@ -999,6 +999,14 @@ func (m *executionManagerImpl) CreateFailoverMarkerTasks(
 	return m.persistence.CreateFailoverMarkerTasks(ctx, request)
 }
 
+func (m *executionManagerImpl) CreateAsyncWorkflowReplicationTasks(
+	ctx context.Context,
+	request *CreateAsyncWorkflowReplicationTasksRequest,
+) error {
+	request.CurrentTimeStamp = m.timeSrc.Now()
+	return m.persistence.CreateAsyncWorkflowReplicationTasks(ctx, request)
+}
+
 func (m *executionManagerImpl) CreateHistoryTasks(
 	ctx context.Context,
 	request *CreateHistoryTasksRequest,

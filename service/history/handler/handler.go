@@ -2153,7 +2153,8 @@ func (h *handlerImpl) EnqueueAsyncWorkflowMessage(
 
 	// GetEngineForShard acts purely as the shard ownership guard; the queue is
 	// served by the host-level manager keyed on ShardID.
-	if _, err := h.controller.GetEngineForShard(int(request.GetShardID())); err != nil {
+	engine, err := h.controller.GetEngineForShard(int(request.GetShardID()))
+	if err != nil {
 		return nil, h.error(err, scope, "", "", "")
 	}
 
@@ -2167,6 +2168,21 @@ func (h *handlerImpl) EnqueueAsyncWorkflowMessage(
 	if err != nil {
 		return nil, h.error(err, scope, "", "", "")
 	}
+
+	// Row-first: after the queue row is durably enqueued, emit the cross-region
+	// replication task. Fail the request if replication task creation fails.
+	if err := engine.ReplicateAsyncWorkflowRequest(ctx, []*persistence.AsyncWorkflowRequestTask{
+		{
+			TaskData:     persistence.TaskData{Version: commonconstants.EmptyVersion},
+			QueueName:    request.QueueName,
+			Payload:      request.Payload,
+			Encoding:     request.Encoding,
+			PartitionKey: request.PartitionKey,
+		},
+	}); err != nil {
+		return nil, h.error(err, scope, "", "", "")
+	}
+
 	return &types.EnqueueAsyncWorkflowMessageResponse{MessageID: presp.MessageID}, nil
 }
 
