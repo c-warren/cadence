@@ -48,8 +48,13 @@ import (
 	"go.uber.org/yarpc/transport/grpc"
 	"go.uber.org/zap"
 
+	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/metrics"
+	"github.com/uber/cadence/common/persistence"
+	persistenceclient "github.com/uber/cadence/common/persistence/client"
 	"github.com/uber/cadence/common/service"
+	"github.com/uber/cadence/common/types"
 )
 
 func init() {
@@ -57,6 +62,12 @@ func init() {
 	activity.Register(testActivity)
 	workflow.Register(testParentWorkflow)
 	workflow.Register(testChildWorkflow)
+	workflow.Register(asyncTimerWorkflow)
+	workflow.Register(asyncLongTimerWorkflow)
+	workflow.Register(asyncChildParentWorkflow)
+	workflow.Register(asyncChildWorkflow)
+	workflow.Register(asyncPriorityChildParentWorkflow)
+	workflow.Register(asyncPriorityChildWorkflow)
 }
 
 func TestClientIntegrationSuite(t *testing.T) {
@@ -128,10 +139,13 @@ func (s *ClientIntegrationSuite) buildServiceClient() (workflowserviceclient.Int
 	}
 	cc := dispatcher.ClientConfig(service.Frontend)
 	return compatibility.NewThrift2ProtoAdapter(
-		apiv1.NewDomainAPIYARPCClient(cc),
-		apiv1.NewWorkflowAPIYARPCClient(cc),
-		apiv1.NewWorkerAPIYARPCClient(cc),
-		apiv1.NewVisibilityAPIYARPCClient(cc),
+		compatibility.AdapterClients{
+			Domain:     apiv1.NewDomainAPIYARPCClient(cc),
+			Workflow:   apiv1.NewWorkflowAPIYARPCClient(cc),
+			Worker:     apiv1.NewWorkerAPIYARPCClient(cc),
+			Visibility: apiv1.NewVisibilityAPIYARPCClient(cc),
+			Schedule:   apiv1.NewScheduleAPIYARPCClient(cc),
+		},
 	), nil
 }
 
@@ -514,4 +528,234 @@ func (s *ClientIntegrationSuite) Test_StickyWorkerRestartDecisionTask_SLOW() {
 			s.True(tt.delayCheck(duration), "delay check failed: %s", duration)
 		})
 	}
+}
+
+// Async (deprioritized) timer & child-workflow integration tests.
+//
+// These exercise the "async" priority end-to-end through the SDK client. For each of timers and
+// child workflows we assert two things:
+//   - correctness: the workflow completes successfully — deprioritization must never drop or stall
+//     a task when the system is not backlogged;
+//   - priority applied: the persisted TimerInfo / ChildExecutionInfo carries
+//     persistence.TaskPriorityAsync.
+//
+// Backlog/ordering behavior under contention is intentionally not asserted here — it is
+// non-deterministic in an integration test and is covered by unit tests on priorityAssignerImpl.
+
+const (
+	asyncChildTaskList         = "client-integration-async-child-tasklist"
+	asyncPriorityChildTaskList = "client-integration-async-priority-child-tasklist"
+)
+
+// asyncTimerWorkflow sleeps briefly with async priority; used to prove an async timer fires and
+// the workflow completes.
+func asyncTimerWorkflow(ctx workflow.Context) error {
+	return workflow.SleepWithOptions(ctx, time.Second, workflow.WithPriority(workflow.PriorityAsync))
+}
+
+// asyncLongTimerWorkflow sleeps for a long time with async priority so the pending TimerInfo is
+// observable in mutable state before the timer fires.
+func asyncLongTimerWorkflow(ctx workflow.Context) error {
+	return workflow.SleepWithOptions(ctx, 10*time.Minute, workflow.WithPriority(workflow.PriorityAsync))
+}
+
+// asyncChildWorkflow returns immediately; child body for the async-child correctness test.
+func asyncChildWorkflow(ctx workflow.Context) (string, error) {
+	return "async-child-done", nil
+}
+
+// asyncChildParentWorkflow starts a child workflow with async priority and waits for it.
+func asyncChildParentWorkflow(ctx workflow.Context) (string, error) {
+	cwo := workflow.ChildWorkflowOptions{
+		TaskList:                     asyncChildTaskList,
+		Priority:                     workflow.PriorityAsync,
+		ExecutionStartToCloseTimeout: time.Minute,
+	}
+	ctx = workflow.WithChildOptions(ctx, cwo)
+	var res string
+	if err := workflow.ExecuteChildWorkflow(ctx, asyncChildWorkflow).Get(ctx, &res); err != nil {
+		return "", err
+	}
+	return res, nil
+}
+
+// asyncPriorityChildWorkflow sleeps for a long time so the parent's ChildExecutionInfo entry
+// remains pending long enough to inspect its persisted priority.
+func asyncPriorityChildWorkflow(ctx workflow.Context) (string, error) {
+	if err := workflow.Sleep(ctx, 10*time.Minute); err != nil {
+		return "", err
+	}
+	return "async-child-done", nil
+}
+
+// asyncPriorityChildParentWorkflow starts a long-running child with async priority and waits.
+func asyncPriorityChildParentWorkflow(ctx workflow.Context) (string, error) {
+	cwo := workflow.ChildWorkflowOptions{
+		TaskList:                     asyncPriorityChildTaskList,
+		Priority:                     workflow.PriorityAsync,
+		ExecutionStartToCloseTimeout: 15 * time.Minute,
+	}
+	ctx = workflow.WithChildOptions(ctx, cwo)
+	var res string
+	if err := workflow.ExecuteChildWorkflow(ctx, asyncPriorityChildWorkflow).Get(ctx, &res); err != nil {
+		return "", err
+	}
+	return res, nil
+}
+
+func (s *ClientIntegrationSuite) TestAsyncTimer_SLOW() {
+	id := "client-integration-async-timer"
+	workflowOptions := client.StartWorkflowOptions{
+		ID:                           id,
+		TaskList:                     s.taskList,
+		ExecutionStartToCloseTimeout: 60 * time.Second,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	we, err := s.wfClient.ExecuteWorkflow(ctx, workflowOptions, asyncTimerWorkflow)
+	s.NoError(err)
+	s.NotNil(we)
+	s.True(we.GetRunID() != "")
+
+	err = we.Get(ctx, nil)
+	s.NoError(err)
+}
+
+func (s *ClientIntegrationSuite) TestAsyncChildWorkflow_SLOW() {
+	worker := s.startWorkerWithDataConverter(asyncChildTaskList, nil)
+	defer worker.Stop()
+
+	id := "client-integration-async-child-workflow"
+	workflowOptions := client.StartWorkflowOptions{
+		ID:                           id,
+		TaskList:                     s.taskList,
+		ExecutionStartToCloseTimeout: 60 * time.Second,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	we, err := s.wfClient.ExecuteWorkflow(ctx, workflowOptions, asyncChildParentWorkflow)
+	s.NoError(err)
+	s.NotNil(we)
+	s.True(we.GetRunID() != "")
+
+	var res string
+	err = we.Get(ctx, &res)
+	s.NoError(err)
+	s.Equal("async-child-done", res)
+}
+
+func (s *ClientIntegrationSuite) TestAsyncTimerPriorityPersisted_SLOW() {
+	id := "client-integration-async-timer-priority"
+	workflowOptions := client.StartWorkflowOptions{
+		ID:                           id,
+		TaskList:                     s.taskList,
+		ExecutionStartToCloseTimeout: 15 * time.Minute,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	we, err := s.wfClient.ExecuteWorkflow(ctx, workflowOptions, asyncLongTimerWorkflow)
+	s.NoError(err)
+	s.NotNil(we)
+	runID := we.GetRunID()
+	s.True(runID != "")
+	defer s.terminateWorkflow(id, runID)
+
+	state := s.pollMutableStateUntil(id, runID, func(ms *persistence.WorkflowMutableState) bool {
+		return len(ms.TimerInfos) > 0
+	})
+	s.NotEmpty(state.TimerInfos, "expected a pending timer in mutable state")
+	for _, ti := range state.TimerInfos {
+		s.Equal(persistence.TaskPriorityAsync, ti.Priority, "pending timer should carry async priority")
+	}
+}
+
+func (s *ClientIntegrationSuite) TestAsyncChildWorkflowPriorityPersisted_SLOW() {
+	worker := s.startWorkerWithDataConverter(asyncPriorityChildTaskList, nil)
+	defer worker.Stop()
+
+	id := "client-integration-async-child-priority"
+	workflowOptions := client.StartWorkflowOptions{
+		ID:                           id,
+		TaskList:                     s.taskList,
+		ExecutionStartToCloseTimeout: 15 * time.Minute,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	we, err := s.wfClient.ExecuteWorkflow(ctx, workflowOptions, asyncPriorityChildParentWorkflow)
+	s.NoError(err)
+	s.NotNil(we)
+	runID := we.GetRunID()
+	s.True(runID != "")
+	defer s.terminateWorkflow(id, runID)
+
+	state := s.pollMutableStateUntil(id, runID, func(ms *persistence.WorkflowMutableState) bool {
+		return len(ms.ChildExecutionInfos) > 0
+	})
+	s.NotEmpty(state.ChildExecutionInfos, "expected a pending child execution in mutable state")
+	for _, ci := range state.ChildExecutionInfos {
+		s.Equal(persistence.TaskPriorityAsync, ci.Priority, "pending child execution should carry async priority")
+	}
+}
+
+// terminateWorkflow best-effort terminates a long-running test workflow during cleanup.
+func (s *ClientIntegrationSuite) terminateWorkflow(workflowID, runID string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	_ = s.wfClient.TerminateWorkflow(ctx, workflowID, runID, "test cleanup", nil)
+}
+
+// pollMutableStateUntil loads the workflow's mutable state directly from persistence and returns it
+// once cond is satisfied, failing the test if the retry budget is exhausted. It observes an async
+// timer / child task while it is still pending, before it fires or completes.
+func (s *ClientIntegrationSuite) pollMutableStateUntil(
+	workflowID, runID string,
+	cond func(*persistence.WorkflowMutableState) bool,
+) *persistence.WorkflowMutableState {
+	domainCtx, domainCancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
+	domainResp, err := s.Engine.DescribeDomain(domainCtx, &types.DescribeDomainRequest{
+		Name: common.StringPtr(s.DomainName),
+	})
+	domainCancel()
+	s.NoError(err)
+	domainID := domainResp.DomainInfo.GetUUID()
+
+	// The ExecutionManager is shard-scoped, so build it for the shard that actually
+	// owns this workflow (numHistoryShards > 1 means shard 0 usually isn't it).
+	shardID := common.WorkflowIDToHistoryShard(workflowID, s.TestClusterConfig.HistoryConfig.NumHistoryShards)
+	execMgr := s.newExecutionManager(shardID)
+	defer execMgr.Close()
+
+	request := &persistence.GetWorkflowExecutionRequest{
+		ShardID:   common.IntPtr(shardID),
+		DomainID:  domainID,
+		Execution: types.WorkflowExecution{WorkflowID: workflowID, RunID: runID},
+	}
+	for i := 0; i < 50; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), defaultTestPersistenceTimeout)
+		resp, err := execMgr.GetWorkflowExecution(ctx, request)
+		cancel()
+		if err == nil && resp.State != nil && cond(resp.State) {
+			return resp.State
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	s.Require().FailNow("timed out waiting for mutable state condition")
+	return nil
+}
+
+// newExecutionManager builds a fresh ExecutionManager for the given shard against the same keyspace
+// the history service uses, mirroring the helper in workflow_timer_task_cleanup_test.go.
+func (s *ClientIntegrationSuite) newExecutionManager(shardID int) persistence.ExecutionManager {
+	pConfig := s.TestCluster.testBase.DefaultTestCluster.Config()
+	factory := persistenceclient.NewFactory(
+		&pConfig,
+		func() float64 { return 1000 },
+		s.TestCluster.testBase.ClusterMetadata.GetCurrentClusterName(),
+		metrics.NewNoopMetricsClient(),
+		s.Logger,
+		&s.TestCluster.testBase.DynamicConfiguration,
+	)
+	execMgr, err := factory.NewExecutionManager(shardID)
+	s.Require().NoError(err)
+	return execMgr
 }

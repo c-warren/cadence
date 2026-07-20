@@ -169,3 +169,5 @@ replace github.com/apache/thrift => github.com/apache/thrift v0.16.0
 retract v1.2.3
 
 replace github.com/uber/cadence-idl => ./idls
+
+replace go.uber.org/cadence => github.com/c-warren/cadence-go-client v0.0.0-20260717232915-ad4e6c47b896

@@ -23,17 +23,37 @@ package nosqlplugin
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 )
 
 func getCadencePackageDir() (string, error) {
-	cadencePackageDir, err := os.Getwd()
+	cwd, err := os.Getwd()
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	cadenceIndex := strings.LastIndex(cadencePackageDir, "cadence/")
-	cadencePackageDir = cadencePackageDir[:cadenceIndex+len("cadence/")]
-	return cadencePackageDir, err
+	// Walk up from the current working directory to find the repo/module root,
+	// identified by the presence of the schema directory. This is robust to being
+	// run from a git worktree (e.g. .../cadence/.worktrees/cadence/<branch>/...),
+	// where the naive "last index of cadence/" heuristic below resolves to the
+	// worktree container dir instead of the worktree root and loads the wrong schema.
+	for dir := cwd; ; {
+		if _, statErr := os.Stat(filepath.Join(dir, "schema", "cassandra")); statErr == nil {
+			return dir + string(os.PathSeparator), nil
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	// Fallback to the legacy heuristic to preserve prior behavior if the schema
+	// directory could not be located above the current working directory.
+	cadenceIndex := strings.LastIndex(cwd, "cadence/")
+	if cadenceIndex == -1 {
+		return cwd + string(os.PathSeparator), nil
+	}
+	return cwd[:cadenceIndex+len("cadence/")], nil
 }
 
 func GetDefaultTestSchemaDir(testSchemaRelativePath string) (string, error) {
