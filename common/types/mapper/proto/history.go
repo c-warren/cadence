@@ -1838,3 +1838,127 @@ func ToHistoryEnqueueAsyncWorkflowMessageToDLQResponse(t *historyv1.EnqueueAsync
 		MessageID: t.MessageId,
 	}
 }
+
+func FromHistoryReadAsyncWorkflowMessagesFromDLQRequest(t *types.ReadAsyncWorkflowMessagesFromDLQRequest) *historyv1.ReadAsyncWorkflowMessagesFromDLQRequest {
+	if t == nil {
+		return nil
+	}
+	return &historyv1.ReadAsyncWorkflowMessagesFromDLQRequest{
+		ShardId:       t.ShardID,
+		QueueName:     t.QueueName,
+		LastMessageId: t.LastMessageID,
+		PageSize:      t.PageSize,
+	}
+}
+
+func ToHistoryReadAsyncWorkflowMessagesFromDLQRequest(t *historyv1.ReadAsyncWorkflowMessagesFromDLQRequest) *types.ReadAsyncWorkflowMessagesFromDLQRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.ReadAsyncWorkflowMessagesFromDLQRequest{
+		ShardID:       t.ShardId,
+		QueueName:     t.QueueName,
+		LastMessageID: t.LastMessageId,
+		PageSize:      t.PageSize,
+	}
+}
+
+func FromHistoryReadAsyncWorkflowMessagesFromDLQResponse(t *types.ReadAsyncWorkflowMessagesFromDLQResponse) *historyv1.ReadAsyncWorkflowMessagesFromDLQResponse {
+	if t == nil {
+		return nil
+	}
+	return &historyv1.ReadAsyncWorkflowMessagesFromDLQResponse{
+		Messages:      FromHistoryAsyncWorkflowMessageArray(t.Messages),
+		LastMessageId: t.LastMessageID,
+	}
+}
+
+func ToHistoryReadAsyncWorkflowMessagesFromDLQResponse(t *historyv1.ReadAsyncWorkflowMessagesFromDLQResponse) *types.ReadAsyncWorkflowMessagesFromDLQResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ReadAsyncWorkflowMessagesFromDLQResponse{
+		Messages:      ToHistoryAsyncWorkflowMessageArray(t.Messages),
+		LastMessageID: t.LastMessageId,
+	}
+}
+
+func FromHistoryMergeAsyncWorkflowMessagesFromDLQRequest(t *types.MergeAsyncWorkflowMessagesFromDLQRequest) *historyv1.MergeAsyncWorkflowMessagesFromDLQRequest {
+	if t == nil {
+		return nil
+	}
+	return &historyv1.MergeAsyncWorkflowMessagesFromDLQRequest{
+		ShardId:               t.ShardID,
+		QueueName:             t.QueueName,
+		InclusiveEndMessageId: t.InclusiveEndMessageID,
+		PageSize:              t.PageSize,
+	}
+}
+
+func ToHistoryMergeAsyncWorkflowMessagesFromDLQRequest(t *historyv1.MergeAsyncWorkflowMessagesFromDLQRequest) *types.MergeAsyncWorkflowMessagesFromDLQRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.MergeAsyncWorkflowMessagesFromDLQRequest{
+		ShardID:               t.ShardId,
+		QueueName:             t.QueueName,
+		InclusiveEndMessageID: t.InclusiveEndMessageId,
+		PageSize:              t.PageSize,
+	}
+}
+
+func FromHistoryMergeAsyncWorkflowMessagesFromDLQResponse(t *types.MergeAsyncWorkflowMessagesFromDLQResponse) *historyv1.MergeAsyncWorkflowMessagesFromDLQResponse {
+	if t == nil {
+		return nil
+	}
+	return &historyv1.MergeAsyncWorkflowMessagesFromDLQResponse{
+		MessagesCount: t.MessagesCount,
+		LastMessageId: t.LastMessageID,
+	}
+}
+
+func ToHistoryMergeAsyncWorkflowMessagesFromDLQResponse(t *historyv1.MergeAsyncWorkflowMessagesFromDLQResponse) *types.MergeAsyncWorkflowMessagesFromDLQResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.MergeAsyncWorkflowMessagesFromDLQResponse{
+		MessagesCount: t.MessagesCount,
+		LastMessageID: t.LastMessageId,
+	}
+}
+
+func FromHistoryPurgeAsyncWorkflowMessagesFromDLQRequest(t *types.PurgeAsyncWorkflowMessagesFromDLQRequest) *historyv1.PurgeAsyncWorkflowMessagesFromDLQRequest {
+	if t == nil {
+		return nil
+	}
+	return &historyv1.PurgeAsyncWorkflowMessagesFromDLQRequest{
+		ShardId:               t.ShardID,
+		QueueName:             t.QueueName,
+		InclusiveEndMessageId: t.InclusiveEndMessageID,
+	}
+}
+
+func ToHistoryPurgeAsyncWorkflowMessagesFromDLQRequest(t *historyv1.PurgeAsyncWorkflowMessagesFromDLQRequest) *types.PurgeAsyncWorkflowMessagesFromDLQRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.PurgeAsyncWorkflowMessagesFromDLQRequest{
+		ShardID:               t.ShardId,
+		QueueName:             t.QueueName,
+		InclusiveEndMessageID: t.InclusiveEndMessageId,
+	}
+}
+
+func FromHistoryPurgeAsyncWorkflowMessagesFromDLQResponse(t *types.PurgeAsyncWorkflowMessagesFromDLQResponse) *historyv1.PurgeAsyncWorkflowMessagesFromDLQResponse {
+	if t == nil {
+		return nil
+	}
+	return &historyv1.PurgeAsyncWorkflowMessagesFromDLQResponse{}
+}
+
+func ToHistoryPurgeAsyncWorkflowMessagesFromDLQResponse(t *historyv1.PurgeAsyncWorkflowMessagesFromDLQResponse) *types.PurgeAsyncWorkflowMessagesFromDLQResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.PurgeAsyncWorkflowMessagesFromDLQResponse{}
+}

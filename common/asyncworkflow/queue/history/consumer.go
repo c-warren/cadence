@@ -28,8 +28,10 @@ import (
 	"time"
 
 	historyclient "github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
 	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/constants"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/membership"
@@ -54,9 +56,61 @@ const (
 	// The worker-service membership ring drives reassignment via Subscribe, but the
 	// shard-distributor hashring has no native subscription so we also poll periodically.
 	defaultRebalanceInterval = 30 * time.Second
-	// msgChanBufferSize bounds the number of in-flight messages buffered towards the consumer.
-	msgChanBufferSize = 1000
+	// defaultMsgChanBufferSize bounds the number of in-flight messages buffered towards the consumer.
+	defaultMsgChanBufferSize = 1000
 )
+
+// consumerConfig holds the (dynamic-config-backed) tuning knobs read live by the
+// consumer. All duration/int knobs are function-valued so a dynamic-config change
+// takes effect without a restart; bufferSize is resolved once at construction
+// because the message channel cannot be resized in place.
+type consumerConfig struct {
+	pageSize          dynamicproperties.IntPropertyFn
+	pollInterval      dynamicproperties.DurationPropertyFn
+	commitInterval    dynamicproperties.DurationPropertyFn
+	errorBackoff      dynamicproperties.DurationPropertyFn
+	rebalanceInterval dynamicproperties.DurationPropertyFn
+	rpcTimeout        dynamicproperties.DurationPropertyFn
+	bufferSize        int
+}
+
+// resolveConsumerConfig maps the (possibly nil-populated) provider config into a
+// fully-populated consumerConfig, substituting built-in defaults for any nil knob.
+func resolveConsumerConfig(cfg provider.ConsumerConfig) consumerConfig {
+	out := consumerConfig{
+		pageSize:          cfg.PageSize,
+		pollInterval:      cfg.PollInterval,
+		commitInterval:    cfg.CommitInterval,
+		errorBackoff:      cfg.ErrorBackoff,
+		rebalanceInterval: cfg.RebalanceInterval,
+		rpcTimeout:        cfg.RPCTimeout,
+	}
+	if out.pageSize == nil {
+		out.pageSize = dynamicproperties.GetIntPropertyFn(defaultPageSize)
+	}
+	if out.pollInterval == nil {
+		out.pollInterval = dynamicproperties.GetDurationPropertyFn(defaultPollInterval)
+	}
+	if out.commitInterval == nil {
+		out.commitInterval = dynamicproperties.GetDurationPropertyFn(defaultCommitInterval)
+	}
+	if out.errorBackoff == nil {
+		out.errorBackoff = dynamicproperties.GetDurationPropertyFn(defaultErrorBackoff)
+	}
+	if out.rebalanceInterval == nil {
+		out.rebalanceInterval = dynamicproperties.GetDurationPropertyFn(defaultRebalanceInterval)
+	}
+	if out.rpcTimeout == nil {
+		out.rpcTimeout = dynamicproperties.GetDurationPropertyFn(defaultRPCTimeout)
+	}
+	out.bufferSize = defaultMsgChanBufferSize
+	if cfg.BufferSize != nil {
+		if n := cfg.BufferSize(); n > 0 {
+			out.bufferSize = n
+		}
+	}
+	return out
+}
 
 type (
 	// consumerImpl is a history-backed messaging.Consumer scoped to a single logical
@@ -73,11 +127,7 @@ type (
 		logger           log.Logger
 		metricsClient    metrics.Client
 
-		pageSize          int
-		pollInterval      time.Duration
-		commitInterval    time.Duration
-		errorBackoff      time.Duration
-		rebalanceInterval time.Duration
+		cfg consumerConfig
 
 		self       membership.HostInfo
 		msgChan    chan messaging.Message
@@ -115,27 +165,34 @@ func newConsumer(
 	timeSource clock.TimeSource,
 	logger log.Logger,
 	metricsClient metrics.Client,
+	cfg consumerConfig,
 ) *consumerImpl {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &consumerImpl{
-		queueName:         queueName,
-		historyClient:     historyClient,
-		numHistoryShards:  numHistoryShards,
-		resolver:          resolver,
-		timeSource:        timeSource,
-		logger:            logger.WithTags(tag.AsyncWFQueueID((&queueConfig{QueueName: queueName}).ID())),
-		metricsClient:     metricsClient,
-		pageSize:          defaultPageSize,
-		pollInterval:      defaultPollInterval,
-		commitInterval:    defaultCommitInterval,
-		errorBackoff:      defaultErrorBackoff,
-		rebalanceInterval: defaultRebalanceInterval,
-		msgChan:           make(chan messaging.Message, msgChanBufferSize),
-		ctx:               ctx,
-		cancel:            cancel,
-		membership:        make(chan *membership.ChangedEvent, 10),
-		shardWorkers:      make(map[int32]*shardWorker),
+		queueName:        queueName,
+		historyClient:    historyClient,
+		numHistoryShards: numHistoryShards,
+		resolver:         resolver,
+		timeSource:       timeSource,
+		logger:           logger.WithTags(tag.AsyncWFQueueID((&queueConfig{QueueName: queueName}).ID())),
+		metricsClient:    metricsClient,
+		cfg:              cfg,
+		msgChan:          make(chan messaging.Message, cfg.bufferSize),
+		ctx:              ctx,
+		cancel:           cancel,
+		membership:       make(chan *membership.ChangedEvent, 10),
+		shardWorkers:     make(map[int32]*shardWorker),
 	}
+}
+
+// queueScope returns the consumer metrics scope tagged with the queue name.
+func (c *consumerImpl) queueScope() metrics.Scope {
+	return c.metricsClient.Scope(metrics.AsyncWorkflowConsumerScope, metrics.TopicTag(c.queueName))
+}
+
+// shardScope returns the consumer metrics scope tagged with the queue name and shard ID.
+func (c *consumerImpl) shardScope(shardID int32) metrics.Scope {
+	return c.metricsClient.Scope(metrics.AsyncWorkflowConsumerScope, metrics.TopicTag(c.queueName), metrics.ShardIDTag(int(shardID)))
 }
 
 // Start resolves this host's identity, performs the initial shard assignment and
@@ -185,15 +242,18 @@ func (c *consumerImpl) subscriberName() string {
 func (c *consumerImpl) rebalanceLoop() {
 	defer c.wg.Done()
 
-	ticker := c.timeSource.NewTicker(c.rebalanceInterval)
-	defer ticker.Stop()
+	// Use a timer (not a ticker) so the rebalance interval is re-read on every tick
+	// and dynamic-config changes take effect without a restart.
+	timer := c.timeSource.NewTimer(c.cfg.rebalanceInterval())
+	defer timer.Stop()
 
 	for {
 		select {
 		case <-c.ctx.Done():
 			return
-		case <-ticker.Chan():
+		case <-timer.Chan():
 			c.reassignShards()
+			timer.Reset(c.cfg.rebalanceInterval())
 		case <-c.membership:
 			drainMembershipCh(c.membership)
 			c.logger.Debug("Worker membership changed, re-evaluating owned shards")
@@ -231,6 +291,7 @@ func (c *consumerImpl) reassignShards() {
 		delete(c.shardWorkers, shardID)
 	}
 
+	c.queueScope().UpdateGauge(metrics.AsyncWorkflowConsumerOwnedShardCount, float64(len(c.shardWorkers)))
 	c.logger.Debug("Reassigned shards", tag.Dynamic("owned-shard-count", len(c.shardWorkers)))
 }
 
@@ -254,6 +315,15 @@ func (c *consumerImpl) startShardWorker(shardID int32) {
 
 // pollLoop repeatedly fetches messages for its shard and emits them onto the
 // shared message channel in order.
+//
+// Observability note: per-message age (now - CreatedTime) is emitted via
+// AsyncWorkflowConsumerMessageAge as the primary backlog/lag signal, since the
+// GetAsyncWorkflowMessages response does not carry the queue tail. A true
+// queue-depth backlog gauge (tail message id - ack level), the DLQ size gauge,
+// and cross-cluster replication lag all require new history-side count queries /
+// RPCs that are out of scope for Phase 6.1 (the DLQ inspection tooling is a
+// separate workstream). TODO(async-wf): emit those gauges once the supporting
+// queries exist.
 func (s *shardWorker) pollLoop() {
 	defer s.consumer.wg.Done()
 
@@ -276,14 +346,15 @@ func (s *shardWorker) pollLoop() {
 			ShardID:       s.shardID,
 			QueueName:     c.queueName,
 			LastMessageID: lastMessageID,
-			PageSize:      int32(c.pageSize),
+			PageSize:      int32(c.cfg.pageSize()),
 		})
 		if err != nil {
 			if s.ctx.Err() != nil {
 				return
 			}
-			c.logger.Warn("Failed to fetch async workflow messages", tag.ShardID(int(s.shardID)), tag.Error(err))
-			if err := c.timeSource.SleepWithContext(s.ctx, c.errorBackoff); err != nil {
+			c.shardScope(s.shardID).IncCounter(metrics.AsyncWorkflowConsumerPollFailureCount)
+			c.logger.Warn("Failed to fetch async workflow messages", tag.ShardID(int(s.shardID)), tag.AsyncWFQueueID(c.queueName), tag.Error(err))
+			if err := c.timeSource.SleepWithContext(s.ctx, c.cfg.errorBackoff()); err != nil {
 				return
 			}
 			continue
@@ -325,13 +396,18 @@ func (s *shardWorker) pollLoop() {
 			select {
 			case c.msgChan <- m:
 				lastMessageID = msg.MessageID
+				scope := c.shardScope(s.shardID)
+				scope.IncCounter(metrics.AsyncWorkflowConsumerMessageConsumedCount)
+				if !msg.CreatedTime.IsZero() {
+					scope.RecordTimer(metrics.AsyncWorkflowConsumerMessageAge, c.timeSource.Now().Sub(msg.CreatedTime))
+				}
 			case <-s.ctx.Done():
 				return
 			}
 		}
 
 		if len(resp.Messages) == 0 {
-			if err := c.timeSource.SleepWithContext(s.ctx, c.pollInterval); err != nil {
+			if err := c.timeSource.SleepWithContext(s.ctx, c.cfg.pollInterval()); err != nil {
 				return
 			}
 		}
@@ -344,16 +420,20 @@ func (s *shardWorker) pollLoop() {
 func (s *shardWorker) commitLoop() {
 	defer s.consumer.wg.Done()
 
-	ticker := s.consumer.timeSource.NewTicker(s.consumer.commitInterval)
-	defer ticker.Stop()
+	c := s.consumer
+	// Use a timer (not a ticker) so the commit interval is re-read on every tick and
+	// dynamic-config changes take effect without a restart.
+	timer := c.timeSource.NewTimer(c.cfg.commitInterval())
+	defer timer.Stop()
 
 	for {
 		select {
 		case <-s.ctx.Done():
 			s.commit()
 			return
-		case <-ticker.Chan():
+		case <-timer.Chan():
 			s.commit()
+			timer.Reset(c.cfg.commitInterval())
 		}
 	}
 }
@@ -371,7 +451,7 @@ func (s *shardWorker) commit() {
 	s.mu.Unlock()
 
 	c := s.consumer
-	ctx, cancel := context.WithTimeout(context.Background(), defaultRPCTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), c.cfg.rpcTimeout())
 	defer cancel()
 	_, err := c.historyClient.UpdateAsyncWorkflowAckLevel(ctx, &types.UpdateAsyncWorkflowAckLevelRequest{
 		ShardID:   s.shardID,
@@ -379,8 +459,9 @@ func (s *shardWorker) commit() {
 		AckLevel:  toCommit,
 	})
 	if err != nil {
+		c.shardScope(s.shardID).IncCounter(metrics.AsyncWorkflowConsumerCommitFailureCount)
 		c.logger.Warn("Failed to commit async workflow ack level",
-			tag.ShardID(int(s.shardID)), tag.Dynamic("ack-level", toCommit), tag.Error(err))
+			tag.ShardID(int(s.shardID)), tag.AsyncWFQueueID(c.queueName), tag.Dynamic("ack-level", toCommit), tag.Error(err))
 		return
 	}
 
@@ -402,6 +483,7 @@ func (s *shardWorker) setCommittedBaseline(ackLevel int64) {
 // ackMessage advances the contiguous ack level for a successfully processed message.
 func (s *shardWorker) ackMessage(messageID int64) error {
 	s.ackMgr.AckItem(messageID)
+	s.consumer.shardScope(s.shardID).IncCounter(metrics.AsyncWorkflowConsumerMessageAckCount)
 	return nil
 }
 
@@ -409,7 +491,9 @@ func (s *shardWorker) ackMessage(messageID int64) error {
 // it. If the DLQ write fails, the ack level is NOT advanced (see messageImpl.Nack).
 func (s *shardWorker) nackMessage(m *messageImpl) error {
 	c := s.consumer
-	ctx, cancel := context.WithTimeout(context.Background(), defaultRPCTimeout)
+	scope := c.shardScope(s.shardID)
+	scope.IncCounter(metrics.AsyncWorkflowConsumerMessageNackCount)
+	ctx, cancel := context.WithTimeout(context.Background(), c.cfg.rpcTimeout())
 	defer cancel()
 	_, err := c.historyClient.EnqueueAsyncWorkflowMessageToDLQ(ctx, &types.EnqueueAsyncWorkflowMessageToDLQRequest{
 		ShardID:      s.shardID,
@@ -419,10 +503,12 @@ func (s *shardWorker) nackMessage(m *messageImpl) error {
 		PartitionKey: m.partitionKey,
 	})
 	if err != nil {
+		scope.IncCounter(metrics.AsyncWorkflowConsumerDLQFailureCount)
 		c.logger.Error("Failed to enqueue async workflow message to DLQ, will retry on next poll",
-			tag.ShardID(int(s.shardID)), tag.Dynamic("message-id", m.messageID), tag.Error(err))
+			tag.ShardID(int(s.shardID)), tag.AsyncWFQueueID(c.queueName), tag.Dynamic("message-id", m.messageID), tag.Error(err))
 		return err
 	}
+	scope.IncCounter(metrics.AsyncWorkflowConsumerDLQCount)
 	s.ackMgr.AckItem(m.messageID)
 	return nil
 }

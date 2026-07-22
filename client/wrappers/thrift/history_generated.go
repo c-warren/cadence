@@ -79,6 +79,10 @@ func (g historyClient) GetReplicationMessages(ctx context.Context, gp1 *types.Ge
 	return thrift.ToHistoryGetReplicationMessagesResponse(response), thrift.ToError(err)
 }
 
+func (g historyClient) MergeAsyncWorkflowMessagesFromDLQ(ctx context.Context, mp1 *types.MergeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
 func (g historyClient) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQMessagesRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeDLQMessagesResponse, err error) {
 	response, err := g.c.MergeDLQMessages(ctx, thrift.FromHistoryMergeDLQMessagesRequest(mp1), p1...)
 	return thrift.ToHistoryMergeDLQMessagesResponse(response), thrift.ToError(err)
@@ -94,6 +98,10 @@ func (g historyClient) PollMutableState(ctx context.Context, pp1 *types.PollMuta
 	return thrift.ToHistoryPollMutableStateResponse(response), thrift.ToError(err)
 }
 
+func (g historyClient) PurgeAsyncWorkflowMessagesFromDLQ(ctx context.Context, pp1 *types.PurgeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (pp2 *types.PurgeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
+}
+
 func (g historyClient) PurgeDLQMessages(ctx context.Context, pp1 *types.PurgeDLQMessagesRequest, p1 ...yarpc.CallOption) (err error) {
 	err = g.c.PurgeDLQMessages(ctx, thrift.FromHistoryPurgeDLQMessagesRequest(pp1), p1...)
 	return thrift.ToError(err)
@@ -107,6 +115,10 @@ func (g historyClient) QueryWorkflow(ctx context.Context, hp1 *types.HistoryQuer
 func (g historyClient) RatelimitUpdate(ctx context.Context, request *types.RatelimitUpdateRequest, opts ...yarpc.CallOption) (rp1 *types.RatelimitUpdateResponse, err error) {
 	response, err := g.c.RatelimitUpdate(ctx, thrift.FromHistoryRatelimitUpdateRequest(request), opts...)
 	return thrift.ToHistoryRatelimitUpdateResponse(response), thrift.ToError(err)
+}
+
+func (g historyClient) ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, rp1 *types.ReadAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (rp2 *types.ReadAsyncWorkflowMessagesFromDLQResponse, err error) {
+	return nil, thrift.ToError(&types.BadRequestError{Message: "Feature not supported on TChannel"})
 }
 
 func (g historyClient) ReadDLQMessages(ctx context.Context, rp1 *types.ReadDLQMessagesRequest, p1 ...yarpc.CallOption) (rp2 *types.ReadDLQMessagesResponse, err error) {

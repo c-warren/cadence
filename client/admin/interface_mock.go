@@ -461,6 +461,26 @@ func (mr *MockClientMockRecorder) MaintainCorruptWorkflow(arg0, arg1 any, arg2 .
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MaintainCorruptWorkflow", reflect.TypeOf((*MockClient)(nil).MaintainCorruptWorkflow), varargs...)
 }
 
+// MergeAsyncWorkflowMessagesFromDLQ mocks base method.
+func (m *MockClient) MergeAsyncWorkflowMessagesFromDLQ(arg0 context.Context, arg1 *types.MergeAsyncWorkflowMessagesFromDLQRequest, arg2 ...yarpc.CallOption) (*types.MergeAsyncWorkflowMessagesFromDLQResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "MergeAsyncWorkflowMessagesFromDLQ", varargs...)
+	ret0, _ := ret[0].(*types.MergeAsyncWorkflowMessagesFromDLQResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MergeAsyncWorkflowMessagesFromDLQ indicates an expected call of MergeAsyncWorkflowMessagesFromDLQ.
+func (mr *MockClientMockRecorder) MergeAsyncWorkflowMessagesFromDLQ(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MergeAsyncWorkflowMessagesFromDLQ", reflect.TypeOf((*MockClient)(nil).MergeAsyncWorkflowMessagesFromDLQ), varargs...)
+}
+
 // MergeDLQMessages mocks base method.
 func (m *MockClient) MergeDLQMessages(arg0 context.Context, arg1 *types.MergeDLQMessagesRequest, arg2 ...yarpc.CallOption) (*types.MergeDLQMessagesResponse, error) {
 	m.ctrl.T.Helper()
@@ -481,6 +501,26 @@ func (mr *MockClientMockRecorder) MergeDLQMessages(arg0, arg1 any, arg2 ...any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MergeDLQMessages", reflect.TypeOf((*MockClient)(nil).MergeDLQMessages), varargs...)
 }
 
+// PurgeAsyncWorkflowMessagesFromDLQ mocks base method.
+func (m *MockClient) PurgeAsyncWorkflowMessagesFromDLQ(arg0 context.Context, arg1 *types.PurgeAsyncWorkflowMessagesFromDLQRequest, arg2 ...yarpc.CallOption) (*types.PurgeAsyncWorkflowMessagesFromDLQResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "PurgeAsyncWorkflowMessagesFromDLQ", varargs...)
+	ret0, _ := ret[0].(*types.PurgeAsyncWorkflowMessagesFromDLQResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PurgeAsyncWorkflowMessagesFromDLQ indicates an expected call of PurgeAsyncWorkflowMessagesFromDLQ.
+func (mr *MockClientMockRecorder) PurgeAsyncWorkflowMessagesFromDLQ(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PurgeAsyncWorkflowMessagesFromDLQ", reflect.TypeOf((*MockClient)(nil).PurgeAsyncWorkflowMessagesFromDLQ), varargs...)
+}
+
 // PurgeDLQMessages mocks base method.
 func (m *MockClient) PurgeDLQMessages(arg0 context.Context, arg1 *types.PurgeDLQMessagesRequest, arg2 ...yarpc.CallOption) error {
 	m.ctrl.T.Helper()
@@ -498,6 +538,26 @@ func (mr *MockClientMockRecorder) PurgeDLQMessages(arg0, arg1 any, arg2 ...any) 
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]any{arg0, arg1}, arg2...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PurgeDLQMessages", reflect.TypeOf((*MockClient)(nil).PurgeDLQMessages), varargs...)
+}
+
+// ReadAsyncWorkflowMessagesFromDLQ mocks base method.
+func (m *MockClient) ReadAsyncWorkflowMessagesFromDLQ(arg0 context.Context, arg1 *types.ReadAsyncWorkflowMessagesFromDLQRequest, arg2 ...yarpc.CallOption) (*types.ReadAsyncWorkflowMessagesFromDLQResponse, error) {
+	m.ctrl.T.Helper()
+	varargs := []any{arg0, arg1}
+	for _, a := range arg2 {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "ReadAsyncWorkflowMessagesFromDLQ", varargs...)
+	ret0, _ := ret[0].(*types.ReadAsyncWorkflowMessagesFromDLQResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ReadAsyncWorkflowMessagesFromDLQ indicates an expected call of ReadAsyncWorkflowMessagesFromDLQ.
+func (mr *MockClientMockRecorder) ReadAsyncWorkflowMessagesFromDLQ(arg0, arg1 any, arg2 ...any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]any{arg0, arg1}, arg2...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadAsyncWorkflowMessagesFromDLQ", reflect.TypeOf((*MockClient)(nil).ReadAsyncWorkflowMessagesFromDLQ), varargs...)
 }
 
 // ReadDLQMessages mocks base method.

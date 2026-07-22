@@ -93,4 +93,7 @@ type Client interface {
 	GetAsyncWorkflowMessages(context.Context, *types.GetAsyncWorkflowMessagesRequest, ...yarpc.CallOption) (*types.GetAsyncWorkflowMessagesResponse, error)
 	UpdateAsyncWorkflowAckLevel(context.Context, *types.UpdateAsyncWorkflowAckLevelRequest, ...yarpc.CallOption) (*types.UpdateAsyncWorkflowAckLevelResponse, error)
 	EnqueueAsyncWorkflowMessageToDLQ(context.Context, *types.EnqueueAsyncWorkflowMessageToDLQRequest, ...yarpc.CallOption) (*types.EnqueueAsyncWorkflowMessageToDLQResponse, error)
+	ReadAsyncWorkflowMessagesFromDLQ(context.Context, *types.ReadAsyncWorkflowMessagesFromDLQRequest, ...yarpc.CallOption) (*types.ReadAsyncWorkflowMessagesFromDLQResponse, error)
+	MergeAsyncWorkflowMessagesFromDLQ(context.Context, *types.MergeAsyncWorkflowMessagesFromDLQRequest, ...yarpc.CallOption) (*types.MergeAsyncWorkflowMessagesFromDLQResponse, error)
+	PurgeAsyncWorkflowMessagesFromDLQ(context.Context, *types.PurgeAsyncWorkflowMessagesFromDLQRequest, ...yarpc.CallOption) (*types.PurgeAsyncWorkflowMessagesFromDLQResponse, error)
 }

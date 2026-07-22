@@ -356,4 +356,33 @@ var (
 	HistoryEnqueueAsyncWorkflowMessageToDLQResponse = types.EnqueueAsyncWorkflowMessageToDLQResponse{
 		MessageID: 43,
 	}
+
+	HistoryReadAsyncWorkflowMessagesFromDLQRequest = types.ReadAsyncWorkflowMessagesFromDLQRequest{
+		ShardID:       ShardID,
+		QueueName:     "async-workflow-queue",
+		LastMessageID: 100,
+		PageSize:      50,
+	}
+	HistoryReadAsyncWorkflowMessagesFromDLQResponse = types.ReadAsyncWorkflowMessagesFromDLQResponse{
+		Messages:      []*types.AsyncWorkflowMessage{&HistoryAsyncWorkflowMessage},
+		LastMessageID: 142,
+	}
+
+	HistoryMergeAsyncWorkflowMessagesFromDLQRequest = types.MergeAsyncWorkflowMessagesFromDLQRequest{
+		ShardID:               ShardID,
+		QueueName:             "async-workflow-queue",
+		InclusiveEndMessageID: 200,
+		PageSize:              50,
+	}
+	HistoryMergeAsyncWorkflowMessagesFromDLQResponse = types.MergeAsyncWorkflowMessagesFromDLQResponse{
+		MessagesCount: 7,
+		LastMessageID: 142,
+	}
+
+	HistoryPurgeAsyncWorkflowMessagesFromDLQRequest = types.PurgeAsyncWorkflowMessagesFromDLQRequest{
+		ShardID:               ShardID,
+		QueueName:             "async-workflow-queue",
+		InclusiveEndMessageID: 200,
+	}
+	HistoryPurgeAsyncWorkflowMessagesFromDLQResponse = types.PurgeAsyncWorkflowMessagesFromDLQResponse{}
 )

@@ -181,6 +181,17 @@ func (c *historyClient) GetReplicationMessages(ctx context.Context, gp1 *types.G
 	return resp, err
 }
 
+func (c *historyClient) MergeAsyncWorkflowMessagesFromDLQ(ctx context.Context, mp1 *types.MergeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	var resp *types.MergeAsyncWorkflowMessagesFromDLQResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.MergeAsyncWorkflowMessagesFromDLQ(ctx, mp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *historyClient) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQMessagesRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeDLQMessagesResponse, err error) {
 	var resp *types.MergeDLQMessagesResponse
 	op := func(ctx context.Context) error {
@@ -210,6 +221,17 @@ func (c *historyClient) PollMutableState(ctx context.Context, pp1 *types.PollMut
 	return resp, err
 }
 
+func (c *historyClient) PurgeAsyncWorkflowMessagesFromDLQ(ctx context.Context, pp1 *types.PurgeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (pp2 *types.PurgeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	var resp *types.PurgeAsyncWorkflowMessagesFromDLQResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.PurgeAsyncWorkflowMessagesFromDLQ(ctx, pp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *historyClient) PurgeDLQMessages(ctx context.Context, pp1 *types.PurgeDLQMessagesRequest, p1 ...yarpc.CallOption) (err error) {
 	op := func(ctx context.Context) error {
 		return c.client.PurgeDLQMessages(ctx, pp1, p1...)
@@ -233,6 +255,17 @@ func (c *historyClient) RatelimitUpdate(ctx context.Context, request *types.Rate
 	op := func(ctx context.Context) error {
 		var err error
 		resp, err = c.client.RatelimitUpdate(ctx, request, opts...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
+func (c *historyClient) ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, rp1 *types.ReadAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (rp2 *types.ReadAsyncWorkflowMessagesFromDLQResponse, err error) {
+	var resp *types.ReadAsyncWorkflowMessagesFromDLQResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.ReadAsyncWorkflowMessagesFromDLQ(ctx, rp1, p1...)
 		return err
 	}
 	err = c.throttleRetry.Do(ctx, op)

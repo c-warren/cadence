@@ -308,6 +308,58 @@ func TestGetReplicationTasksFromDLQ(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "Success case - async workflow request reads payload from async fields",
+			req: &persistence.GetReplicationTasksFromDLQRequest{
+				SourceClusterName: "source",
+				NextPageToken:     serializePageToken(300),
+				MaxReadLevel:      399,
+				BatchSize:         1000,
+			},
+			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
+				mockDB.EXPECT().SelectFromReplicationTasksDLQ(gomock.Any(), &sqlplugin.ReplicationTasksDLQFilter{
+					ReplicationTasksFilter: sqlplugin.ReplicationTasksFilter{
+						ShardID:            shardID,
+						InclusiveMinTaskID: 300,
+						ExclusiveMaxTaskID: 1300,
+						PageSize:           1000,
+					},
+					SourceClusterName: "source",
+				}).Return([]sqlplugin.ReplicationTasksRow{
+					{
+						ShardID:      shardID,
+						TaskID:       300,
+						Data:         []byte(`async`),
+						DataEncoding: "thriftrw",
+					},
+				}, nil)
+				mockParser.EXPECT().ReplicationTaskInfoFromBlob([]byte(`async`), "thriftrw").Return(&serialization.ReplicationTaskInfo{
+					TaskType:                  persistence.ReplicationTaskTypeAsyncWorkflowRequest,
+					AsyncWorkflowQueueName:    "test-queue",
+					AsyncWorkflowPayload:      []byte("test-payload"),
+					AsyncWorkflowEncoding:     "thriftrw",
+					AsyncWorkflowPartitionKey: "partition-key",
+				}, nil)
+			},
+			want: &persistence.InternalGetReplicationDLQTasksResponse{
+				Tasks: []*persistence.InternalReplicationDLQTask{
+					{
+						Info: &persistence.ReplicationTaskInfo{
+							TaskID:                    300,
+							TaskType:                  persistence.ReplicationTaskTypeAsyncWorkflowRequest,
+							CreationTime:              time.Time{}.UnixNano(),
+							AsyncWorkflowQueueName:    "test-queue",
+							AsyncWorkflowPayload:      []byte("test-payload"),
+							AsyncWorkflowEncoding:     "thriftrw",
+							AsyncWorkflowPartitionKey: "partition-key",
+						},
+						Task: nil,
+					},
+				},
+				NextPageToken: serializePageToken(301),
+			},
+			wantErr: false,
+		},
+		{
 			name: "Error case - failed to load from database",
 			req: &persistence.GetReplicationTasksFromDLQRequest{
 				SourceClusterName: "source",
@@ -661,6 +713,43 @@ func TestPutReplicationTaskToDLQ(t *testing.T) {
 					TaskID:            101,
 					Data:              []byte(`replication`),
 					DataEncoding:      "replication",
+				}).Return(nil, nil)
+			},
+			wantErr: false,
+		},
+		{
+			name: "Success case - async workflow request carries payload in async fields",
+			req: &persistence.InternalPutReplicationTaskToDLQRequest{
+				SourceClusterName: "source",
+				TaskInfo: &persistence.InternalReplicationTaskInfo{
+					TaskType:                  persistence.ReplicationTaskTypeAsyncWorkflowRequest,
+					TaskID:                    303,
+					CreationTime:              time.Unix(1, 1),
+					AsyncWorkflowQueueName:    "test-queue",
+					AsyncWorkflowPayload:      []byte("test-payload"),
+					AsyncWorkflowEncoding:     "thriftrw",
+					AsyncWorkflowPartitionKey: "partition-key",
+				},
+			},
+			mockSetup: func(mockDB *sqlplugin.MockDB, mockParser *serialization.MockParser) {
+				mockParser.EXPECT().ReplicationTaskInfoToBlob(&serialization.ReplicationTaskInfo{
+					DomainID:                  nil,
+					RunID:                     nil,
+					TaskType:                  int16(persistence.ReplicationTaskTypeAsyncWorkflowRequest),
+					EventStoreVersion:         persistence.EventStoreVersion,
+					NewRunEventStoreVersion:   persistence.EventStoreVersion,
+					CreationTimestamp:         time.Unix(1, 1),
+					AsyncWorkflowQueueName:    "test-queue",
+					AsyncWorkflowPayload:      []byte("test-payload"),
+					AsyncWorkflowEncoding:     "thriftrw",
+					AsyncWorkflowPartitionKey: "partition-key",
+				}).Return(persistence.DataBlob{Data: []byte(`async`), Encoding: "async"}, nil)
+				mockDB.EXPECT().InsertIntoReplicationTasksDLQ(gomock.Any(), &sqlplugin.ReplicationTaskDLQRow{
+					SourceClusterName: "source",
+					ShardID:           shardID,
+					TaskID:            303,
+					Data:              []byte(`async`),
+					DataEncoding:      "async",
 				}).Return(nil, nil)
 			},
 			wantErr: false,

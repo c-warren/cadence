@@ -849,6 +849,42 @@ func TestHistoryEnqueueAsyncWorkflowMessageToDLQResponse(t *testing.T) {
 	}
 }
 
+func TestHistoryReadAsyncWorkflowMessagesFromDLQRequest(t *testing.T) {
+	for _, item := range []*types.ReadAsyncWorkflowMessagesFromDLQRequest{nil, {}, &testdata.HistoryReadAsyncWorkflowMessagesFromDLQRequest} {
+		assert.Equal(t, item, ToHistoryReadAsyncWorkflowMessagesFromDLQRequest(FromHistoryReadAsyncWorkflowMessagesFromDLQRequest(item)))
+	}
+}
+
+func TestHistoryReadAsyncWorkflowMessagesFromDLQResponse(t *testing.T) {
+	for _, item := range []*types.ReadAsyncWorkflowMessagesFromDLQResponse{nil, {}, &testdata.HistoryReadAsyncWorkflowMessagesFromDLQResponse} {
+		assert.Equal(t, item, ToHistoryReadAsyncWorkflowMessagesFromDLQResponse(FromHistoryReadAsyncWorkflowMessagesFromDLQResponse(item)))
+	}
+}
+
+func TestHistoryMergeAsyncWorkflowMessagesFromDLQRequest(t *testing.T) {
+	for _, item := range []*types.MergeAsyncWorkflowMessagesFromDLQRequest{nil, {}, &testdata.HistoryMergeAsyncWorkflowMessagesFromDLQRequest} {
+		assert.Equal(t, item, ToHistoryMergeAsyncWorkflowMessagesFromDLQRequest(FromHistoryMergeAsyncWorkflowMessagesFromDLQRequest(item)))
+	}
+}
+
+func TestHistoryMergeAsyncWorkflowMessagesFromDLQResponse(t *testing.T) {
+	for _, item := range []*types.MergeAsyncWorkflowMessagesFromDLQResponse{nil, {}, &testdata.HistoryMergeAsyncWorkflowMessagesFromDLQResponse} {
+		assert.Equal(t, item, ToHistoryMergeAsyncWorkflowMessagesFromDLQResponse(FromHistoryMergeAsyncWorkflowMessagesFromDLQResponse(item)))
+	}
+}
+
+func TestHistoryPurgeAsyncWorkflowMessagesFromDLQRequest(t *testing.T) {
+	for _, item := range []*types.PurgeAsyncWorkflowMessagesFromDLQRequest{nil, {}, &testdata.HistoryPurgeAsyncWorkflowMessagesFromDLQRequest} {
+		assert.Equal(t, item, ToHistoryPurgeAsyncWorkflowMessagesFromDLQRequest(FromHistoryPurgeAsyncWorkflowMessagesFromDLQRequest(item)))
+	}
+}
+
+func TestHistoryPurgeAsyncWorkflowMessagesFromDLQResponse(t *testing.T) {
+	for _, item := range []*types.PurgeAsyncWorkflowMessagesFromDLQResponse{nil, {}, &testdata.HistoryPurgeAsyncWorkflowMessagesFromDLQResponse} {
+		assert.Equal(t, item, ToHistoryPurgeAsyncWorkflowMessagesFromDLQResponse(FromHistoryPurgeAsyncWorkflowMessagesFromDLQResponse(item)))
+	}
+}
+
 // --- Async workflow message fuzz tests ---
 
 func TestHistoryAsyncWorkflowMessageFuzz(t *testing.T) {
@@ -885,4 +921,28 @@ func TestHistoryEnqueueAsyncWorkflowMessageToDLQRequestFuzz(t *testing.T) {
 
 func TestHistoryEnqueueAsyncWorkflowMessageToDLQResponseFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromHistoryEnqueueAsyncWorkflowMessageToDLQResponse, ToHistoryEnqueueAsyncWorkflowMessageToDLQResponse)
+}
+
+func TestHistoryReadAsyncWorkflowMessagesFromDLQRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryReadAsyncWorkflowMessagesFromDLQRequest, ToHistoryReadAsyncWorkflowMessagesFromDLQRequest)
+}
+
+func TestHistoryReadAsyncWorkflowMessagesFromDLQResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryReadAsyncWorkflowMessagesFromDLQResponse, ToHistoryReadAsyncWorkflowMessagesFromDLQResponse)
+}
+
+func TestHistoryMergeAsyncWorkflowMessagesFromDLQRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryMergeAsyncWorkflowMessagesFromDLQRequest, ToHistoryMergeAsyncWorkflowMessagesFromDLQRequest)
+}
+
+func TestHistoryMergeAsyncWorkflowMessagesFromDLQResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryMergeAsyncWorkflowMessagesFromDLQResponse, ToHistoryMergeAsyncWorkflowMessagesFromDLQResponse)
+}
+
+func TestHistoryPurgeAsyncWorkflowMessagesFromDLQRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryPurgeAsyncWorkflowMessagesFromDLQRequest, ToHistoryPurgeAsyncWorkflowMessagesFromDLQRequest)
+}
+
+func TestHistoryPurgeAsyncWorkflowMessagesFromDLQResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromHistoryPurgeAsyncWorkflowMessagesFromDLQResponse, ToHistoryPurgeAsyncWorkflowMessagesFromDLQResponse)
 }

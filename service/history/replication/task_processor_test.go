@@ -467,6 +467,39 @@ func (s *taskProcessorSuite) TestGenerateDLQRequest_ReplicationTaskTypeSyncActiv
 	s.NotNil(request.Task, "task blob should be serialized")
 }
 
+func (s *taskProcessorSuite) TestGenerateDLQRequest_ReplicationTaskTypeAsyncWorkflowRequest() {
+	task := &types.ReplicationTask{
+		TaskType:     types.ReplicationTaskTypeAsyncWorkflowRequest.Ptr(),
+		SourceTaskID: 42,
+		AsyncWorkflowRequestTaskAttributes: &types.AsyncWorkflowRequestTaskAttributes{
+			QueueName:    "test-queue",
+			Payload:      []byte("test-payload"),
+			Encoding:     "thriftrw",
+			PartitionKey: "partition-key",
+		},
+	}
+	request, err := s.taskProcessor.generateDLQRequest(task)
+	s.NoError(err)
+	s.Equal("standby", request.SourceClusterName)
+	s.Equal(int64(42), request.TaskInfo.GetTaskID())
+	s.Equal(persistence.ReplicationTaskTypeAsyncWorkflowRequest, request.TaskInfo.GetTaskType())
+	// Async payload is carried in the async fields (SQL) and the task blob (NoSQL).
+	s.Equal("test-queue", request.TaskInfo.AsyncWorkflowQueueName)
+	s.Equal([]byte("test-payload"), request.TaskInfo.AsyncWorkflowPayload)
+	s.Equal("thriftrw", request.TaskInfo.AsyncWorkflowEncoding)
+	s.Equal("partition-key", request.TaskInfo.AsyncWorkflowPartitionKey)
+	s.NotNil(request.Task, "task blob should be serialized")
+	s.Equal(task, request.Task)
+}
+
+func (s *taskProcessorSuite) TestGenerateDLQRequest_AsyncWorkflowRequest_NilAttributes() {
+	task := &types.ReplicationTask{
+		TaskType: types.ReplicationTaskTypeAsyncWorkflowRequest.Ptr(),
+	}
+	_, err := s.taskProcessor.generateDLQRequest(task)
+	s.ErrorContains(err, "async workflow request replication task with nil attributes")
+}
+
 func (s *taskProcessorSuite) TestGenerateDLQRequest_InvalidTaskType() {
 	domainID := uuid.New()
 	workflowID := uuid.New()

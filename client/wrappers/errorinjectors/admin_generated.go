@@ -460,6 +460,26 @@ func (c *adminClient) MaintainCorruptWorkflow(ctx context.Context, ap1 *types.Ad
 	return
 }
 
+func (c *adminClient) MergeAsyncWorkflowMessagesFromDLQ(ctx context.Context, mp1 *types.MergeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		mp2, err = c.client.MergeAsyncWorkflowMessagesFromDLQ(ctx, mp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgAdminInjectedFakeErr,
+			tag.AdminClientOperationMergeAsyncWorkflowMessagesFromDLQ,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *adminClient) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQMessagesRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeDLQMessagesResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
@@ -480,6 +500,26 @@ func (c *adminClient) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQM
 	return
 }
 
+func (c *adminClient) PurgeAsyncWorkflowMessagesFromDLQ(ctx context.Context, pp1 *types.PurgeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (pp2 *types.PurgeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		pp2, err = c.client.PurgeAsyncWorkflowMessagesFromDLQ(ctx, pp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgAdminInjectedFakeErr,
+			tag.AdminClientOperationPurgeAsyncWorkflowMessagesFromDLQ,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *adminClient) PurgeDLQMessages(ctx context.Context, pp1 *types.PurgeDLQMessagesRequest, p1 ...yarpc.CallOption) (err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
@@ -490,6 +530,26 @@ func (c *adminClient) PurgeDLQMessages(ctx context.Context, pp1 *types.PurgeDLQM
 	if fakeErr != nil {
 		c.logger.Error(msgAdminInjectedFakeErr,
 			tag.AdminClientOperationPurgeDLQMessages,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *adminClient) ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, rp1 *types.ReadAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (rp2 *types.ReadAsyncWorkflowMessagesFromDLQResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		rp2, err = c.client.ReadAsyncWorkflowMessagesFromDLQ(ctx, rp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgAdminInjectedFakeErr,
+			tag.AdminClientOperationReadAsyncWorkflowMessagesFromDLQ,
 			tag.Error(fakeErr),
 			tag.Bool(forwardCall),
 			tag.ClientError(err),

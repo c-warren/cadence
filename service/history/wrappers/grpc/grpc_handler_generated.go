@@ -90,6 +90,11 @@ func (g GRPCHandler) GetReplicationMessages(ctx context.Context, request *histor
 	return proto.FromHistoryGetReplicationMessagesResponse(response), proto.FromError(err)
 }
 
+func (g GRPCHandler) MergeAsyncWorkflowMessagesFromDLQ(ctx context.Context, request *historyv1.MergeAsyncWorkflowMessagesFromDLQRequest) (*historyv1.MergeAsyncWorkflowMessagesFromDLQResponse, error) {
+	response, err := g.h.MergeAsyncWorkflowMessagesFromDLQ(ctx, proto.ToHistoryMergeAsyncWorkflowMessagesFromDLQRequest(request))
+	return proto.FromHistoryMergeAsyncWorkflowMessagesFromDLQResponse(response), proto.FromError(err)
+}
+
 func (g GRPCHandler) MergeDLQMessages(ctx context.Context, request *historyv1.MergeDLQMessagesRequest) (*historyv1.MergeDLQMessagesResponse, error) {
 	response, err := g.h.MergeDLQMessages(ctx, proto.ToHistoryMergeDLQMessagesRequest(request))
 	return proto.FromHistoryMergeDLQMessagesResponse(response), proto.FromError(err)
@@ -105,6 +110,11 @@ func (g GRPCHandler) PollMutableState(ctx context.Context, request *historyv1.Po
 	return proto.FromHistoryPollMutableStateResponse(response), proto.FromError(err)
 }
 
+func (g GRPCHandler) PurgeAsyncWorkflowMessagesFromDLQ(ctx context.Context, request *historyv1.PurgeAsyncWorkflowMessagesFromDLQRequest) (*historyv1.PurgeAsyncWorkflowMessagesFromDLQResponse, error) {
+	response, err := g.h.PurgeAsyncWorkflowMessagesFromDLQ(ctx, proto.ToHistoryPurgeAsyncWorkflowMessagesFromDLQRequest(request))
+	return proto.FromHistoryPurgeAsyncWorkflowMessagesFromDLQResponse(response), proto.FromError(err)
+}
+
 func (g GRPCHandler) PurgeDLQMessages(ctx context.Context, request *historyv1.PurgeDLQMessagesRequest) (*historyv1.PurgeDLQMessagesResponse, error) {
 	err := g.h.PurgeDLQMessages(ctx, proto.ToHistoryPurgeDLQMessagesRequest(request))
 	return &historyv1.PurgeDLQMessagesResponse{}, proto.FromError(err)
@@ -118,6 +128,11 @@ func (g GRPCHandler) QueryWorkflow(ctx context.Context, request *historyv1.Query
 func (g GRPCHandler) RatelimitUpdate(ctx context.Context, request *historyv1.RatelimitUpdateRequest) (*historyv1.RatelimitUpdateResponse, error) {
 	response, err := g.h.RatelimitUpdate(ctx, proto.ToHistoryRatelimitUpdateRequest(request))
 	return proto.FromHistoryRatelimitUpdateResponse(response), proto.FromError(err)
+}
+
+func (g GRPCHandler) ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, request *historyv1.ReadAsyncWorkflowMessagesFromDLQRequest) (*historyv1.ReadAsyncWorkflowMessagesFromDLQResponse, error) {
+	response, err := g.h.ReadAsyncWorkflowMessagesFromDLQ(ctx, proto.ToHistoryReadAsyncWorkflowMessagesFromDLQRequest(request))
+	return proto.FromHistoryReadAsyncWorkflowMessagesFromDLQResponse(response), proto.FromError(err)
 }
 
 func (g GRPCHandler) ReadDLQMessages(ctx context.Context, request *historyv1.ReadDLQMessagesRequest) (*historyv1.ReadDLQMessagesResponse, error) {

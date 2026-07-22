@@ -30,11 +30,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber-go/tally"
 	"go.uber.org/mock/gomock"
 	"go.uber.org/yarpc"
 
 	historyclient "github.com/uber/cadence/client/history"
+	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging"
@@ -62,6 +65,7 @@ func newTestConsumer(
 		clock.NewRealTimeSource(),
 		log.NewNoop(),
 		metrics.NewNoopMetricsClient(),
+		resolveConsumerConfig(provider.ConsumerConfig{}),
 	)
 }
 
@@ -138,7 +142,7 @@ func TestConsumerPullEmitAndResume(t *testing.T) {
 	historyClient.EXPECT().UpdateAsyncWorkflowAckLevel(gomock.Any(), gomock.Any()).Return(&types.UpdateAsyncWorkflowAckLevelResponse{}, nil).AnyTimes()
 
 	c := newTestConsumer(t, "q1", 1, historyClient, resolver)
-	c.pollInterval = 10 * time.Millisecond
+	c.cfg.pollInterval = dynamicproperties.GetDurationPropertyFn(10 * time.Millisecond)
 	require.NoError(t, c.Start())
 	defer c.Stop()
 
@@ -190,7 +194,7 @@ func TestConsumerResumesFromAckLevelOnEmptyPage(t *testing.T) {
 		}).MinTimes(2)
 
 	c := newTestConsumer(t, "q1", 1, historyClient, resolver)
-	c.pollInterval = 5 * time.Millisecond
+	c.cfg.pollInterval = dynamicproperties.GetDurationPropertyFn(5 * time.Millisecond)
 	require.NoError(t, c.Start())
 	defer c.Stop()
 
@@ -290,7 +294,7 @@ func TestReassignShardsStartsAndStops(t *testing.T) {
 
 	c := newTestConsumer(t, "q1", 2, historyClient, resolver)
 	c.self = self
-	c.pollInterval = 10 * time.Millisecond
+	c.cfg.pollInterval = dynamicproperties.GetDurationPropertyFn(10 * time.Millisecond)
 	defer func() {
 		c.cancel()
 		c.wg.Wait()
@@ -325,7 +329,7 @@ func TestStopClosesMessages(t *testing.T) {
 		Return(&types.UpdateAsyncWorkflowAckLevelResponse{}, nil).AnyTimes()
 
 	c := newTestConsumer(t, "q1", 1, historyClient, resolver)
-	c.pollInterval = 10 * time.Millisecond
+	c.cfg.pollInterval = dynamicproperties.GetDurationPropertyFn(10 * time.Millisecond)
 	require.NoError(t, c.Start())
 
 	msgCh := c.Messages()
@@ -369,4 +373,174 @@ func sortedShardIDs(workers map[int32]*shardWorker) []int32 {
 		}
 	}
 	return ids
+}
+
+func TestResolveConsumerConfig(t *testing.T) {
+	t.Run("defaults applied when nil", func(t *testing.T) {
+		cfg := resolveConsumerConfig(provider.ConsumerConfig{})
+		assert.Equal(t, defaultPageSize, cfg.pageSize())
+		assert.Equal(t, defaultPollInterval, cfg.pollInterval())
+		assert.Equal(t, defaultCommitInterval, cfg.commitInterval())
+		assert.Equal(t, defaultErrorBackoff, cfg.errorBackoff())
+		assert.Equal(t, defaultRebalanceInterval, cfg.rebalanceInterval())
+		assert.Equal(t, defaultRPCTimeout, cfg.rpcTimeout())
+		assert.Equal(t, defaultMsgChanBufferSize, cfg.bufferSize)
+	})
+
+	t.Run("provided values flow through", func(t *testing.T) {
+		cfg := resolveConsumerConfig(provider.ConsumerConfig{
+			PageSize:          dynamicproperties.GetIntPropertyFn(7),
+			BufferSize:        dynamicproperties.GetIntPropertyFn(42),
+			PollInterval:      dynamicproperties.GetDurationPropertyFn(2 * time.Second),
+			CommitInterval:    dynamicproperties.GetDurationPropertyFn(3 * time.Second),
+			ErrorBackoff:      dynamicproperties.GetDurationPropertyFn(4 * time.Second),
+			RebalanceInterval: dynamicproperties.GetDurationPropertyFn(5 * time.Second),
+			RPCTimeout:        dynamicproperties.GetDurationPropertyFn(6 * time.Second),
+		})
+		assert.Equal(t, 7, cfg.pageSize())
+		assert.Equal(t, 42, cfg.bufferSize)
+		assert.Equal(t, 2*time.Second, cfg.pollInterval())
+		assert.Equal(t, 3*time.Second, cfg.commitInterval())
+		assert.Equal(t, 4*time.Second, cfg.errorBackoff())
+		assert.Equal(t, 5*time.Second, cfg.rebalanceInterval())
+		assert.Equal(t, 6*time.Second, cfg.rpcTimeout())
+	})
+
+	t.Run("non-positive buffer size falls back to default", func(t *testing.T) {
+		cfg := resolveConsumerConfig(provider.ConsumerConfig{
+			BufferSize: dynamicproperties.GetIntPropertyFn(0),
+		})
+		assert.Equal(t, defaultMsgChanBufferSize, cfg.bufferSize)
+	})
+}
+
+// newTestConsumerWithScope builds a consumer whose metrics client writes to the
+// returned tally test scope so emitted counters/gauges can be asserted.
+func newTestConsumerWithScope(t *testing.T, ctrl *gomock.Controller, historyClient historyclient.Client) (*consumerImpl, tally.TestScope) {
+	t.Helper()
+	ts := tally.NewTestScope("", nil)
+	mc := metrics.NewClient(ts, metrics.Worker, metrics.MigrationConfig{})
+	c := newConsumer(
+		"q1",
+		historyClient,
+		1,
+		membership.NewMockResolver(ctrl),
+		clock.NewRealTimeSource(),
+		log.NewNoop(),
+		mc,
+		resolveConsumerConfig(provider.ConsumerConfig{}),
+	)
+	return c, ts
+}
+
+func counterValue(t *testing.T, ts tally.TestScope, name string) int64 {
+	t.Helper()
+	var total int64
+	found := false
+	for _, c := range ts.Snapshot().Counters() {
+		if c.Name() == name {
+			total += c.Value()
+			found = true
+		}
+	}
+	require.Truef(t, found, "counter %q was not emitted", name)
+	return total
+}
+
+func gaugePresent(ts tally.TestScope, name string) (float64, bool) {
+	for _, g := range ts.Snapshot().Gauges() {
+		if g.Name() == name {
+			return g.Value(), true
+		}
+	}
+	return 0, false
+}
+
+func TestConsumerAckMetric(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	c, ts := newTestConsumerWithScope(t, ctrl, historyclient.NewMockClient(ctrl))
+	sw := newTestShardWorker(c, 3)
+
+	require.NoError(t, sw.ackMgr.ReadItem(1))
+	require.NoError(t, sw.ackMessage(1))
+
+	assert.Equal(t, int64(1), counterValue(t, ts, "async_workflow_consumer_message_ack"))
+}
+
+func TestConsumerNackMetrics(t *testing.T) {
+	t.Run("success emits nack + dlq counters", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		historyClient := historyclient.NewMockClient(ctrl)
+		c, ts := newTestConsumerWithScope(t, ctrl, historyClient)
+		sw := newTestShardWorker(c, 2)
+
+		require.NoError(t, sw.ackMgr.ReadItem(1))
+		historyClient.EXPECT().EnqueueAsyncWorkflowMessageToDLQ(gomock.Any(), gomock.Any()).
+			Return(&types.EnqueueAsyncWorkflowMessageToDLQResponse{}, nil)
+
+		m := &messageImpl{sw: sw, shardID: 2, messageID: 1, payload: []byte("bad")}
+		require.NoError(t, m.Nack())
+
+		assert.Equal(t, int64(1), counterValue(t, ts, "async_workflow_consumer_message_nack"))
+		assert.Equal(t, int64(1), counterValue(t, ts, "async_workflow_consumer_dlq_enqueue"))
+	})
+
+	t.Run("failure emits dlq failure counter", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		historyClient := historyclient.NewMockClient(ctrl)
+		c, ts := newTestConsumerWithScope(t, ctrl, historyClient)
+		sw := newTestShardWorker(c, 2)
+
+		require.NoError(t, sw.ackMgr.ReadItem(1))
+		historyClient.EXPECT().EnqueueAsyncWorkflowMessageToDLQ(gomock.Any(), gomock.Any()).
+			Return(nil, assert.AnError)
+
+		m := &messageImpl{sw: sw, shardID: 2, messageID: 1, payload: []byte("bad")}
+		require.Error(t, m.Nack())
+
+		assert.Equal(t, int64(1), counterValue(t, ts, "async_workflow_consumer_dlq_enqueue_failures"))
+	})
+}
+
+func TestConsumerCommitFailureMetric(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	historyClient := historyclient.NewMockClient(ctrl)
+	c, ts := newTestConsumerWithScope(t, ctrl, historyClient)
+	sw := newTestShardWorker(c, 4)
+
+	require.NoError(t, sw.ackMgr.ReadItem(1))
+	sw.ackMgr.AckItem(1)
+
+	historyClient.EXPECT().UpdateAsyncWorkflowAckLevel(gomock.Any(), gomock.Any()).
+		Return(nil, assert.AnError)
+
+	sw.commit()
+	assert.Equal(t, int64(1), counterValue(t, ts, "async_workflow_consumer_commit_failures"))
+}
+
+func TestConsumerOwnedShardGauge(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	resolver := membership.NewMockResolver(ctrl)
+	historyClient := historyclient.NewMockClient(ctrl)
+	historyClient.EXPECT().GetAsyncWorkflowMessages(gomock.Any(), gomock.Any()).
+		Return(&types.GetAsyncWorkflowMessagesResponse{AckLevel: -1}, nil).AnyTimes()
+	historyClient.EXPECT().UpdateAsyncWorkflowAckLevel(gomock.Any(), gomock.Any()).
+		Return(&types.UpdateAsyncWorkflowAckLevelResponse{}, nil).AnyTimes()
+
+	ts := tally.NewTestScope("", nil)
+	mc := metrics.NewClient(ts, metrics.Worker, metrics.MigrationConfig{})
+	c := newConsumer("q1", historyClient, 1, resolver, clock.NewRealTimeSource(), log.NewNoop(), mc, resolveConsumerConfig(provider.ConsumerConfig{}))
+	c.self = host("self")
+	c.cfg.pollInterval = dynamicproperties.GetDurationPropertyFn(10 * time.Millisecond)
+	defer func() {
+		c.cancel()
+		c.wg.Wait()
+	}()
+
+	resolver.EXPECT().Lookup(gomock.Any(), "q1/0").Return(host("self"), nil)
+	c.reassignShards()
+
+	val, ok := gaugePresent(ts, "async_workflow_consumer_owned_shard_count")
+	require.True(t, ok, "owned shard gauge was not emitted")
+	assert.Equal(t, float64(1), val)
 }

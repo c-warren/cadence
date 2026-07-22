@@ -91,4 +91,7 @@ type Handler interface {
 	GetAsyncWorkflowMessages(context.Context, *types.GetAsyncWorkflowMessagesRequest) (*types.GetAsyncWorkflowMessagesResponse, error)
 	UpdateAsyncWorkflowAckLevel(context.Context, *types.UpdateAsyncWorkflowAckLevelRequest) (*types.UpdateAsyncWorkflowAckLevelResponse, error)
 	EnqueueAsyncWorkflowMessageToDLQ(context.Context, *types.EnqueueAsyncWorkflowMessageToDLQRequest) (*types.EnqueueAsyncWorkflowMessageToDLQResponse, error)
+	ReadAsyncWorkflowMessagesFromDLQ(context.Context, *types.ReadAsyncWorkflowMessagesFromDLQRequest) (*types.ReadAsyncWorkflowMessagesFromDLQResponse, error)
+	MergeAsyncWorkflowMessagesFromDLQ(context.Context, *types.MergeAsyncWorkflowMessagesFromDLQRequest) (*types.MergeAsyncWorkflowMessagesFromDLQResponse, error)
+	PurgeAsyncWorkflowMessagesFromDLQ(context.Context, *types.PurgeAsyncWorkflowMessagesFromDLQRequest) (*types.PurgeAsyncWorkflowMessagesFromDLQResponse, error)
 }

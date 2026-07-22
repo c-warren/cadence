@@ -2306,6 +2306,164 @@ func (h *handlerImpl) EnqueueAsyncWorkflowMessageToDLQ(
 	return &types.EnqueueAsyncWorkflowMessageToDLQResponse{MessageID: presp.MessageID}, nil
 }
 
+// ReadAsyncWorkflowMessagesFromDLQ reads a page of poison messages from the shard-scoped DLQ.
+func (h *handlerImpl) ReadAsyncWorkflowMessagesFromDLQ(
+	ctx context.Context,
+	request *types.ReadAsyncWorkflowMessagesFromDLQRequest,
+) (resp *types.ReadAsyncWorkflowMessagesFromDLQResponse, retError error) {
+
+	defer func() { log.CapturePanic(recover(), h.GetLogger(), &retError) }()
+	h.startWG.Wait()
+
+	scope, sw := h.startRequestProfile(ctx, metrics.HistoryReadAsyncWorkflowMessagesFromDLQScope)
+	defer sw.Stop()
+
+	if h.isShuttingDown() {
+		return nil, constants.ErrShuttingDown
+	}
+	if request == nil {
+		return nil, errAsyncWorkflowRequestNotSet
+	}
+
+	if _, err := h.controller.GetEngineForShard(int(request.GetShardID())); err != nil {
+		return nil, h.error(err, scope, "", "", "")
+	}
+
+	readResp, err := h.GetAsyncWorkflowQueueManager().ReadMessagesFromDLQ(ctx, &persistence.ReadAsyncWorkflowMessagesRequest{
+		QueueName:     request.QueueName,
+		ShardID:       int(request.ShardID),
+		LastMessageID: request.LastMessageID,
+		PageSize:      int(request.PageSize),
+	})
+	if err != nil {
+		return nil, h.error(err, scope, "", "", "")
+	}
+
+	messages := fromPersistenceAsyncWorkflowMessages(readResp.Messages)
+	// The response cursor is the last message id read this page (exclusive lower
+	// bound for the next page). Fall back to the request cursor for an empty page.
+	lastMessageID := request.LastMessageID
+	if n := len(messages); n > 0 {
+		lastMessageID = messages[n-1].MessageID
+	}
+	return &types.ReadAsyncWorkflowMessagesFromDLQResponse{
+		Messages:      messages,
+		LastMessageID: lastMessageID,
+	}, nil
+}
+
+// MergeAsyncWorkflowMessagesFromDLQ re-injects one page of DLQ messages back onto the main queue
+// (retried through the consumer) and deletes the merged range from the DLQ.
+func (h *handlerImpl) MergeAsyncWorkflowMessagesFromDLQ(
+	ctx context.Context,
+	request *types.MergeAsyncWorkflowMessagesFromDLQRequest,
+) (resp *types.MergeAsyncWorkflowMessagesFromDLQResponse, retError error) {
+
+	defer func() { log.CapturePanic(recover(), h.GetLogger(), &retError) }()
+	h.startWG.Wait()
+
+	scope, sw := h.startRequestProfile(ctx, metrics.HistoryMergeAsyncWorkflowMessagesFromDLQScope)
+	defer sw.Stop()
+
+	if h.isShuttingDown() {
+		return nil, constants.ErrShuttingDown
+	}
+	if request == nil {
+		return nil, errAsyncWorkflowRequestNotSet
+	}
+
+	if _, err := h.controller.GetEngineForShard(int(request.GetShardID())); err != nil {
+		return nil, h.error(err, scope, "", "", "")
+	}
+
+	manager := h.GetAsyncWorkflowQueueManager()
+
+	// Read one page from the DLQ starting at the beginning (exclusive EmptyMessageID cursor).
+	readResp, err := manager.ReadMessagesFromDLQ(ctx, &persistence.ReadAsyncWorkflowMessagesRequest{
+		QueueName:     request.QueueName,
+		ShardID:       int(request.ShardID),
+		LastMessageID: commonconstants.EmptyMessageID,
+		PageSize:      int(request.PageSize),
+	})
+	if err != nil {
+		return nil, h.error(err, scope, "", "", "")
+	}
+
+	var mergedCount int32
+	var lastMergedMessageID int64
+	for _, msg := range readResp.Messages {
+		if msg == nil {
+			continue
+		}
+		// Do not merge beyond the caller-provided inclusive end cursor.
+		if msg.MessageID > request.InclusiveEndMessageID {
+			break
+		}
+		// Re-enqueue FIRST so a crash between enqueue and delete cannot lose the
+		// message; duplicates are absorbed by frontend AlreadyStarted on retry.
+		if _, err := manager.Enqueue(ctx, &persistence.EnqueueAsyncWorkflowMessageRequest{
+			QueueName:    request.QueueName,
+			ShardID:      int(request.ShardID),
+			Payload:      msg.Payload,
+			Encoding:     msg.Encoding,
+			PartitionKey: msg.PartitionKey,
+		}); err != nil {
+			return nil, h.error(err, scope, "", "", "")
+		}
+		mergedCount++
+		lastMergedMessageID = msg.MessageID
+	}
+
+	// Delete the merged range from the DLQ only after every message was re-enqueued.
+	if mergedCount > 0 {
+		if err := manager.RangeDeleteMessagesFromDLQ(ctx, &persistence.RangeDeleteAsyncWorkflowMessagesRequest{
+			QueueName:             request.QueueName,
+			ShardID:               int(request.ShardID),
+			InclusiveEndMessageID: lastMergedMessageID,
+		}); err != nil {
+			return nil, h.error(err, scope, "", "", "")
+		}
+	}
+
+	return &types.MergeAsyncWorkflowMessagesFromDLQResponse{
+		MessagesCount: mergedCount,
+		LastMessageID: lastMergedMessageID,
+	}, nil
+}
+
+// PurgeAsyncWorkflowMessagesFromDLQ deletes poison messages at/below the inclusive end cursor.
+func (h *handlerImpl) PurgeAsyncWorkflowMessagesFromDLQ(
+	ctx context.Context,
+	request *types.PurgeAsyncWorkflowMessagesFromDLQRequest,
+) (resp *types.PurgeAsyncWorkflowMessagesFromDLQResponse, retError error) {
+
+	defer func() { log.CapturePanic(recover(), h.GetLogger(), &retError) }()
+	h.startWG.Wait()
+
+	scope, sw := h.startRequestProfile(ctx, metrics.HistoryPurgeAsyncWorkflowMessagesFromDLQScope)
+	defer sw.Stop()
+
+	if h.isShuttingDown() {
+		return nil, constants.ErrShuttingDown
+	}
+	if request == nil {
+		return nil, errAsyncWorkflowRequestNotSet
+	}
+
+	if _, err := h.controller.GetEngineForShard(int(request.GetShardID())); err != nil {
+		return nil, h.error(err, scope, "", "", "")
+	}
+
+	if err := h.GetAsyncWorkflowQueueManager().RangeDeleteMessagesFromDLQ(ctx, &persistence.RangeDeleteAsyncWorkflowMessagesRequest{
+		QueueName:             request.QueueName,
+		ShardID:               int(request.ShardID),
+		InclusiveEndMessageID: request.InclusiveEndMessageID,
+	}); err != nil {
+		return nil, h.error(err, scope, "", "", "")
+	}
+	return &types.PurgeAsyncWorkflowMessagesFromDLQResponse{}, nil
+}
+
 // fromPersistenceAsyncWorkflowMessages maps persistence async workflow messages to wire messages.
 func fromPersistenceAsyncWorkflowMessages(messages persistence.AsyncWorkflowMessageList) []*types.AsyncWorkflowMessage {
 	if messages == nil {

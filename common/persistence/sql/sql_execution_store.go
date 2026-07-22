@@ -940,8 +940,15 @@ func (m *sqlExecutionStore) GetReplicationTasksFromDLQ(
 				BranchToken:       info.BranchToken,
 				NewRunBranchToken: info.NewRunBranchToken,
 				CreationTime:      info.GetCreationTimestamp().UnixNano(),
+				// Async workflow request tasks carry their payload here; empty otherwise.
+				AsyncWorkflowQueueName:    info.AsyncWorkflowQueueName,
+				AsyncWorkflowPayload:      info.AsyncWorkflowPayload,
+				AsyncWorkflowEncoding:     info.AsyncWorkflowEncoding,
+				AsyncWorkflowPartitionKey: info.AsyncWorkflowPartitionKey,
 			},
 			// SQL has no separate column for the full task blob; Task is nil here.
+			// Async workflow request tasks are reconstructed from Info by the DLQ
+			// handler (they cannot be re-fetched from the source cluster).
 		})
 	}
 	resp := &p.InternalGetReplicationDLQTasksResponse{Tasks: dlqTasks}
@@ -1162,6 +1169,14 @@ func (m *sqlExecutionStore) PutReplicationTaskToDLQ(
 		BranchToken:             replicationTask.BranchToken,
 		NewRunBranchToken:       replicationTask.NewRunBranchToken,
 		CreationTimestamp:       replicationTask.CreationTime,
+		// SQL has no separate column for the full replication task blob, so async
+		// workflow request tasks carry their payload in these fields (mirroring the
+		// main replication queue in CreateAsyncWorkflowReplicationTasks). Empty for
+		// all other task types.
+		AsyncWorkflowQueueName:    replicationTask.AsyncWorkflowQueueName,
+		AsyncWorkflowPayload:      replicationTask.AsyncWorkflowPayload,
+		AsyncWorkflowEncoding:     replicationTask.AsyncWorkflowEncoding,
+		AsyncWorkflowPartitionKey: replicationTask.AsyncWorkflowPartitionKey,
 	})
 	if err != nil {
 		return err

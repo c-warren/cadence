@@ -537,6 +537,13 @@ type (
 		BranchToken       []byte
 		NewRunBranchToken []byte
 		CreationTime      int64
+		// Async workflow request replication tasks are not tied to a workflow
+		// execution; they carry their payload in these fields rather than in the
+		// history-event columns above. Empty for all other replication task types.
+		AsyncWorkflowQueueName    string
+		AsyncWorkflowPayload      []byte
+		AsyncWorkflowEncoding     string
+		AsyncWorkflowPartitionKey string
 	}
 
 	// TimerTaskInfo describes a timer task.

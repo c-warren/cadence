@@ -254,6 +254,17 @@ func (c *adminClient) MaintainCorruptWorkflow(ctx context.Context, ap1 *types.Ad
 	return resp, err
 }
 
+func (c *adminClient) MergeAsyncWorkflowMessagesFromDLQ(ctx context.Context, mp1 *types.MergeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	var resp *types.MergeAsyncWorkflowMessagesFromDLQResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.MergeAsyncWorkflowMessagesFromDLQ(ctx, mp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *adminClient) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQMessagesRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeDLQMessagesResponse, err error) {
 	var resp *types.MergeDLQMessagesResponse
 	op := func(ctx context.Context) error {
@@ -265,11 +276,33 @@ func (c *adminClient) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQM
 	return resp, err
 }
 
+func (c *adminClient) PurgeAsyncWorkflowMessagesFromDLQ(ctx context.Context, pp1 *types.PurgeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (pp2 *types.PurgeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	var resp *types.PurgeAsyncWorkflowMessagesFromDLQResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.PurgeAsyncWorkflowMessagesFromDLQ(ctx, pp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
+}
+
 func (c *adminClient) PurgeDLQMessages(ctx context.Context, pp1 *types.PurgeDLQMessagesRequest, p1 ...yarpc.CallOption) (err error) {
 	op := func(ctx context.Context) error {
 		return c.client.PurgeDLQMessages(ctx, pp1, p1...)
 	}
 	return c.throttleRetry.Do(ctx, op)
+}
+
+func (c *adminClient) ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, rp1 *types.ReadAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (rp2 *types.ReadAsyncWorkflowMessagesFromDLQResponse, err error) {
+	var resp *types.ReadAsyncWorkflowMessagesFromDLQResponse
+	op := func(ctx context.Context) error {
+		var err error
+		resp, err = c.client.ReadAsyncWorkflowMessagesFromDLQ(ctx, rp1, p1...)
+		return err
+	}
+	err = c.throttleRetry.Do(ctx, op)
+	return resp, err
 }
 
 func (c *adminClient) ReadDLQMessages(ctx context.Context, rp1 *types.ReadDLQMessagesRequest, p1 ...yarpc.CallOption) (rp2 *types.ReadDLQMessagesResponse, err error) {

@@ -533,6 +533,30 @@ func (c *adminClient) MaintainCorruptWorkflow(ctx context.Context, ap1 *types.Ad
 	return ap2, err
 }
 
+func (c *adminClient) MergeAsyncWorkflowMessagesFromDLQ(ctx context.Context, mp1 *types.MergeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.AdminClientMergeAsyncWorkflowMessagesFromDLQScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.AdminClientMergeAsyncWorkflowMessagesFromDLQScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	clientLatencyStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	mp2, err = c.client.MergeAsyncWorkflowMessagesFromDLQ(ctx, mp1, p1...)
+	sw.Stop()
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return mp2, err
+}
+
 func (c *adminClient) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQMessagesRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeDLQMessagesResponse, err error) {
 	retryCount := getRetryCountFromContext(ctx)
 
@@ -557,6 +581,30 @@ func (c *adminClient) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQM
 	return mp2, err
 }
 
+func (c *adminClient) PurgeAsyncWorkflowMessagesFromDLQ(ctx context.Context, pp1 *types.PurgeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (pp2 *types.PurgeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.AdminClientPurgeAsyncWorkflowMessagesFromDLQScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.AdminClientPurgeAsyncWorkflowMessagesFromDLQScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	clientLatencyStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	pp2, err = c.client.PurgeAsyncWorkflowMessagesFromDLQ(ctx, pp1, p1...)
+	sw.Stop()
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return pp2, err
+}
+
 func (c *adminClient) PurgeDLQMessages(ctx context.Context, pp1 *types.PurgeDLQMessagesRequest, p1 ...yarpc.CallOption) (err error) {
 	retryCount := getRetryCountFromContext(ctx)
 
@@ -579,6 +627,30 @@ func (c *adminClient) PurgeDLQMessages(ctx context.Context, pp1 *types.PurgeDLQM
 		scope.IncCounter(metrics.CadenceClientFailures)
 	}
 	return err
+}
+
+func (c *adminClient) ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, rp1 *types.ReadAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (rp2 *types.ReadAsyncWorkflowMessagesFromDLQResponse, err error) {
+	retryCount := getRetryCountFromContext(ctx)
+
+	var scope metrics.Scope
+	if retryCount == -1 {
+		scope = c.metricsClient.Scope(metrics.AdminClientReadAsyncWorkflowMessagesFromDLQScope)
+	} else {
+		scope = c.metricsClient.Scope(metrics.AdminClientReadAsyncWorkflowMessagesFromDLQScope, metrics.IsRetryTag(retryCount > 0))
+	}
+
+	scope.IncCounter(metrics.CadenceClientRequests)
+
+	clientLatencyStart := time.Now()
+	sw := scope.StartTimer(metrics.CadenceClientLatency)
+	rp2, err = c.client.ReadAsyncWorkflowMessagesFromDLQ(ctx, rp1, p1...)
+	sw.Stop()
+	scope.ExponentialHistogram(metrics.CadenceClientLatencyHistogram, time.Since(clientLatencyStart))
+
+	if err != nil {
+		scope.IncCounter(metrics.CadenceClientFailures)
+	}
+	return rp2, err
 }
 
 func (c *adminClient) ReadDLQMessages(ctx context.Context, rp1 *types.ReadDLQMessagesRequest, p1 ...yarpc.CallOption) (rp2 *types.ReadDLQMessagesResponse, err error) {

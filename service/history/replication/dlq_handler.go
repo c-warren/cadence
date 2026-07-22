@@ -275,9 +275,26 @@ func (r *dlqHandlerImpl) hydrateDLQTasks(
 		}
 		taskInfos = append(taskInfos, ti)
 
-		if task.Task != nil {
+		switch {
+		case task.Task != nil:
+			// NoSQL backends persist and return the full task blob.
 			hydrated[info.TaskID] = task.Task
-		} else {
+		case info.TaskType == int(persistence.ReplicationTaskTypeAsyncWorkflowRequest):
+			// Async workflow requests are not workflow-tied and cannot be re-fetched
+			// from the source cluster via GetDLQReplicationMessages. For SQL backends
+			// (which have no full-task blob column) the payload is carried in the DLQ
+			// entry's async fields, so reconstruct the task directly.
+			hydrated[info.TaskID] = &types.ReplicationTask{
+				TaskType:     types.ReplicationTaskTypeAsyncWorkflowRequest.Ptr(),
+				SourceTaskID: info.TaskID,
+				AsyncWorkflowRequestTaskAttributes: &types.AsyncWorkflowRequestTaskAttributes{
+					QueueName:    info.AsyncWorkflowQueueName,
+					Payload:      info.AsyncWorkflowPayload,
+					Encoding:     info.AsyncWorkflowEncoding,
+					PartitionKey: info.AsyncWorkflowPartitionKey,
+				},
+			}
+		default:
 			needHydration = append(needHydration, ti)
 		}
 	}

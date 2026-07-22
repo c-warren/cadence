@@ -601,6 +601,82 @@ func TestPutReplicationTaskToDLQ(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TestPutAndGetReplicationTaskToDLQ_AsyncWorkflowRequest_RoundTrip verifies that the
+// async workflow request payload survives the DLQ blob serialize (write) and
+// deserialize (read) round-trip performed by the execution manager. This is the
+// force-blob path used by NoSQL backends, which persist and return the full task blob.
+func TestPutAndGetReplicationTaskToDLQ_AsyncWorkflowRequest_RoundTrip(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	mockedStore := NewMockExecutionStore(ctrl)
+	manager := NewExecutionManagerImpl(mockedStore, testlogger.New(t), NewPayloadSerializer(), &DynamicConfiguration{
+		SerializationEncoding: dynamicproperties.GetStringPropertyFn(string(constants.EncodingTypeThriftRW)),
+	})
+
+	asyncTask := &types.ReplicationTask{
+		TaskType:     types.ReplicationTaskTypeAsyncWorkflowRequest.Ptr(),
+		SourceTaskID: 55,
+		AsyncWorkflowRequestTaskAttributes: &types.AsyncWorkflowRequestTaskAttributes{
+			QueueName:    "test-queue",
+			Payload:      []byte("test-payload"),
+			Encoding:     "thriftrw",
+			PartitionKey: "partition-key",
+		},
+	}
+
+	// Capture the blob the manager serializes on the write path.
+	var writtenBlob *DataBlob
+	mockedStore.EXPECT().PutReplicationTaskToDLQ(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx context.Context, req *InternalPutReplicationTaskToDLQRequest) error {
+		assert.Equal(t, ReplicationTaskTypeAsyncWorkflowRequest, req.TaskInfo.TaskType)
+		assert.NotNil(t, req.Task, "async DLQ write must always serialize the task blob")
+		writtenBlob = req.Task
+		return nil
+	})
+
+	err := manager.PutReplicationTaskToDLQ(context.Background(), &PutReplicationTaskToDLQRequest{
+		SourceClusterName: "test-cluster",
+		TaskInfo: &ReplicationTaskInfo{
+			TaskID:                    55,
+			TaskType:                  ReplicationTaskTypeAsyncWorkflowRequest,
+			AsyncWorkflowQueueName:    "test-queue",
+			AsyncWorkflowPayload:      []byte("test-payload"),
+			AsyncWorkflowEncoding:     "thriftrw",
+			AsyncWorkflowPartitionKey: "partition-key",
+		},
+		Task: asyncTask,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, writtenBlob)
+
+	// Feed the captured blob back through the read path and confirm the async
+	// attributes are fully reconstructed.
+	mockedStore.EXPECT().GetReplicationTasksFromDLQ(gomock.Any(), gomock.Any()).Return(&InternalGetReplicationDLQTasksResponse{
+		Tasks: []*InternalReplicationDLQTask{
+			{
+				Info: &ReplicationTaskInfo{TaskID: 55, TaskType: ReplicationTaskTypeAsyncWorkflowRequest},
+				Task: writtenBlob,
+			},
+		},
+	}, nil)
+
+	res, err := manager.GetReplicationTasksFromDLQ(context.Background(), &GetReplicationTasksFromDLQRequest{
+		SourceClusterName: "test-cluster",
+		ReadLevel:         1,
+		MaxReadLevel:      100,
+		BatchSize:         10,
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Tasks, 1)
+	got := res.Tasks[0].Task
+	require.NotNil(t, got)
+	assert.Equal(t, types.ReplicationTaskTypeAsyncWorkflowRequest, got.GetTaskType())
+	attr := got.GetAsyncWorkflowRequestTaskAttributes()
+	require.NotNil(t, attr)
+	assert.Equal(t, "test-queue", attr.QueueName)
+	assert.Equal(t, []byte("test-payload"), attr.Payload)
+	assert.Equal(t, "thriftrw", attr.Encoding)
+	assert.Equal(t, "partition-key", attr.PartitionKey)
+}
+
 func TestGetReplicationTasksFromDLQ(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mockedStore := NewMockExecutionStore(ctrl)

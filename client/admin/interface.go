@@ -53,6 +53,9 @@ type Client interface {
 	MergeDLQMessages(context.Context, *types.MergeDLQMessagesRequest, ...yarpc.CallOption) (*types.MergeDLQMessagesResponse, error)
 	PurgeDLQMessages(context.Context, *types.PurgeDLQMessagesRequest, ...yarpc.CallOption) error
 	ReadDLQMessages(context.Context, *types.ReadDLQMessagesRequest, ...yarpc.CallOption) (*types.ReadDLQMessagesResponse, error)
+	ReadAsyncWorkflowMessagesFromDLQ(context.Context, *types.ReadAsyncWorkflowMessagesFromDLQRequest, ...yarpc.CallOption) (*types.ReadAsyncWorkflowMessagesFromDLQResponse, error)
+	MergeAsyncWorkflowMessagesFromDLQ(context.Context, *types.MergeAsyncWorkflowMessagesFromDLQRequest, ...yarpc.CallOption) (*types.MergeAsyncWorkflowMessagesFromDLQResponse, error)
+	PurgeAsyncWorkflowMessagesFromDLQ(context.Context, *types.PurgeAsyncWorkflowMessagesFromDLQRequest, ...yarpc.CallOption) (*types.PurgeAsyncWorkflowMessagesFromDLQResponse, error)
 	ReapplyEvents(context.Context, *types.ReapplyEventsRequest, ...yarpc.CallOption) error
 	RefreshWorkflowTasks(context.Context, *types.RefreshWorkflowTasksRequest, ...yarpc.CallOption) error
 	RemoveTask(context.Context, *types.RemoveTaskRequest, ...yarpc.CallOption) error
