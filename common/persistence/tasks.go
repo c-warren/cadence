@@ -278,6 +278,16 @@ type (
 		TaskData
 		DomainID string
 	}
+
+	// AsyncWorkflowRequestTask carries an async-workflow request payload to be
+	// replicated cross-region. It is not tied to a specific execution.
+	AsyncWorkflowRequestTask struct {
+		TaskData
+		QueueName    string
+		Payload      []byte
+		Encoding     string
+		PartitionKey string
+	}
 )
 
 // assert all task types implements Task interface
@@ -303,6 +313,7 @@ var (
 	_ Task = (*HistoryReplicationTask)(nil)
 	_ Task = (*SyncActivityTask)(nil)
 	_ Task = (*FailoverMarkerTask)(nil)
+	_ Task = (*AsyncWorkflowRequestTask)(nil)
 
 	immediateTaskKeyScheduleTime = time.Unix(0, 0).UTC()
 )
@@ -311,6 +322,10 @@ func IsTaskCorrupted(task Task) bool {
 	switch task.(type) {
 	case *FailoverMarkerTask:
 		return task.GetDomainID() == ""
+	case *AsyncWorkflowRequestTask:
+		// AsyncWorkflowRequestTask is not tied to a domain/execution; it is
+		// identified by its queue name.
+		return task.(*AsyncWorkflowRequestTask).QueueName == ""
 	default:
 		return task.GetDomainID() == "" || task.GetWorkflowID() == "" || task.GetRunID() == ""
 	}
@@ -1575,5 +1590,65 @@ func (a *FailoverMarkerTask) GetWorkflowID() string {
 }
 
 func (a *FailoverMarkerTask) GetRunID() string {
+	return ""
+}
+
+// GetTaskType returns the type of the async workflow request replication task
+func (a *AsyncWorkflowRequestTask) GetTaskType() int {
+	return ReplicationTaskTypeAsyncWorkflowRequest
+}
+
+func (a *AsyncWorkflowRequestTask) GetTaskCategory() HistoryTaskCategory {
+	return HistoryTaskCategoryReplication
+}
+
+func (a *AsyncWorkflowRequestTask) GetTaskKey() HistoryTaskKey {
+	return NewImmediateTaskKey(a.TaskID)
+}
+
+func (a *AsyncWorkflowRequestTask) GetTaskList() string {
+	return ""
+}
+
+func (a *AsyncWorkflowRequestTask) GetOriginalTaskList() string {
+	return ""
+}
+
+func (a *AsyncWorkflowRequestTask) GetOriginalTaskListKind() types.TaskListKind {
+	return types.TaskListKindNormal
+}
+
+func (a *AsyncWorkflowRequestTask) ByteSize() uint64 {
+	return uint64(len(a.QueueName)) + uint64(len(a.Payload)) + uint64(len(a.Encoding)) + uint64(len(a.PartitionKey)) + a.TaskData.ByteSize()
+}
+
+func (a *AsyncWorkflowRequestTask) ToTransferTaskInfo() (*TransferTaskInfo, error) {
+	return nil, fmt.Errorf("async workflow request task is not transfer task")
+}
+
+func (a *AsyncWorkflowRequestTask) ToTimerTaskInfo() (*TimerTaskInfo, error) {
+	return nil, fmt.Errorf("async workflow request task is not timer task")
+}
+
+func (a *AsyncWorkflowRequestTask) ToInternalReplicationTaskInfo() (*types.ReplicationTaskInfo, error) {
+	return &types.ReplicationTaskInfo{
+		TaskType:     ReplicationTaskTypeAsyncWorkflowRequest,
+		TaskID:       a.TaskID,
+		Version:      a.Version,
+		FirstEventID: constants.EmptyEventID,
+		NextEventID:  constants.EmptyEventID,
+		ScheduledID:  constants.EmptyEventID,
+	}, nil
+}
+
+func (a *AsyncWorkflowRequestTask) GetDomainID() string {
+	return ""
+}
+
+func (a *AsyncWorkflowRequestTask) GetWorkflowID() string {
+	return ""
+}
+
+func (a *AsyncWorkflowRequestTask) GetRunID() string {
 	return ""
 }

@@ -271,6 +271,12 @@ func (d *nosqlExecutionStore) prepareReplicationTasksForWorkflowTxn(domainID, wo
 		case persistence.ReplicationTaskTypeFailoverMarker:
 			version = task.GetVersion()
 
+		case persistence.ReplicationTaskTypeAsyncWorkflowRequest:
+			// Async workflow requests are not tied to a workflow execution; only
+			// the version is relevant and event IDs stay empty. The payload is
+			// carried in the data blob written below.
+			version = task.GetVersion()
+
 		default:
 			return nil, &types.InternalServiceError{
 				Message: fmt.Sprintf("Unknown replication type: %v", task.GetTaskType()),
@@ -292,7 +298,9 @@ func (d *nosqlExecutionStore) prepareReplicationTasksForWorkflowTxn(domainID, wo
 			NewRunBranchToken: newRunBranchToken,
 		}
 		var blob *persistence.DataBlob
-		if d.dc.EnableHistoryTaskDualWriteMode() {
+		// Async workflow requests carry their payload only in the data blob, so it
+		// must always be written for that task type regardless of dual-write mode.
+		if d.dc.EnableHistoryTaskDualWriteMode() || task.GetTaskType() == persistence.ReplicationTaskTypeAsyncWorkflowRequest {
 			data, err := d.taskSerializer.SerializeTask(persistence.HistoryTaskCategoryReplication, task)
 			if err != nil {
 				return nil, err

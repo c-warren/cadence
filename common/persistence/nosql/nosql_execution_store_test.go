@@ -1063,6 +1063,167 @@ func TestCreateFailoverMarkerTasks(t *testing.T) {
 	}
 }
 
+// TestCreateAsyncWorkflowReplicationTasks verifies async workflow replication
+// tasks always force-write the data blob even when dual-write mode is disabled.
+func TestCreateAsyncWorkflowReplicationTasks(t *testing.T) {
+	ctx := context.Background()
+	shardID := 1
+
+	tests := []struct {
+		name          string
+		rangeID       int64
+		tasks         []*persistence.AsyncWorkflowRequestTask
+		setupMock     func(*nosqlplugin.MockDB, *serialization.MockTaskSerializer)
+		expectedError error
+	}{
+		{
+			name:    "success - blob force-written with dual-write disabled",
+			rangeID: 123,
+			tasks: []*persistence.AsyncWorkflowRequestTask{
+				{
+					TaskData:     persistence.TaskData{Version: commonconstants.EmptyVersion},
+					QueueName:    "testQueue",
+					Payload:      []byte("payload"),
+					Encoding:     "json",
+					PartitionKey: "pk",
+				},
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				// SerializeTask must be called for the async task even though dual-write is disabled.
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{
+					Data:     []byte("1"),
+					Encoding: commonconstants.EncodingTypeThriftRW,
+				}, nil)
+				mockDB.EXPECT().
+					InsertReplicationTask(ctx, gomock.Any(), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 123}).
+					Return(nil)
+			},
+			expectedError: nil,
+		},
+		{
+			name:    "serialization error",
+			rangeID: 123,
+			tasks: []*persistence.AsyncWorkflowRequestTask{
+				{
+					TaskData:  persistence.TaskData{Version: commonconstants.EmptyVersion},
+					QueueName: "testQueue",
+				},
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{}, errors.New("some error"))
+			},
+			expectedError: errors.New("some error"),
+		},
+		{
+			name:    "ShardOperationConditionFailure",
+			rangeID: 123,
+			tasks: []*persistence.AsyncWorkflowRequestTask{
+				{
+					TaskData:  persistence.TaskData{Version: commonconstants.EmptyVersion},
+					QueueName: "testQueue",
+				},
+			},
+			setupMock: func(mockDB *nosqlplugin.MockDB, mockTaskSerializer *serialization.MockTaskSerializer) {
+				mockTaskSerializer.EXPECT().SerializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(persistence.DataBlob{
+					Data:     []byte("1"),
+					Encoding: commonconstants.EncodingTypeThriftRW,
+				}, nil)
+				mockDB.EXPECT().
+					InsertReplicationTask(ctx, gomock.Any(), nosqlplugin.ShardCondition{ShardID: shardID, RangeID: 123}).
+					Return(&nosqlplugin.ShardOperationConditionFailure{RangeID: 123, Details: "Shard condition failed"})
+			},
+			expectedError: &persistence.ShardOwnershipLostError{},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			controller := gomock.NewController(t)
+
+			mockDB := nosqlplugin.NewMockDB(controller)
+			mockTaskSerializer := serialization.NewMockTaskSerializer(controller)
+			// Explicitly disable dual-write mode to prove the blob is still force-written.
+			store := &nosqlExecutionStore{
+				shardID: shardID,
+				nosqlStore: nosqlStore{
+					logger: log.NewNoop(),
+					db:     mockDB,
+					dc: &persistence.DynamicConfiguration{
+						EnableHistoryTaskDualWriteMode: func(...dynamicproperties.FilterOption) bool { return false },
+					},
+				},
+				taskSerializer: mockTaskSerializer,
+			}
+
+			tc.setupMock(mockDB, mockTaskSerializer)
+
+			err := store.CreateAsyncWorkflowReplicationTasks(ctx, &persistence.CreateAsyncWorkflowReplicationTasksRequest{
+				RangeID: tc.rangeID,
+				Tasks:   tc.tasks,
+			})
+
+			if tc.expectedError != nil {
+				require.ErrorAs(t, err, &tc.expectedError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+// TestGetHistoryTasks_AsyncWorkflowForceBlobRead verifies async workflow replication
+// tasks are always deserialized from the data blob even when the
+// ReadNoSQLHistoryTaskFromDataBlob flag is disabled.
+func TestGetHistoryTasks_AsyncWorkflowForceBlobRead(t *testing.T) {
+	ctx := context.Background()
+	shardID := 1
+
+	controller := gomock.NewController(t)
+	defer controller.Finish()
+
+	mockDB := nosqlplugin.NewMockDB(controller)
+	mockTaskSerializer := serialization.NewMockTaskSerializer(controller)
+	store := &nosqlExecutionStore{
+		shardID: shardID,
+		nosqlStore: nosqlStore{
+			logger: log.NewNoop(),
+			db:     mockDB,
+			dc: &persistence.DynamicConfiguration{
+				// Disabled - async tasks must still read from the blob.
+				ReadNoSQLHistoryTaskFromDataBlob: func(...dynamicproperties.FilterOption) bool { return false },
+			},
+		},
+		taskSerializer: mockTaskSerializer,
+	}
+
+	mockDB.EXPECT().SelectReplicationTasksOrderByTaskID(ctx, shardID, 10, gomock.Any(), int64(100), int64(200)).Return([]*nosqlplugin.HistoryMigrationTask{
+		{
+			Replication: &nosqlplugin.ReplicationTask{TaskType: persistence.ReplicationTaskTypeAsyncWorkflowRequest},
+			Task:        &persistence.DataBlob{Data: []byte("task"), Encoding: "json"},
+			TaskID:      1,
+		},
+	}, nil, nil)
+	mockTaskSerializer.EXPECT().DeserializeTask(persistence.HistoryTaskCategoryReplication, gomock.Any()).Return(&persistence.AsyncWorkflowRequestTask{
+		TaskData:     persistence.TaskData{Version: commonconstants.EmptyVersion},
+		QueueName:    "testQueue",
+		Payload:      []byte("payload"),
+		Encoding:     "json",
+		PartitionKey: "pk",
+	}, nil)
+
+	resp, err := store.GetHistoryTasks(ctx, &persistence.GetHistoryTasksRequest{
+		TaskCategory:        persistence.HistoryTaskCategoryReplication,
+		InclusiveMinTaskKey: persistence.NewImmediateTaskKey(100),
+		ExclusiveMaxTaskKey: persistence.NewImmediateTaskKey(200),
+		PageSize:            10,
+	})
+	require.NoError(t, err)
+	require.Len(t, resp.Tasks, 1)
+	asyncTask, ok := resp.Tasks[0].(*persistence.AsyncWorkflowRequestTask)
+	require.True(t, ok)
+	require.Equal(t, "testQueue", asyncTask.QueueName)
+	require.Equal(t, int64(1), asyncTask.TaskID)
+}
+
 func TestCreateHistoryTasks(t *testing.T) {
 	ctx := context.Background()
 	shardID := 1

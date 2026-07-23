@@ -107,6 +107,11 @@ func TestFailoverMarkerToken(t *testing.T) {
 		assert.Equal(t, item, ToFailoverMarkerToken(FromFailoverMarkerToken(item)))
 	}
 }
+func TestAsyncWorkflowRequestTaskAttributes(t *testing.T) {
+	for _, item := range []*types.AsyncWorkflowRequestTaskAttributes{nil, {}, &testdata.AsyncWorkflowRequestTaskAttributes} {
+		assert.Equal(t, item, ToAsyncWorkflowRequestTaskAttributes(FromAsyncWorkflowRequestTaskAttributes(item)))
+	}
+}
 func TestHistoryTaskV2Attributes(t *testing.T) {
 	for _, item := range []*types.HistoryTaskV2Attributes{nil, {}, &testdata.HistoryTaskV2Attributes} {
 		assert.Equal(t, item, ToHistoryTaskV2Attributes(FromHistoryTaskV2Attributes(item)))
@@ -171,6 +176,7 @@ func TestReplicationTask(t *testing.T) {
 		&testdata.ReplicationTask_History,
 		&testdata.ReplicationTask_SyncActivity,
 		&testdata.ReplicationTask_SyncShard,
+		&testdata.ReplicationTask_AsyncWorkflowRequest,
 	} {
 		assert.Equal(t, item, ToReplicationTask(FromReplicationTask(item)))
 	}
@@ -571,6 +577,10 @@ func TestFailoverMarkerAttributesFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromFailoverMarkerAttributes, ToFailoverMarkerAttributes)
 }
 
+func TestAsyncWorkflowRequestTaskAttributesFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAsyncWorkflowRequestTaskAttributes, ToAsyncWorkflowRequestTaskAttributes)
+}
+
 func TestFailoverMarkerTokenFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromFailoverMarkerToken, ToFailoverMarkerToken)
 }
@@ -704,11 +714,12 @@ func TestReplicationTaskFuzz(t *testing.T) {
 			testutils.ReplicationTaskTypeFuzzer,
 		),
 		testutils.WithExcludedFields(
-			"DomainTaskAttributes",          // Tested in TestDomainTaskAttributesFuzz
-			"SyncShardStatusTaskAttributes", // Tested in TestSyncShardStatusTaskAttributesFuzz
-			"SyncActivityTaskAttributes",    // Tested in TestSyncActivityTaskAttributesFuzz
-			"HistoryTaskV2Attributes",       // Tested in TestHistoryTaskV2AttributesFuzz
-			"FailoverMarkerAttributes",      // Tested in TestFailoverMarkerAttributesFuzz
+			"DomainTaskAttributes",               // Tested in TestDomainTaskAttributesFuzz
+			"SyncShardStatusTaskAttributes",      // Tested in TestSyncShardStatusTaskAttributesFuzz
+			"SyncActivityTaskAttributes",         // Tested in TestSyncActivityTaskAttributesFuzz
+			"HistoryTaskV2Attributes",            // Tested in TestHistoryTaskV2AttributesFuzz
+			"FailoverMarkerAttributes",           // Tested in TestFailoverMarkerAttributesFuzz
+			"AsyncWorkflowRequestTaskAttributes", // Tested in TestAsyncWorkflowRequestTaskAttributesFuzz
 		),
 	)
 }

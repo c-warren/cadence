@@ -35,6 +35,7 @@ import (
 	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/config"
+	"github.com/uber/cadence/service/history/engine"
 	"github.com/uber/cadence/service/history/resource"
 	"github.com/uber/cadence/service/history/shard"
 	"github.com/uber/cadence/service/history/workflowcache"
@@ -44,6 +45,7 @@ type asyncWorkflowTestHandler struct {
 	handler             *handlerImpl
 	mockShardController *shard.MockController
 	mockAsyncMgr        *persistence.MockAsyncWorkflowQueueManager
+	mockEngine          *engine.MockEngine
 }
 
 func newAsyncWorkflowTestHandler(t *testing.T, ctrl *gomock.Controller) *asyncWorkflowTestHandler {
@@ -63,6 +65,7 @@ func newAsyncWorkflowTestHandler(t *testing.T, ctrl *gomock.Controller) *asyncWo
 		handler:             h,
 		mockShardController: mockShardController,
 		mockAsyncMgr:        mockAsyncMgr,
+		mockEngine:          engine.NewMockEngine(ctrl),
 	}
 }
 
@@ -73,7 +76,7 @@ func (h *asyncWorkflowTestHandler) expectOwnershipLost(shardID int) {
 
 // expectOwned sets up GetEngineForShard to pass the ownership guard.
 func (h *asyncWorkflowTestHandler) expectOwned(shardID int) {
-	h.mockShardController.EXPECT().GetEngineForShard(shardID).Return(nil, nil).Times(1)
+	h.mockShardController.EXPECT().GetEngineForShard(shardID).Return(h.mockEngine, nil).Times(1)
 }
 
 func TestHandlerEnqueueAsyncWorkflowMessage(t *testing.T) {
@@ -111,6 +114,16 @@ func TestHandlerEnqueueAsyncWorkflowMessage(t *testing.T) {
 						assert.Equal(t, "pk", r.PartitionKey)
 						return &persistence.EnqueueAsyncWorkflowMessageResponse{MessageID: 42}, nil
 					}).Times(1)
+				// Row-first: replication task is emitted after a successful enqueue.
+				h.mockEngine.EXPECT().ReplicateAsyncWorkflowRequest(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, tasks []*persistence.AsyncWorkflowRequestTask) error {
+						require.Len(t, tasks, 1)
+						assert.Equal(t, "q1", tasks[0].QueueName)
+						assert.Equal(t, []byte("payload"), tasks[0].Payload)
+						assert.Equal(t, "json", tasks[0].Encoding)
+						assert.Equal(t, "pk", tasks[0].PartitionKey)
+						return nil
+					}).Times(1)
 			},
 			wantResp: &types.EnqueueAsyncWorkflowMessageResponse{MessageID: 42},
 		},
@@ -119,6 +132,15 @@ func TestHandlerEnqueueAsyncWorkflowMessage(t *testing.T) {
 			setup: func(h *asyncWorkflowTestHandler) {
 				h.expectOwned(3)
 				h.mockAsyncMgr.EXPECT().Enqueue(gomock.Any(), gomock.Any()).Return(nil, errors.New("boom")).Times(1)
+			},
+			wantErr: true,
+		},
+		{
+			name: "replication error is propagated",
+			setup: func(h *asyncWorkflowTestHandler) {
+				h.expectOwned(3)
+				h.mockAsyncMgr.EXPECT().Enqueue(gomock.Any(), gomock.Any()).Return(&persistence.EnqueueAsyncWorkflowMessageResponse{MessageID: 42}, nil).Times(1)
+				h.mockEngine.EXPECT().ReplicateAsyncWorkflowRequest(gomock.Any(), gomock.Any()).Return(errors.New("replicate boom")).Times(1)
 			},
 			wantErr: true,
 		},

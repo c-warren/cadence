@@ -83,6 +83,8 @@ func (h TaskHydrator) Hydrate(ctx context.Context, task persistence.Task) (retTa
 	switch t := task.(type) {
 	case *persistence.FailoverMarkerTask:
 		return hydrateFailoverMarkerTask(t), nil
+	case *persistence.AsyncWorkflowRequestTask:
+		return hydrateAsyncWorkflowRequestTask(t), nil
 	}
 
 	ms, release, err := h.msProvider.GetMutableState(ctx, task.GetDomainID(), task.GetWorkflowID(), task.GetRunID())
@@ -112,6 +114,20 @@ func (h TaskHydrator) Hydrate(ctx context.Context, task persistence.Task) (retTa
 		return hydrateHistoryReplicationTask(ctx, t, versionHistories, h.history)
 	default:
 		return nil, errUnknownReplicationTask
+	}
+}
+
+func hydrateAsyncWorkflowRequestTask(t *persistence.AsyncWorkflowRequestTask) *types.ReplicationTask {
+	return &types.ReplicationTask{
+		TaskType:     types.ReplicationTaskTypeAsyncWorkflowRequest.Ptr(),
+		SourceTaskID: t.TaskID,
+		AsyncWorkflowRequestTaskAttributes: &types.AsyncWorkflowRequestTaskAttributes{
+			QueueName:    t.QueueName,
+			Payload:      t.Payload,
+			Encoding:     t.Encoding,
+			PartitionKey: t.PartitionKey,
+		},
+		CreationTime: common.Ptr(t.VisibilityTimestamp.UnixNano()),
 	}
 }
 

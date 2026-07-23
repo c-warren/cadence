@@ -31,6 +31,7 @@ import (
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/ndc"
+	"github.com/uber/cadence/common/persistence"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/service/history/engine"
 	"github.com/uber/cadence/service/history/shard"
@@ -99,6 +100,9 @@ func (e *taskExecutorImpl) execute(
 	case types.ReplicationTaskTypeFailoverMarker:
 		scope = metrics.FailoverMarkerScope
 		err = e.handleFailoverReplicationTask(replicationTask)
+	case types.ReplicationTaskTypeAsyncWorkflowRequest:
+		scope = metrics.AsyncWorkflowRequestTaskScope
+		err = e.handleAsyncWorkflowRequestTask(replicationTask)
 	default:
 		e.logger.Error("Unknown task type.")
 		scope = metrics.ReplicatorScope
@@ -339,6 +343,35 @@ func (e *taskExecutorImpl) handleFailoverReplicationTask(
 	}
 	failoverAttributes.CreationTime = task.CreationTime
 	return e.shard.AddingPendingFailoverMarker(failoverAttributes)
+}
+
+// handleAsyncWorkflowRequestTask applies an async workflow request replication task
+// received from a remote region by enqueuing it into this cluster's LOCAL
+// async workflow queue. It intentionally calls the persistence-layer queue manager
+// directly rather than the history-client EnqueueAsyncWorkflowMessage RPC: the RPC
+// handler emits a new replication task, so calling it here would re-emit and cause
+// cross-region ping-pong. Duplicates are absorbed downstream by the frontend
+// AlreadyStarted dedup.
+func (e *taskExecutorImpl) handleAsyncWorkflowRequestTask(
+	task *types.ReplicationTask,
+) error {
+	attr := task.GetAsyncWorkflowRequestTaskAttributes()
+	if attr == nil {
+		e.logger.Error("AsyncWorkflowRequest replication task with nil attributes")
+		return ErrEmptyAsyncWorkflowRequestAttributes
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), replicationTimeout)
+	defer cancel()
+	// Enqueue directly via the persistence manager on this executor's shard.
+	// Replication is per-shard aligned, so this shard owns the partition key's target shard.
+	_, err := e.shard.GetService().GetAsyncWorkflowQueueManager().Enqueue(ctx, &persistence.EnqueueAsyncWorkflowMessageRequest{
+		QueueName:    attr.QueueName,
+		ShardID:      e.shard.GetShardID(),
+		Payload:      attr.Payload,
+		Encoding:     attr.Encoding,
+		PartitionKey: attr.PartitionKey,
+	})
+	return err
 }
 
 func (e *taskExecutorImpl) filterTask(

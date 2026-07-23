@@ -136,6 +136,7 @@ type (
 		DeleteReplicationTaskFromDLQ(ctx context.Context, request *DeleteReplicationTaskFromDLQRequest) error
 		RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *RangeDeleteReplicationTaskFromDLQRequest) (*RangeDeleteReplicationTaskFromDLQResponse, error)
 		CreateFailoverMarkerTasks(ctx context.Context, request *CreateFailoverMarkersRequest) error
+		CreateAsyncWorkflowReplicationTasks(ctx context.Context, request *CreateAsyncWorkflowReplicationTasksRequest) error
 
 		// History task related methods
 		CreateHistoryTasks(ctx context.Context, request *CreateHistoryTasksRequest) error
@@ -1328,6 +1329,14 @@ func (t *InternalReplicationTaskInfo) ToTask() (Task, error) {
 			},
 			DomainID: t.DomainID,
 		}, nil
+	case ReplicationTaskTypeAsyncWorkflowRequest:
+		// AsyncWorkflowRequestTask carries its payload only in the data blob, not in
+		// the direct columns of InternalReplicationTaskInfo, so it cannot be
+		// reconstructed here. It is instead always deserialized from the blob (see
+		// the force-blob read guard in nosqlExecutionStore.getImmediateHistoryTasks),
+		// so this path must never be reached for this type. Return an explicit error
+		// rather than silently producing an incomplete task if that invariant breaks.
+		return nil, fmt.Errorf("async workflow request replication task must be deserialized from the data blob, not from direct columns")
 	default:
 		return nil, fmt.Errorf("unknown task type: %d", t.TaskType)
 	}

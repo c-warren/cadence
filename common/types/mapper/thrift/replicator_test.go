@@ -129,6 +129,33 @@ func TestFailoverMarkerAttributes(t *testing.T) {
 	}
 }
 
+func TestAsyncWorkflowRequestTaskAttributes(t *testing.T) {
+	testCases := []struct {
+		desc  string
+		input *types.AsyncWorkflowRequestTaskAttributes
+	}{
+		{
+			desc:  "non-nil input test",
+			input: &testdata.AsyncWorkflowRequestTaskAttributes,
+		},
+		{
+			desc:  "empty input test",
+			input: &types.AsyncWorkflowRequestTaskAttributes{},
+		},
+		{
+			desc:  "nil input test",
+			input: nil,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			thriftObj := FromAsyncWorkflowRequestTaskAttributes(tc.input)
+			roundTripObj := ToAsyncWorkflowRequestTaskAttributes(thriftObj)
+			assert.Equal(t, tc.input, roundTripObj)
+		})
+	}
+}
+
 func TestFailoverMarkers(t *testing.T) {
 	testCases := []struct {
 		desc  string
@@ -528,6 +555,10 @@ func TestReplicationTask(t *testing.T) {
 		{
 			desc:  "non-nil input test",
 			input: &testdata.ReplicationTask_Domain,
+		},
+		{
+			desc:  "async workflow request input test",
+			input: &testdata.ReplicationTask_AsyncWorkflowRequest,
 		},
 		{
 			desc:  "empty input test",

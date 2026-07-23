@@ -270,6 +270,7 @@ const (
 	ReplicationTaskTypeHistory = iota
 	ReplicationTaskTypeSyncActivity
 	ReplicationTaskTypeFailoverMarker
+	ReplicationTaskTypeAsyncWorkflowRequest
 )
 
 // Types of timers
@@ -1644,6 +1645,15 @@ type (
 		CurrentTimeStamp time.Time
 	}
 
+	// CreateAsyncWorkflowReplicationTasksRequest is a request to create async
+	// workflow request replication tasks.
+	CreateAsyncWorkflowReplicationTasksRequest struct {
+		ShardID          ShardID
+		RangeID          int64
+		Tasks            []*AsyncWorkflowRequestTask
+		CurrentTimeStamp time.Time
+	}
+
 	// CreateHistoryTasksRequest is a request to create history tasks directly in the
 	// executions table, grouped by category. It is used to (re)inject tasks such as
 	// transfer and timer tasks so the standard queue infrastructure processes them.
@@ -1706,6 +1716,7 @@ type (
 		DeleteReplicationTaskFromDLQ(ctx context.Context, request *DeleteReplicationTaskFromDLQRequest) error
 		RangeDeleteReplicationTaskFromDLQ(ctx context.Context, request *RangeDeleteReplicationTaskFromDLQRequest) (*RangeDeleteReplicationTaskFromDLQResponse, error)
 		CreateFailoverMarkerTasks(ctx context.Context, request *CreateFailoverMarkersRequest) error
+		CreateAsyncWorkflowReplicationTasks(ctx context.Context, request *CreateAsyncWorkflowReplicationTasksRequest) error
 
 		CreateHistoryTasks(ctx context.Context, request *CreateHistoryTasksRequest) error
 

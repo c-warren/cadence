@@ -464,6 +464,20 @@ func (mr *MockExecutionManagerMockRecorder) ConflictResolveWorkflowExecution(ctx
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConflictResolveWorkflowExecution", reflect.TypeOf((*MockExecutionManager)(nil).ConflictResolveWorkflowExecution), ctx, request)
 }
 
+// CreateAsyncWorkflowReplicationTasks mocks base method.
+func (m *MockExecutionManager) CreateAsyncWorkflowReplicationTasks(ctx context.Context, request *CreateAsyncWorkflowReplicationTasksRequest) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateAsyncWorkflowReplicationTasks", ctx, request)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateAsyncWorkflowReplicationTasks indicates an expected call of CreateAsyncWorkflowReplicationTasks.
+func (mr *MockExecutionManagerMockRecorder) CreateAsyncWorkflowReplicationTasks(ctx, request any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAsyncWorkflowReplicationTasks", reflect.TypeOf((*MockExecutionManager)(nil).CreateAsyncWorkflowReplicationTasks), ctx, request)
+}
+
 // CreateFailoverMarkerTasks mocks base method.
 func (m *MockExecutionManager) CreateFailoverMarkerTasks(ctx context.Context, request *CreateFailoverMarkersRequest) error {
 	m.ctrl.T.Helper()

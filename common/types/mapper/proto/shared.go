@@ -573,6 +573,30 @@ func ToFailoverMarkerAttributes(t *adminv1.FailoverMarkerAttributes) *types.Fail
 	}
 }
 
+func FromAsyncWorkflowRequestTaskAttributes(t *types.AsyncWorkflowRequestTaskAttributes) *adminv1.AsyncWorkflowRequestTaskAttributes {
+	if t == nil {
+		return nil
+	}
+	return &adminv1.AsyncWorkflowRequestTaskAttributes{
+		QueueName:    t.QueueName,
+		Payload:      t.Payload,
+		Encoding:     t.Encoding,
+		PartitionKey: t.PartitionKey,
+	}
+}
+
+func ToAsyncWorkflowRequestTaskAttributes(t *adminv1.AsyncWorkflowRequestTaskAttributes) *types.AsyncWorkflowRequestTaskAttributes {
+	if t == nil {
+		return nil
+	}
+	return &types.AsyncWorkflowRequestTaskAttributes{
+		QueueName:    t.QueueName,
+		Payload:      t.Payload,
+		Encoding:     t.Encoding,
+		PartitionKey: t.PartitionKey,
+	}
+}
+
 func FromFailoverMarkerToken(t *types.FailoverMarkerToken) *adminv1.FailoverMarkerToken {
 	if t == nil {
 		return nil
@@ -704,6 +728,8 @@ func FromReplicationTaskType(t *types.ReplicationTaskType) adminv1.ReplicationTa
 		return adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_HISTORY_V2
 	case types.ReplicationTaskTypeFailoverMarker:
 		return adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_FAILOVER_MARKER
+	case types.ReplicationTaskTypeAsyncWorkflowRequest:
+		return adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_ASYNC_WORKFLOW_REQUEST
 	}
 	return adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_INVALID
 }
@@ -726,6 +752,8 @@ func ToReplicationTaskType(t adminv1.ReplicationTaskType) *types.ReplicationTask
 		return types.ReplicationTaskTypeHistoryV2.Ptr()
 	case adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_FAILOVER_MARKER:
 		return types.ReplicationTaskTypeFailoverMarker.Ptr()
+	case adminv1.ReplicationTaskType_REPLICATION_TASK_TYPE_ASYNC_WORKFLOW_REQUEST:
+		return types.ReplicationTaskTypeAsyncWorkflowRequest.Ptr()
 	}
 	return nil
 }
@@ -958,6 +986,11 @@ func FromReplicationTask(t *types.ReplicationTask) *adminv1.ReplicationTask {
 			FailoverMarkerAttributes: FromFailoverMarkerAttributes(t.FailoverMarkerAttributes),
 		}
 	}
+	if t.AsyncWorkflowRequestTaskAttributes != nil {
+		task.Attributes = &adminv1.ReplicationTask_AsyncWorkflowRequestTaskAttributes{
+			AsyncWorkflowRequestTaskAttributes: FromAsyncWorkflowRequestTaskAttributes(t.AsyncWorkflowRequestTaskAttributes),
+		}
+	}
 
 	return &task
 }
@@ -983,6 +1016,8 @@ func ToReplicationTask(t *adminv1.ReplicationTask) *types.ReplicationTask {
 		task.HistoryTaskV2Attributes = ToHistoryTaskV2Attributes(attr.HistoryTaskV2Attributes)
 	case *adminv1.ReplicationTask_FailoverMarkerAttributes:
 		task.FailoverMarkerAttributes = ToFailoverMarkerAttributes(attr.FailoverMarkerAttributes)
+	case *adminv1.ReplicationTask_AsyncWorkflowRequestTaskAttributes:
+		task.AsyncWorkflowRequestTaskAttributes = ToAsyncWorkflowRequestTaskAttributes(attr.AsyncWorkflowRequestTaskAttributes)
 	}
 	return &task
 }

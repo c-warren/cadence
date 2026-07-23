@@ -258,6 +258,8 @@ func executionManagerTags(op string) *tag.Tag {
 		return &tag.StoreOperationCompleteTimerTask
 	case "ExecutionManager.CreateFailoverMarkerTasks":
 		return &tag.StoreOperationCreateFailoverMarkerTasks
+	case "ExecutionManager.CreateAsyncWorkflowReplicationTasks":
+		return &tag.StoreOperationCreateAsyncWorkflowReplicationTasks
 	case "ExecutionManager.CreateHistoryTasks":
 		return &tag.StoreOperationCreateHistoryTasks
 	case "ExecutionManager.GetActiveClusterSelectionPolicy":

@@ -72,6 +72,21 @@ func (c *injectorExecutionManager) ConflictResolveWorkflowExecution(ctx context.
 	return
 }
 
+func (c *injectorExecutionManager) CreateAsyncWorkflowReplicationTasks(ctx context.Context, request *_sourcePersistence.CreateAsyncWorkflowReplicationTasksRequest) (err error) {
+	fakeErr := generateFakeError(c.errorRate, c.starttime)
+	var forwardCall bool
+	if forwardCall = shouldForwardCallToPersistence(fakeErr); forwardCall {
+		err = c.wrapped.CreateAsyncWorkflowReplicationTasks(ctx, request)
+	}
+
+	if fakeErr != nil {
+		logErr(c.logger, "ExecutionManager.CreateAsyncWorkflowReplicationTasks", fakeErr, forwardCall, err)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *injectorExecutionManager) CreateFailoverMarkerTasks(ctx context.Context, request *_sourcePersistence.CreateFailoverMarkersRequest) (err error) {
 	fakeErr := generateFakeError(c.errorRate, c.starttime)
 	var forwardCall bool

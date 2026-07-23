@@ -112,6 +112,7 @@ type (
 		AppendHistoryV2Events(ctx context.Context, request *persistence.AppendHistoryNodesRequest, domainID string, execution types.WorkflowExecution) (*persistence.AppendHistoryNodesResponse, error)
 
 		ReplicateFailoverMarkers(ctx context.Context, markers []*persistence.FailoverMarkerTask) error
+		ReplicateAsyncWorkflowRequest(ctx context.Context, tasks []*persistence.AsyncWorkflowRequestTask) error
 		ReinjectHistoryTasks(ctx context.Context, tasks []persistence.Task) error
 		AddingPendingFailoverMarker(*types.FailoverMarkerAttributes) error
 		ValidateAndUpdateFailoverMarkers() ([]*types.FailoverMarkerAttributes, error)
@@ -1529,6 +1530,61 @@ func (s *contextImpl) ReplicateFailoverMarkers(
 	default:
 		s.logger.Error(
 			"Failed to insert the failover marker into replication queue.",
+			tag.Error(err),
+		)
+	}
+	return err
+}
+
+func (s *contextImpl) ReplicateAsyncWorkflowRequest(
+	ctx context.Context,
+	asyncTasks []*persistence.AsyncWorkflowRequestTask,
+) error {
+	if err := s.closedError(); err != nil {
+		return err
+	}
+
+	tasks := make([]persistence.Task, 0, len(asyncTasks))
+	for _, task := range asyncTasks {
+		tasks = append(tasks, task)
+	}
+
+	s.Lock()
+	defer s.Unlock()
+
+	immediateTaskMaxReadLevel := int64(0)
+	if err := s.allocateTransferIDsLocked(
+		tasks,
+		&immediateTaskMaxReadLevel,
+	); err != nil {
+		return err
+	}
+
+	if err := s.closedError(); err != nil {
+		return err
+	}
+	err := s.executionManager.CreateAsyncWorkflowReplicationTasks(
+		ctx,
+		&persistence.CreateAsyncWorkflowReplicationTasksRequest{
+			RangeID: s.getRangeID(),
+			Tasks:   asyncTasks,
+			ShardID: common.Ptr(s.shardID),
+		},
+	)
+	switch err.(type) {
+	case nil:
+		// Update MaxReadLevel if write to DB succeeds
+		s.updateMaxReadLevelLocked(immediateTaskMaxReadLevel)
+	case *persistence.ShardOwnershipLostError:
+		// do not retry on ShardOwnershipLostError
+		s.logger.Warn(
+			"Closing shard: ReplicateAsyncWorkflowRequest failed due to stolen shard.",
+			tag.Error(err),
+		)
+		s.closeShard()
+	default:
+		s.logger.Error(
+			"Failed to insert the async workflow request into replication queue.",
 			tag.Error(err),
 		)
 	}

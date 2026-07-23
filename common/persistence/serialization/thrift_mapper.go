@@ -773,19 +773,23 @@ func replicationTaskInfoToThrift(info *ReplicationTaskInfo) *sqlblobs.Replicatio
 		return nil
 	}
 	return &sqlblobs.ReplicationTaskInfo{
-		DomainID:                info.DomainID,
-		WorkflowID:              &info.WorkflowID,
-		RunID:                   info.RunID,
-		TaskType:                &info.TaskType,
-		Version:                 &info.Version,
-		FirstEventID:            &info.FirstEventID,
-		NextEventID:             &info.NextEventID,
-		ScheduledID:             &info.ScheduledID,
-		EventStoreVersion:       &info.EventStoreVersion,
-		NewRunEventStoreVersion: &info.NewRunEventStoreVersion,
-		BranchToken:             info.BranchToken,
-		NewRunBranchToken:       info.NewRunBranchToken,
-		CreationTime:            timeToUnixNanoPtr(info.CreationTimestamp),
+		DomainID:                  info.DomainID,
+		WorkflowID:                &info.WorkflowID,
+		RunID:                     info.RunID,
+		TaskType:                  &info.TaskType,
+		Version:                   &info.Version,
+		FirstEventID:              &info.FirstEventID,
+		NextEventID:               &info.NextEventID,
+		ScheduledID:               &info.ScheduledID,
+		EventStoreVersion:         &info.EventStoreVersion,
+		NewRunEventStoreVersion:   &info.NewRunEventStoreVersion,
+		BranchToken:               info.BranchToken,
+		NewRunBranchToken:         info.NewRunBranchToken,
+		CreationTime:              timeToUnixNanoPtr(info.CreationTimestamp),
+		AsyncWorkflowQueueName:    &info.AsyncWorkflowQueueName,
+		AsyncWorkflowPayload:      info.AsyncWorkflowPayload,
+		AsyncWorkflowEncoding:     &info.AsyncWorkflowEncoding,
+		AsyncWorkflowPartitionKey: &info.AsyncWorkflowPartitionKey,
 	}
 }
 
@@ -794,19 +798,23 @@ func replicationTaskInfoFromThrift(info *sqlblobs.ReplicationTaskInfo) *Replicat
 		return nil
 	}
 	return &ReplicationTaskInfo{
-		DomainID:                info.DomainID,
-		WorkflowID:              info.GetWorkflowID(),
-		RunID:                   info.RunID,
-		TaskType:                info.GetTaskType(),
-		Version:                 info.GetVersion(),
-		FirstEventID:            info.GetFirstEventID(),
-		NextEventID:             info.GetNextEventID(),
-		ScheduledID:             info.GetScheduledID(),
-		EventStoreVersion:       info.GetEventStoreVersion(),
-		NewRunEventStoreVersion: info.GetNewRunEventStoreVersion(),
-		BranchToken:             info.BranchToken,
-		NewRunBranchToken:       info.NewRunBranchToken,
-		CreationTimestamp:       timeFromUnixNano(info.GetCreationTime()),
+		DomainID:                  info.DomainID,
+		WorkflowID:                info.GetWorkflowID(),
+		RunID:                     info.RunID,
+		TaskType:                  info.GetTaskType(),
+		Version:                   info.GetVersion(),
+		FirstEventID:              info.GetFirstEventID(),
+		NextEventID:               info.GetNextEventID(),
+		ScheduledID:               info.GetScheduledID(),
+		EventStoreVersion:         info.GetEventStoreVersion(),
+		NewRunEventStoreVersion:   info.GetNewRunEventStoreVersion(),
+		BranchToken:               info.BranchToken,
+		NewRunBranchToken:         info.NewRunBranchToken,
+		CreationTimestamp:         timeFromUnixNano(info.GetCreationTime()),
+		AsyncWorkflowQueueName:    info.GetAsyncWorkflowQueueName(),
+		AsyncWorkflowPayload:      info.AsyncWorkflowPayload,
+		AsyncWorkflowEncoding:     info.GetAsyncWorkflowEncoding(),
+		AsyncWorkflowPartitionKey: info.GetAsyncWorkflowPartitionKey(),
 	}
 }
 

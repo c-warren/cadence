@@ -811,6 +811,51 @@ func (d *nosqlExecutionStore) CreateFailoverMarkerTasks(
 	return nil
 }
 
+// CreateAsyncWorkflowReplicationTasks writes async workflow request replication
+// tasks into the replication queue. The payload is force-written to the data blob
+// (see prepareReplicationTasksForWorkflowTxn) so it survives cross-region replication.
+func (d *nosqlExecutionStore) CreateAsyncWorkflowReplicationTasks(
+	ctx context.Context,
+	request *persistence.CreateAsyncWorkflowReplicationTasksRequest,
+) error {
+	shardID := d.effectiveShardID(request.ShardID, "CreateAsyncWorkflowReplicationTasks")
+
+	var nosqlTasks []*nosqlplugin.HistoryMigrationTask
+	for _, task := range request.Tasks {
+		ts := []persistence.Task{task}
+
+		tasks, err := d.prepareReplicationTasksForWorkflowTxn("", rowTypeReplicationWorkflowID, rowTypeReplicationRunID, ts)
+		if err != nil {
+			return err
+		}
+		for _, t := range tasks {
+			t.Replication.CurrentTimeStamp = request.CurrentTimeStamp
+		}
+		nosqlTasks = append(nosqlTasks, tasks...)
+	}
+
+	err := d.db.InsertReplicationTask(ctx, nosqlTasks, nosqlplugin.ShardCondition{
+		ShardID: shardID,
+		RangeID: request.RangeID,
+	})
+
+	if err != nil {
+		conditionFailureErr, isConditionFailedError := err.(*nosqlplugin.ShardOperationConditionFailure)
+		if isConditionFailedError {
+			return &persistence.ShardOwnershipLostError{
+				ShardID: shardID,
+				Msg: fmt.Sprintf("Failed to create async workflow replication tasks.  Request RangeID: %v, columns: (%v)",
+					conditionFailureErr.RangeID, conditionFailureErr.Details),
+			}
+		}
+		// Unlike CreateFailoverMarkerTasks, do not swallow non-condition errors:
+		// the enqueue path relies on error-on-fail so the caller can react to a
+		// failed replication-task write.
+		return err
+	}
+	return nil
+}
+
 // CreateHistoryTasks allows direct injection of tasks without a corresponding workflow update.
 // It supports transfer and timer tasks - replication tasks are not supported.
 // Returns an error when an unsupported category is provided or when the task insertion fails.
@@ -907,7 +952,10 @@ func (d *nosqlExecutionStore) getImmediateHistoryTasks(
 		}
 		tTasks := make([]persistence.Task, 0, len(tasks))
 		for _, t := range tasks {
-			if d.dc.ReadNoSQLHistoryTaskFromDataBlob() && t.Task != nil {
+			// Async workflow request tasks store their payload only in the data blob,
+			// so they must always be deserialized from the blob regardless of the
+			// ReadNoSQLHistoryTaskFromDataBlob flag.
+			if (d.dc.ReadNoSQLHistoryTaskFromDataBlob() || t.Replication.TaskType == persistence.ReplicationTaskTypeAsyncWorkflowRequest) && t.Task != nil {
 				task, err := d.taskSerializer.DeserializeTask(request.TaskCategory, t.Task)
 				if err != nil {
 					return nil, convertCommonErrors(d.db, "GetImmediateHistoryTasks", err)
