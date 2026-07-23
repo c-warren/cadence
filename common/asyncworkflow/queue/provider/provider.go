@@ -28,6 +28,7 @@ import (
 	"fmt"
 
 	"github.com/uber/cadence/client/frontend"
+	historyclient "github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
@@ -37,9 +38,11 @@ import (
 
 type (
 	Params struct {
-		Logger         log.Logger
-		MetricsClient  metrics.Client
-		FrontendClient frontend.Client
+		Logger           log.Logger
+		MetricsClient    metrics.Client
+		FrontendClient   frontend.Client
+		HistoryClient    historyclient.Client
+		NumHistoryShards int
 	}
 
 	Decoder interface {
