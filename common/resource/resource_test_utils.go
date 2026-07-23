@@ -171,6 +171,7 @@ func NewTest(
 	persistenceBean.EXPECT().GetShardManager().Return(shardMgr).AnyTimes()
 	persistenceBean.EXPECT().GetExecutionManager(gomock.Any()).Return(executionMgr, nil).AnyTimes()
 	persistenceBean.EXPECT().GetHistoryTaskDLQManager().Return(persistence.NewMockHistoryTaskDLQManager(controller)).AnyTimes()
+	persistenceBean.EXPECT().GetAsyncWorkflowQueueManager().Return(persistence.NewMockAsyncWorkflowQueueManager(controller)).AnyTimes()
 
 	isolationGroupMock := isolationgroup.NewMockState(controller)
 	isolationGroupMock.EXPECT().Stop().AnyTimes()
@@ -437,6 +438,11 @@ func (s *Test) GetHistoryManager() persistence.HistoryManager {
 // GetHistoryTaskDLQManager for testing
 func (s *Test) GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager {
 	return s.PersistenceBean.GetHistoryTaskDLQManager()
+}
+
+// GetAsyncWorkflowQueueManager for testing
+func (s *Test) GetAsyncWorkflowQueueManager() persistence.AsyncWorkflowQueueManager {
+	return s.PersistenceBean.GetAsyncWorkflowQueueManager()
 }
 
 // GetExecutionManager for testing

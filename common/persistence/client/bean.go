@@ -68,6 +68,9 @@ type (
 
 		GetHistoryTaskDLQManager() persistence.HistoryTaskDLQManager
 		SetHistoryTaskDLQManager(persistence.HistoryTaskDLQManager)
+
+		GetAsyncWorkflowQueueManager() persistence.AsyncWorkflowQueueManager
+		SetAsyncWorkflowQueueManager(persistence.AsyncWorkflowQueueManager)
 	}
 
 	// BeanImpl stores persistence managers
@@ -81,6 +84,7 @@ type (
 		historyManager                persistence.HistoryManager
 		configStoreManager            persistence.ConfigStoreManager
 		historyTaskDLQManager         persistence.HistoryTaskDLQManager
+		asyncWorkflowQueueManager     persistence.AsyncWorkflowQueueManager
 		executionManagerFactory       persistence.ExecutionManagerFactory
 
 		sync.RWMutex
@@ -153,6 +157,11 @@ func NewBeanFromFactory(
 		return nil, err
 	}
 
+	asyncWorkflowQueueMgr, err := factory.NewAsyncWorkflowQueueManager()
+	if err != nil {
+		return nil, err
+	}
+
 	return NewBean(
 		metadataMgr,
 		domainAuditMgr,
@@ -163,6 +172,7 @@ func NewBeanFromFactory(
 		historyMgr,
 		configStoreMgr,
 		historyTaskDLQMgr,
+		asyncWorkflowQueueMgr,
 		factory,
 	), nil
 }
@@ -178,6 +188,7 @@ func NewBean(
 	historyManager persistence.HistoryManager,
 	configStoreManager persistence.ConfigStoreManager,
 	historyTaskDLQManager persistence.HistoryTaskDLQManager,
+	asyncWorkflowQueueManager persistence.AsyncWorkflowQueueManager,
 	executionManagerFactory persistence.ExecutionManagerFactory,
 ) *BeanImpl {
 	return &BeanImpl{
@@ -190,6 +201,7 @@ func NewBean(
 		historyManager:                historyManager,
 		configStoreManager:            configStoreManager,
 		historyTaskDLQManager:         historyTaskDLQManager,
+		asyncWorkflowQueueManager:     asyncWorkflowQueueManager,
 		executionManagerFactory:       executionManagerFactory,
 
 		shardIDToExecutionManager: make(map[int]persistence.ExecutionManager),
@@ -418,6 +430,26 @@ func (s *BeanImpl) SetHistoryTaskDLQManager(
 	s.historyTaskDLQManager = historyTaskDLQManager
 }
 
+// GetAsyncWorkflowQueueManager gets AsyncWorkflowQueueManager
+func (s *BeanImpl) GetAsyncWorkflowQueueManager() persistence.AsyncWorkflowQueueManager {
+
+	s.RLock()
+	defer s.RUnlock()
+
+	return s.asyncWorkflowQueueManager
+}
+
+// SetAsyncWorkflowQueueManager sets AsyncWorkflowQueueManager
+func (s *BeanImpl) SetAsyncWorkflowQueueManager(
+	asyncWorkflowQueueManager persistence.AsyncWorkflowQueueManager,
+) {
+
+	s.Lock()
+	defer s.Unlock()
+
+	s.asyncWorkflowQueueManager = asyncWorkflowQueueManager
+}
+
 // Close cleanup connections
 func (s *BeanImpl) Close() {
 
@@ -444,5 +476,9 @@ func (s *BeanImpl) Close() {
 
 	if s.historyTaskDLQManager != nil {
 		s.historyTaskDLQManager.Close()
+	}
+
+	if s.asyncWorkflowQueueManager != nil {
+		s.asyncWorkflowQueueManager.Close()
 	}
 }

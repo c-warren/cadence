@@ -1157,6 +1157,86 @@ func (c *clientImpl) RatelimitUpdate(ctx context.Context, request *types.Ratelim
 	return c.client.RatelimitUpdate(ctx, request, opts...)
 }
 
+func (c *clientImpl) EnqueueAsyncWorkflowMessage(
+	ctx context.Context,
+	request *types.EnqueueAsyncWorkflowMessageRequest,
+	opts ...yarpc.CallOption,
+) (*types.EnqueueAsyncWorkflowMessageResponse, error) {
+
+	peer, err := c.peerResolver.FromShardID(int(request.GetShardID()))
+	if err != nil {
+		return nil, err
+	}
+	var resp *types.EnqueueAsyncWorkflowMessageResponse
+	op := func(ctx context.Context, peer string) error {
+		var e error
+		resp, e = c.client.EnqueueAsyncWorkflowMessage(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+		return e
+	}
+	err = c.executeWithRedirect(ctx, peer, op)
+	return resp, err
+}
+
+func (c *clientImpl) GetAsyncWorkflowMessages(
+	ctx context.Context,
+	request *types.GetAsyncWorkflowMessagesRequest,
+	opts ...yarpc.CallOption,
+) (*types.GetAsyncWorkflowMessagesResponse, error) {
+
+	peer, err := c.peerResolver.FromShardID(int(request.GetShardID()))
+	if err != nil {
+		return nil, err
+	}
+	var resp *types.GetAsyncWorkflowMessagesResponse
+	op := func(ctx context.Context, peer string) error {
+		var e error
+		resp, e = c.client.GetAsyncWorkflowMessages(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+		return e
+	}
+	err = c.executeWithRedirect(ctx, peer, op)
+	return resp, err
+}
+
+func (c *clientImpl) UpdateAsyncWorkflowAckLevel(
+	ctx context.Context,
+	request *types.UpdateAsyncWorkflowAckLevelRequest,
+	opts ...yarpc.CallOption,
+) (*types.UpdateAsyncWorkflowAckLevelResponse, error) {
+
+	peer, err := c.peerResolver.FromShardID(int(request.GetShardID()))
+	if err != nil {
+		return nil, err
+	}
+	var resp *types.UpdateAsyncWorkflowAckLevelResponse
+	op := func(ctx context.Context, peer string) error {
+		var e error
+		resp, e = c.client.UpdateAsyncWorkflowAckLevel(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+		return e
+	}
+	err = c.executeWithRedirect(ctx, peer, op)
+	return resp, err
+}
+
+func (c *clientImpl) EnqueueAsyncWorkflowMessageToDLQ(
+	ctx context.Context,
+	request *types.EnqueueAsyncWorkflowMessageToDLQRequest,
+	opts ...yarpc.CallOption,
+) (*types.EnqueueAsyncWorkflowMessageToDLQResponse, error) {
+
+	peer, err := c.peerResolver.FromShardID(int(request.GetShardID()))
+	if err != nil {
+		return nil, err
+	}
+	var resp *types.EnqueueAsyncWorkflowMessageToDLQResponse
+	op := func(ctx context.Context, peer string) error {
+		var e error
+		resp, e = c.client.EnqueueAsyncWorkflowMessageToDLQ(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+		return e
+	}
+	err = c.executeWithRedirect(ctx, peer, op)
+	return resp, err
+}
+
 func (c *clientImpl) executeWithRedirect(
 	ctx context.Context,
 	peer string,

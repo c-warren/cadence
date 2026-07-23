@@ -89,4 +89,8 @@ type Client interface {
 	// and unlike most endpoints this will NOT be forwarded to a new peer if the ring membership changes.
 	// To correctly forward keys to the new hosts, they must be re-sharded to find their new hosts.
 	RatelimitUpdate(ctx context.Context, request *types.RatelimitUpdateRequest, opts ...yarpc.CallOption) (*types.RatelimitUpdateResponse, error)
+	EnqueueAsyncWorkflowMessage(context.Context, *types.EnqueueAsyncWorkflowMessageRequest, ...yarpc.CallOption) (*types.EnqueueAsyncWorkflowMessageResponse, error)
+	GetAsyncWorkflowMessages(context.Context, *types.GetAsyncWorkflowMessagesRequest, ...yarpc.CallOption) (*types.GetAsyncWorkflowMessagesResponse, error)
+	UpdateAsyncWorkflowAckLevel(context.Context, *types.UpdateAsyncWorkflowAckLevelRequest, ...yarpc.CallOption) (*types.UpdateAsyncWorkflowAckLevelResponse, error)
+	EnqueueAsyncWorkflowMessageToDLQ(context.Context, *types.EnqueueAsyncWorkflowMessageToDLQRequest, ...yarpc.CallOption) (*types.EnqueueAsyncWorkflowMessageToDLQResponse, error)
 }

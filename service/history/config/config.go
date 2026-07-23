@@ -358,6 +358,11 @@ type Config struct {
 	HistoryTaskDLQProcessorInterval dynamicproperties.DurationPropertyFnWithShardIDFilter
 	HistoryTaskDLQProcessorEnabled  dynamicproperties.BoolPropertyFn
 
+	// Async Workflow Queue GC Configuration
+	AsyncWorkflowQueueGCEnabled    dynamicproperties.BoolPropertyFn
+	AsyncWorkflowQueueGCInterval   dynamicproperties.DurationPropertyFnWithShardIDFilter
+	AsyncWorkflowQueueGCQueueNames dynamicproperties.ListPropertyFn
+
 	// HostName for machine running the service
 	HostName string
 }
@@ -635,6 +640,10 @@ func New(dc *dynamicconfig.Collection, numberOfShards int, maxMessageSize int, i
 		HistoryTaskDLQMode:              dc.GetStringPropertyFilteredByDomain(dynamicproperties.HistoryTaskDLQMode),
 		HistoryTaskDLQProcessorInterval: dc.GetDurationPropertyFilteredByShardID(dynamicproperties.HistoryTaskDLQProcessorInterval),
 		HistoryTaskDLQProcessorEnabled:  dc.GetBoolProperty(dynamicproperties.HistoryTaskDLQProcessorEnabled),
+
+		AsyncWorkflowQueueGCEnabled:    dc.GetBoolProperty(dynamicproperties.AsyncWorkflowQueueGCEnabled),
+		AsyncWorkflowQueueGCInterval:   dc.GetDurationPropertyFilteredByShardID(dynamicproperties.AsyncWorkflowQueueGCInterval),
+		AsyncWorkflowQueueGCQueueNames: dc.GetListProperty(dynamicproperties.AsyncWorkflowQueueGCQueueNames),
 
 		HostName: hostname,
 	}

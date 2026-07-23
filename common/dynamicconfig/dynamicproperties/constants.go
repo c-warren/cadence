@@ -2415,6 +2415,13 @@ const (
 	// Default value: false
 	HistoryTaskDLQProcessorEnabled
 
+	// AsyncWorkflowQueueGCEnabled enables the per-shard background GC daemon that
+	// range-deletes async-workflow-queue messages behind the committed ack level.
+	// KeyName: history.asyncWorkflowQueueGCEnabled
+	// Value type: Bool
+	// Default value: false
+	AsyncWorkflowQueueGCEnabled
+
 	// LastBoolKey must be the last one in this const group
 	LastBoolKey
 )
@@ -3329,6 +3336,14 @@ const (
 	// Allowed filters: ShardID
 	HistoryTaskDLQProcessorInterval
 
+	// AsyncWorkflowQueueGCInterval is the interval between background GC sweeps of the
+	// async workflow queue on each history shard.
+	// KeyName: history.asyncWorkflowQueueGCInterval
+	// Value type: Duration
+	// Default value: 5m (5 * time.Minute)
+	// Allowed filters: ShardID
+	AsyncWorkflowQueueGCInterval
+
 	// OperationalConfigStorePollInterval controls how often the operational
 	// dynamic config store re-reads its snapshot from the primary database.
 	// KeyName: system.operationalConfigStorePollInterval
@@ -3461,6 +3476,14 @@ const (
 	// Value type: []rpc.HeaderRule or an []interface{} containing `map[string]interface{}{"Add":bool,"Match":string}` values.
 	// Default value: forward all headers.  (this is a problematic value, and it will be changing as we reduce to a list of known values)
 	HeaderForwardingRules
+
+	// AsyncWorkflowQueueGCQueueNames is the list of async workflow queue names the
+	// per-shard GC daemon sweeps. Empty (the default) means GC is a no-op.
+	// KeyName: history.asyncWorkflowQueueGCQueueNames
+	// Value type: []string
+	// Default value: empty list
+	// Allowed filters: N/A
+	AsyncWorkflowQueueGCQueueNames
 
 	LastListKey
 )
@@ -5242,6 +5265,11 @@ var BoolKeys = map[BoolKey]DynamicBool{
 		Description:  "HistoryTaskDLQProcessorEnabled enables processing HistoryTaskDLQ messages",
 		DefaultValue: false,
 	},
+	AsyncWorkflowQueueGCEnabled: {
+		KeyName:      "history.asyncWorkflowQueueGCEnabled",
+		Description:  "AsyncWorkflowQueueGCEnabled enables the per-shard background GC of async workflow queue messages behind the committed ack level",
+		DefaultValue: false,
+	},
 }
 
 var FloatKeys = map[FloatKey]DynamicFloat{
@@ -6039,6 +6067,12 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Description:  "HistoryTaskDLQProcessorInterval is the interval for background processing of the History Task DLQ",
 		DefaultValue: time.Minute * 30,
 	},
+	AsyncWorkflowQueueGCInterval: {
+		KeyName:      "history.asyncWorkflowQueueGCInterval",
+		Filters:      []Filter{ShardID},
+		Description:  "AsyncWorkflowQueueGCInterval is the interval between background GC sweeps of the async workflow queue on each history shard",
+		DefaultValue: time.Minute * 5,
+	},
 	OperationalConfigStorePollInterval: {
 		KeyName:      "system.operationalConfigStorePollInterval",
 		Description:  "How often the operational dynamic config store re-reads its snapshot from the primary database",
@@ -6139,6 +6173,11 @@ var ListKeys = map[ListKey]DynamicList{
 				"Match": "",
 			},
 		},
+	},
+	AsyncWorkflowQueueGCQueueNames: {
+		KeyName:      "history.asyncWorkflowQueueGCQueueNames",
+		Description:  "List of async workflow queue names the per-shard GC daemon sweeps. Empty means GC is a no-op.",
+		DefaultValue: []interface{}{},
 	},
 }
 
