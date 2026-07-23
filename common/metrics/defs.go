@@ -438,6 +438,12 @@ const (
 	HistoryClientUpdateAsyncWorkflowAckLevelScope
 	// HistoryClientEnqueueAsyncWorkflowMessageToDLQScope tracks RPC calls to history service
 	HistoryClientEnqueueAsyncWorkflowMessageToDLQScope
+	// HistoryClientReadAsyncWorkflowMessagesFromDLQScope tracks RPC calls to history service
+	HistoryClientReadAsyncWorkflowMessagesFromDLQScope
+	// HistoryClientMergeAsyncWorkflowMessagesFromDLQScope tracks RPC calls to history service
+	HistoryClientMergeAsyncWorkflowMessagesFromDLQScope
+	// HistoryClientPurgeAsyncWorkflowMessagesFromDLQScope tracks RPC calls to history service
+	HistoryClientPurgeAsyncWorkflowMessagesFromDLQScope
 	// HistoryClientRefreshWorkflowTasksScope tracks RPC calls to history service
 	HistoryClientRefreshWorkflowTasksScope
 	// HistoryClientNotifyFailoverMarkersScope tracks RPC calls to history service
@@ -633,6 +639,12 @@ const (
 	AdminClientPurgeDLQMessagesScope
 	// AdminClientMergeDLQMessagesScope tracks RPC calls to admin service
 	AdminClientMergeDLQMessagesScope
+	// AdminClientReadAsyncWorkflowMessagesFromDLQScope tracks RPC calls to admin service
+	AdminClientReadAsyncWorkflowMessagesFromDLQScope
+	// AdminClientMergeAsyncWorkflowMessagesFromDLQScope tracks RPC calls to admin service
+	AdminClientMergeAsyncWorkflowMessagesFromDLQScope
+	// AdminClientPurgeAsyncWorkflowMessagesFromDLQScope tracks RPC calls to admin service
+	AdminClientPurgeAsyncWorkflowMessagesFromDLQScope
 	// AdminClientRefreshWorkflowTasksScope tracks RPC calls to admin service
 	AdminClientRefreshWorkflowTasksScope
 	// AdminClientResendReplicationTasksScope tracks RPC calls to admin service
@@ -1032,6 +1044,12 @@ const (
 	AdminPurgeDLQMessagesScope
 	// AdminMergeDLQMessagesScope is the metric scope for admin.AdminMergeDLQMessagesScope
 	AdminMergeDLQMessagesScope
+	// AdminReadAsyncWorkflowMessagesFromDLQScope is the metric scope for admin.ReadAsyncWorkflowMessagesFromDLQ
+	AdminReadAsyncWorkflowMessagesFromDLQScope
+	// AdminMergeAsyncWorkflowMessagesFromDLQScope is the metric scope for admin.MergeAsyncWorkflowMessagesFromDLQ
+	AdminMergeAsyncWorkflowMessagesFromDLQScope
+	// AdminPurgeAsyncWorkflowMessagesFromDLQScope is the metric scope for admin.PurgeAsyncWorkflowMessagesFromDLQ
+	AdminPurgeAsyncWorkflowMessagesFromDLQScope
 	// AdminDescribeShardDistributionScope is the metric scope for admin.DescribeShardDistribution
 	AdminDescribeShardDistributionScope
 	// AdminGetCrossClusterTasksScope is the metric scope for admin.GetCrossClusterTasks
@@ -1277,6 +1295,12 @@ const (
 	HistoryUpdateAsyncWorkflowAckLevelScope
 	// HistoryEnqueueAsyncWorkflowMessageToDLQScope tracks EnqueueAsyncWorkflowMessageToDLQ API calls received by service
 	HistoryEnqueueAsyncWorkflowMessageToDLQScope
+	// HistoryReadAsyncWorkflowMessagesFromDLQScope tracks ReadAsyncWorkflowMessagesFromDLQ API calls received by service
+	HistoryReadAsyncWorkflowMessagesFromDLQScope
+	// HistoryMergeAsyncWorkflowMessagesFromDLQScope tracks MergeAsyncWorkflowMessagesFromDLQ API calls received by service
+	HistoryMergeAsyncWorkflowMessagesFromDLQScope
+	// HistoryPurgeAsyncWorkflowMessagesFromDLQScope tracks PurgeAsyncWorkflowMessagesFromDLQ API calls received by service
+	HistoryPurgeAsyncWorkflowMessagesFromDLQScope
 	// HistoryShardControllerScope is the scope used by shard controller
 	HistoryShardControllerScope
 	// HistoryReapplyEventsScope tracks ReapplyEvents API calls received by service
@@ -1741,6 +1765,9 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryClientGetAsyncWorkflowMessagesScope:          {operation: "HistoryClientGetAsyncWorkflowMessages", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientUpdateAsyncWorkflowAckLevelScope:       {operation: "HistoryClientUpdateAsyncWorkflowAckLevel", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientEnqueueAsyncWorkflowMessageToDLQScope:  {operation: "HistoryClientEnqueueAsyncWorkflowMessageToDLQ", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
+		HistoryClientReadAsyncWorkflowMessagesFromDLQScope:  {operation: "HistoryClientReadAsyncWorkflowMessagesFromDLQ", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
+		HistoryClientMergeAsyncWorkflowMessagesFromDLQScope: {operation: "HistoryClientMergeAsyncWorkflowMessagesFromDLQ", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
+		HistoryClientPurgeAsyncWorkflowMessagesFromDLQScope: {operation: "HistoryClientPurgeAsyncWorkflowMessagesFromDLQ", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientRefreshWorkflowTasksScope:              {operation: "HistoryClientRefreshWorkflowTasks", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientNotifyFailoverMarkersScope:             {operation: "HistoryClientNotifyFailoverMarkers", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientGetCrossClusterTasksScope:              {operation: "HistoryClientGetCrossClusterTasks", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
@@ -1843,6 +1870,9 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		AdminClientReadDLQMessagesScope:                       {operation: "AdminClientReadDLQMessages", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientPurgeDLQMessagesScope:                      {operation: "AdminClientPurgeDLQMessages", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientMergeDLQMessagesScope:                      {operation: "AdminClientMergeDLQMessages", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
+		AdminClientReadAsyncWorkflowMessagesFromDLQScope:      {operation: "AdminClientReadAsyncWorkflowMessagesFromDLQ", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
+		AdminClientMergeAsyncWorkflowMessagesFromDLQScope:     {operation: "AdminClientMergeAsyncWorkflowMessagesFromDLQ", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
+		AdminClientPurgeAsyncWorkflowMessagesFromDLQScope:     {operation: "AdminClientPurgeAsyncWorkflowMessagesFromDLQ", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientGetCrossClusterTasksScope:                  {operation: "AdminClientGetCrossClusterTasks", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientRespondCrossClusterTasksCompletedScope:     {operation: "AdminClientRespondCrossClusterTasksCompleted", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
 		AdminClientGetDynamicConfigScope:                      {operation: "AdminClientGetDynamicConfig", tags: map[string]string{CadenceRoleTagName: AdminClientRoleTagValue}},
@@ -2024,6 +2054,9 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		AdminReadDLQMessagesScope:                   {operation: "AdminReadDLQMessages"},
 		AdminPurgeDLQMessagesScope:                  {operation: "AdminPurgeDLQMessages"},
 		AdminMergeDLQMessagesScope:                  {operation: "AdminMergeDLQMessages"},
+		AdminReadAsyncWorkflowMessagesFromDLQScope:  {operation: "AdminReadAsyncWorkflowMessagesFromDLQ"},
+		AdminMergeAsyncWorkflowMessagesFromDLQScope: {operation: "AdminMergeAsyncWorkflowMessagesFromDLQ"},
+		AdminPurgeAsyncWorkflowMessagesFromDLQScope: {operation: "AdminPurgeAsyncWorkflowMessagesFromDLQ"},
 		AdminDescribeHistoryHostScope:               {operation: "DescribeHistoryHost"},
 		AdminDescribeShardDistributionScope:         {operation: "AdminShardList"},
 		AdminDescribeClusterScope:                   {operation: "DescribeCluster"},
@@ -2159,6 +2192,9 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryGetAsyncWorkflowMessagesScope:                            {operation: "GetAsyncWorkflowMessages"},
 		HistoryUpdateAsyncWorkflowAckLevelScope:                         {operation: "UpdateAsyncWorkflowAckLevel"},
 		HistoryEnqueueAsyncWorkflowMessageToDLQScope:                    {operation: "EnqueueAsyncWorkflowMessageToDLQ"},
+		HistoryReadAsyncWorkflowMessagesFromDLQScope:                    {operation: "ReadAsyncWorkflowMessagesFromDLQ"},
+		HistoryMergeAsyncWorkflowMessagesFromDLQScope:                   {operation: "MergeAsyncWorkflowMessagesFromDLQ"},
+		HistoryPurgeAsyncWorkflowMessagesFromDLQScope:                   {operation: "PurgeAsyncWorkflowMessagesFromDLQ"},
 		HistoryShardControllerScope:                                     {operation: "ShardController"},
 		HistoryReapplyEventsScope:                                       {operation: "EventReapplication"},
 		HistoryRefreshWorkflowTasksScope:                                {operation: "RefreshWorkflowTasks"},
@@ -3243,6 +3279,25 @@ const (
 	AsyncWorkflowFailureCorruptMsgCount
 	AsyncWorkflowFailureByFrontendCount
 	AsyncWorkflowSuccessCount
+	// AsyncWorkflowConsumerMessageConsumedCount counts messages the history-backed
+	// consumer pulled from history and emitted onto its Messages channel
+	AsyncWorkflowConsumerMessageConsumedCount
+	// AsyncWorkflowConsumerMessageAckCount counts successfully processed (acked) messages
+	AsyncWorkflowConsumerMessageAckCount
+	// AsyncWorkflowConsumerMessageNackCount counts nacked (dead-lettered) messages
+	AsyncWorkflowConsumerMessageNackCount
+	// AsyncWorkflowConsumerDLQCount counts messages successfully enqueued to the DLQ on nack
+	AsyncWorkflowConsumerDLQCount
+	// AsyncWorkflowConsumerDLQFailureCount counts failed DLQ-enqueue attempts (alert on this)
+	AsyncWorkflowConsumerDLQFailureCount
+	// AsyncWorkflowConsumerPollFailureCount counts failed GetAsyncWorkflowMessages RPCs (alert on this)
+	AsyncWorkflowConsumerPollFailureCount
+	// AsyncWorkflowConsumerCommitFailureCount counts failed UpdateAsyncWorkflowAckLevel RPCs (alert on this)
+	AsyncWorkflowConsumerCommitFailureCount
+	// AsyncWorkflowConsumerOwnedShardCount is a per-host gauge of shards this consumer currently owns
+	AsyncWorkflowConsumerOwnedShardCount
+	// AsyncWorkflowConsumerMessageAge is the age of a message (now - created time) when it is emitted to the consumer
+	AsyncWorkflowConsumerMessageAge
 	DiagnosticsWorkflowStartedCount
 	DiagnosticsWorkflowSuccess
 	DiagnosticsWorkflowExecutionLatency
@@ -4206,6 +4261,15 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		AsyncWorkflowFailureCorruptMsgCount:             {metricName: "async_workflow_failure_corrupt_msg", metricType: Counter},
 		AsyncWorkflowFailureByFrontendCount:             {metricName: "async_workflow_failure_by_frontend", metricType: Counter},
 		AsyncWorkflowSuccessCount:                       {metricName: "async_workflow_success", metricType: Counter},
+		AsyncWorkflowConsumerMessageConsumedCount:       {metricName: "async_workflow_consumer_message_consumed", metricType: Counter},
+		AsyncWorkflowConsumerMessageAckCount:            {metricName: "async_workflow_consumer_message_ack", metricType: Counter},
+		AsyncWorkflowConsumerMessageNackCount:           {metricName: "async_workflow_consumer_message_nack", metricType: Counter},
+		AsyncWorkflowConsumerDLQCount:                   {metricName: "async_workflow_consumer_dlq_enqueue", metricType: Counter},
+		AsyncWorkflowConsumerDLQFailureCount:            {metricName: "async_workflow_consumer_dlq_enqueue_failures", metricType: Counter},
+		AsyncWorkflowConsumerPollFailureCount:           {metricName: "async_workflow_consumer_poll_failures", metricType: Counter},
+		AsyncWorkflowConsumerCommitFailureCount:         {metricName: "async_workflow_consumer_commit_failures", metricType: Counter},
+		AsyncWorkflowConsumerOwnedShardCount:            {metricName: "async_workflow_consumer_owned_shard_count", metricType: Gauge},
+		AsyncWorkflowConsumerMessageAge:                 {metricName: "async_workflow_consumer_message_age", metricType: Timer},
 		DiagnosticsWorkflowStartedCount:                 {metricName: "diagnostics_workflow_count", metricType: Counter},
 		DiagnosticsWorkflowSuccess:                      {metricName: "diagnostics_workflow_success", metricType: Counter},
 		DiagnosticsWorkflowExecutionLatency:             {metricName: "diagnostics_workflow_execution_latency", metricType: Timer},

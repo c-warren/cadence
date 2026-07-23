@@ -922,6 +922,98 @@ func newAdminAsyncQueueCommands() []*cli.Command {
 			},
 			Action: AdminUpdateAsyncWFConfig,
 		},
+		{
+			Name:        "dlq",
+			Usage:       "Manage the async workflow poison (dead-letter) queue",
+			Subcommands: newAdminAsyncQueueDLQCommands(),
+		},
+	}
+}
+
+func getAsyncWFDLQFlags() []cli.Flag {
+	return []cli.Flag{
+		&cli.StringFlag{
+			Name:     FlagQueueName,
+			Aliases:  []string{"qn"},
+			Usage:    "Name of the async workflow queue",
+			Required: true,
+		},
+		&cli.StringFlag{
+			Name:  FlagShards,
+			Usage: "Comma separated shard IDs or inclusive ranges. Example: \"2,5-6,10\". Alternatively, feed one shard ID per line via STDIN.",
+		},
+		&cli.IntFlag{
+			Name:    FlagShardID,
+			Aliases: []string{"sid"},
+			Usage:   "Single shard ID to operate on (takes precedence over --shards)",
+		},
+	}
+}
+
+func newAdminAsyncQueueDLQCommands() []*cli.Command {
+	return []*cli.Command{
+		{
+			Name:    "read",
+			Aliases: []string{"r"},
+			Usage:   "Read messages from the async workflow poison DLQ",
+			Flags: append(getAsyncWFDLQFlags(),
+				&cli.IntFlag{
+					Name:    FlagPageSize,
+					Aliases: []string{"ps"},
+					Usage:   "Number of messages to fetch per page",
+					Value:   defaultPageSize,
+				},
+				&cli.IntFlag{
+					Name:    FlagLastMessageID,
+					Aliases: []string{"lm"},
+					Usage:   "Exclusive starting cursor; only messages after this id are read",
+				},
+				&cli.IntFlag{
+					Name:    FlagMaxMessageCount,
+					Aliases: []string{"mmc"},
+					Usage:   "Maximum total number of messages to print across all shards",
+				},
+				getFormatFlag(),
+			),
+			Action: AdminReadAsyncWorkflowDLQMessages,
+		},
+		{
+			Name:    "merge",
+			Aliases: []string{"m"},
+			Usage:   "Merge (re-enqueue) messages with equal or smaller ids than the provided message id",
+			Flags: append(getAsyncWFDLQFlags(),
+				&cli.IntFlag{
+					Name:    FlagPageSize,
+					Aliases: []string{"ps"},
+					Usage:   "Number of messages to merge per page",
+					Value:   defaultPageSize,
+				},
+				&cli.IntFlag{
+					Name:    FlagLastMessageID,
+					Aliases: []string{"lm"},
+					Usage:   "Inclusive upper bound of messages to merge (default: all)",
+				},
+				&cli.IntFlag{
+					Name:    FlagMaxMessageCount,
+					Aliases: []string{"mmc"},
+					Usage:   "Safety cap: stop each shard after merging at least this many messages (default: unbounded)",
+				},
+			),
+			Action: AdminMergeAsyncWorkflowDLQMessages,
+		},
+		{
+			Name:    "purge",
+			Aliases: []string{"p"},
+			Usage:   "Delete messages with equal or smaller ids than the provided message id",
+			Flags: append(getAsyncWFDLQFlags(),
+				&cli.IntFlag{
+					Name:    FlagLastMessageID,
+					Aliases: []string{"lm"},
+					Usage:   "Inclusive upper bound of messages to purge (default: all)",
+				},
+			),
+			Action: AdminPurgeAsyncWorkflowDLQMessages,
+		},
 	}
 }
 

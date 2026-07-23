@@ -51,6 +51,9 @@ type Handler interface {
 	MergeDLQMessages(context.Context, *types.MergeDLQMessagesRequest) (*types.MergeDLQMessagesResponse, error)
 	PurgeDLQMessages(context.Context, *types.PurgeDLQMessagesRequest) error
 	ReadDLQMessages(context.Context, *types.ReadDLQMessagesRequest) (*types.ReadDLQMessagesResponse, error)
+	ReadAsyncWorkflowMessagesFromDLQ(context.Context, *types.ReadAsyncWorkflowMessagesFromDLQRequest) (*types.ReadAsyncWorkflowMessagesFromDLQResponse, error)
+	MergeAsyncWorkflowMessagesFromDLQ(context.Context, *types.MergeAsyncWorkflowMessagesFromDLQRequest) (*types.MergeAsyncWorkflowMessagesFromDLQResponse, error)
+	PurgeAsyncWorkflowMessagesFromDLQ(context.Context, *types.PurgeAsyncWorkflowMessagesFromDLQRequest) (*types.PurgeAsyncWorkflowMessagesFromDLQResponse, error)
 	ReapplyEvents(context.Context, *types.ReapplyEventsRequest) error
 	RefreshWorkflowTasks(context.Context, *types.RefreshWorkflowTasksRequest) error
 	RemoveTask(context.Context, *types.RemoveTaskRequest) error

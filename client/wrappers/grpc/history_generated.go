@@ -83,6 +83,11 @@ func (g historyClient) GetReplicationMessages(ctx context.Context, gp1 *types.Ge
 	return proto.ToHistoryGetReplicationMessagesResponse(response), proto.ToError(err)
 }
 
+func (g historyClient) MergeAsyncWorkflowMessagesFromDLQ(ctx context.Context, mp1 *types.MergeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	response, err := g.c.MergeAsyncWorkflowMessagesFromDLQ(ctx, proto.FromHistoryMergeAsyncWorkflowMessagesFromDLQRequest(mp1), p1...)
+	return proto.ToHistoryMergeAsyncWorkflowMessagesFromDLQResponse(response), proto.ToError(err)
+}
+
 func (g historyClient) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQMessagesRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeDLQMessagesResponse, err error) {
 	response, err := g.c.MergeDLQMessages(ctx, proto.FromHistoryMergeDLQMessagesRequest(mp1), p1...)
 	return proto.ToHistoryMergeDLQMessagesResponse(response), proto.ToError(err)
@@ -98,6 +103,11 @@ func (g historyClient) PollMutableState(ctx context.Context, pp1 *types.PollMuta
 	return proto.ToHistoryPollMutableStateResponse(response), proto.ToError(err)
 }
 
+func (g historyClient) PurgeAsyncWorkflowMessagesFromDLQ(ctx context.Context, pp1 *types.PurgeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (pp2 *types.PurgeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	response, err := g.c.PurgeAsyncWorkflowMessagesFromDLQ(ctx, proto.FromHistoryPurgeAsyncWorkflowMessagesFromDLQRequest(pp1), p1...)
+	return proto.ToHistoryPurgeAsyncWorkflowMessagesFromDLQResponse(response), proto.ToError(err)
+}
+
 func (g historyClient) PurgeDLQMessages(ctx context.Context, pp1 *types.PurgeDLQMessagesRequest, p1 ...yarpc.CallOption) (err error) {
 	_, err = g.c.PurgeDLQMessages(ctx, proto.FromHistoryPurgeDLQMessagesRequest(pp1), p1...)
 	return proto.ToError(err)
@@ -111,6 +121,11 @@ func (g historyClient) QueryWorkflow(ctx context.Context, hp1 *types.HistoryQuer
 func (g historyClient) RatelimitUpdate(ctx context.Context, request *types.RatelimitUpdateRequest, opts ...yarpc.CallOption) (rp1 *types.RatelimitUpdateResponse, err error) {
 	response, err := g.c.RatelimitUpdate(ctx, proto.FromHistoryRatelimitUpdateRequest(request), opts...)
 	return proto.ToHistoryRatelimitUpdateResponse(response), proto.ToError(err)
+}
+
+func (g historyClient) ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, rp1 *types.ReadAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (rp2 *types.ReadAsyncWorkflowMessagesFromDLQResponse, err error) {
+	response, err := g.c.ReadAsyncWorkflowMessagesFromDLQ(ctx, proto.FromHistoryReadAsyncWorkflowMessagesFromDLQRequest(rp1), p1...)
+	return proto.ToHistoryReadAsyncWorkflowMessagesFromDLQResponse(response), proto.ToError(err)
 }
 
 func (g historyClient) ReadDLQMessages(ctx context.Context, rp1 *types.ReadDLQMessagesRequest, p1 ...yarpc.CallOption) (rp2 *types.ReadDLQMessagesResponse, err error) {

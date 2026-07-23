@@ -986,6 +986,76 @@ func TestAdminUpdateTaskListPartitionConfigResponse(t *testing.T) {
 	}
 }
 
+func TestAdminAsyncWorkflowMessage(t *testing.T) {
+	for _, item := range []*types.AsyncWorkflowMessage{nil, {}, &testdata.HistoryAsyncWorkflowMessage} {
+		assert.Equal(t, item, ToAdminAsyncWorkflowMessage(FromAdminAsyncWorkflowMessage(item)))
+	}
+}
+
+func TestAdminReadAsyncWorkflowMessagesFromDLQRequest(t *testing.T) {
+	for _, item := range []*types.ReadAsyncWorkflowMessagesFromDLQRequest{nil, {}, &testdata.HistoryReadAsyncWorkflowMessagesFromDLQRequest} {
+		assert.Equal(t, item, ToAdminReadAsyncWorkflowMessagesFromDLQRequest(FromAdminReadAsyncWorkflowMessagesFromDLQRequest(item)))
+	}
+}
+
+func TestAdminReadAsyncWorkflowMessagesFromDLQResponse(t *testing.T) {
+	for _, item := range []*types.ReadAsyncWorkflowMessagesFromDLQResponse{nil, {}, &testdata.HistoryReadAsyncWorkflowMessagesFromDLQResponse} {
+		assert.Equal(t, item, ToAdminReadAsyncWorkflowMessagesFromDLQResponse(FromAdminReadAsyncWorkflowMessagesFromDLQResponse(item)))
+	}
+}
+
+func TestAdminMergeAsyncWorkflowMessagesFromDLQRequest(t *testing.T) {
+	for _, item := range []*types.MergeAsyncWorkflowMessagesFromDLQRequest{nil, {}, &testdata.HistoryMergeAsyncWorkflowMessagesFromDLQRequest} {
+		assert.Equal(t, item, ToAdminMergeAsyncWorkflowMessagesFromDLQRequest(FromAdminMergeAsyncWorkflowMessagesFromDLQRequest(item)))
+	}
+}
+
+func TestAdminMergeAsyncWorkflowMessagesFromDLQResponse(t *testing.T) {
+	for _, item := range []*types.MergeAsyncWorkflowMessagesFromDLQResponse{nil, {}, &testdata.HistoryMergeAsyncWorkflowMessagesFromDLQResponse} {
+		assert.Equal(t, item, ToAdminMergeAsyncWorkflowMessagesFromDLQResponse(FromAdminMergeAsyncWorkflowMessagesFromDLQResponse(item)))
+	}
+}
+
+func TestAdminPurgeAsyncWorkflowMessagesFromDLQRequest(t *testing.T) {
+	for _, item := range []*types.PurgeAsyncWorkflowMessagesFromDLQRequest{nil, {}, &testdata.HistoryPurgeAsyncWorkflowMessagesFromDLQRequest} {
+		assert.Equal(t, item, ToAdminPurgeAsyncWorkflowMessagesFromDLQRequest(FromAdminPurgeAsyncWorkflowMessagesFromDLQRequest(item)))
+	}
+}
+
+func TestAdminPurgeAsyncWorkflowMessagesFromDLQResponse(t *testing.T) {
+	for _, item := range []*types.PurgeAsyncWorkflowMessagesFromDLQResponse{nil, {}, &testdata.HistoryPurgeAsyncWorkflowMessagesFromDLQResponse} {
+		assert.Equal(t, item, ToAdminPurgeAsyncWorkflowMessagesFromDLQResponse(FromAdminPurgeAsyncWorkflowMessagesFromDLQResponse(item)))
+	}
+}
+
+func TestAdminAsyncWorkflowMessageFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminAsyncWorkflowMessage, ToAdminAsyncWorkflowMessage)
+}
+
+func TestAdminReadAsyncWorkflowMessagesFromDLQRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminReadAsyncWorkflowMessagesFromDLQRequest, ToAdminReadAsyncWorkflowMessagesFromDLQRequest)
+}
+
+func TestAdminReadAsyncWorkflowMessagesFromDLQResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminReadAsyncWorkflowMessagesFromDLQResponse, ToAdminReadAsyncWorkflowMessagesFromDLQResponse)
+}
+
+func TestAdminMergeAsyncWorkflowMessagesFromDLQRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminMergeAsyncWorkflowMessagesFromDLQRequest, ToAdminMergeAsyncWorkflowMessagesFromDLQRequest)
+}
+
+func TestAdminMergeAsyncWorkflowMessagesFromDLQResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminMergeAsyncWorkflowMessagesFromDLQResponse, ToAdminMergeAsyncWorkflowMessagesFromDLQResponse)
+}
+
+func TestAdminPurgeAsyncWorkflowMessagesFromDLQRequestFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminPurgeAsyncWorkflowMessagesFromDLQRequest, ToAdminPurgeAsyncWorkflowMessagesFromDLQRequest)
+}
+
+func TestAdminPurgeAsyncWorkflowMessagesFromDLQResponseFuzz(t *testing.T) {
+	testutils.RunMapperFuzzTest(t, FromAdminPurgeAsyncWorkflowMessagesFromDLQResponse, ToAdminPurgeAsyncWorkflowMessagesFromDLQResponse)
+}
+
 func TestAdminCloseShardRequestFuzz(t *testing.T) {
 	testutils.RunMapperFuzzTest(t, FromAdminCloseShardRequest, ToAdminCloseShardRequest)
 }

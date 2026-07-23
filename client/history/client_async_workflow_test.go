@@ -151,6 +151,105 @@ func TestClient_asyncWorkflowQueue(t *testing.T) {
 			},
 			want: &types.EnqueueAsyncWorkflowMessageToDLQResponse{MessageID: 3},
 		},
+		{
+			name: "ReadAsyncWorkflowMessagesFromDLQ success",
+			op: func(c Client) (any, error) {
+				return c.ReadAsyncWorkflowMessagesFromDLQ(context.Background(), &types.ReadAsyncWorkflowMessagesFromDLQRequest{
+					ShardID:   123,
+					QueueName: "q1",
+				})
+			},
+			mock: func(p *MockPeerResolver, c *MockClient) {
+				p.EXPECT().FromShardID(123).Return("test-peer", nil).Times(1)
+				c.EXPECT().ReadAsyncWorkflowMessagesFromDLQ(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("test-peer")}).
+					Return(&types.ReadAsyncWorkflowMessagesFromDLQResponse{
+						Messages:      []*types.AsyncWorkflowMessage{{MessageID: 2}},
+						LastMessageID: 2,
+					}, nil).Times(1)
+			},
+			want: &types.ReadAsyncWorkflowMessagesFromDLQResponse{
+				Messages:      []*types.AsyncWorkflowMessage{{MessageID: 2}},
+				LastMessageID: 2,
+			},
+		},
+		{
+			name: "ReadAsyncWorkflowMessagesFromDLQ peer resolve error",
+			op: func(c Client) (any, error) {
+				return c.ReadAsyncWorkflowMessagesFromDLQ(context.Background(), &types.ReadAsyncWorkflowMessagesFromDLQRequest{
+					ShardID: 123,
+				})
+			},
+			mock: func(p *MockPeerResolver, c *MockClient) {
+				p.EXPECT().FromShardID(123).Return("", errors.New("no peer")).Times(1)
+			},
+			wantError: true,
+		},
+		{
+			name: "MergeAsyncWorkflowMessagesFromDLQ success",
+			op: func(c Client) (any, error) {
+				return c.MergeAsyncWorkflowMessagesFromDLQ(context.Background(), &types.MergeAsyncWorkflowMessagesFromDLQRequest{
+					ShardID:               123,
+					QueueName:             "q1",
+					InclusiveEndMessageID: 50,
+				})
+			},
+			mock: func(p *MockPeerResolver, c *MockClient) {
+				p.EXPECT().FromShardID(123).Return("test-peer", nil).Times(1)
+				c.EXPECT().MergeAsyncWorkflowMessagesFromDLQ(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("test-peer")}).
+					Return(&types.MergeAsyncWorkflowMessagesFromDLQResponse{MessagesCount: 4, LastMessageID: 42}, nil).Times(1)
+			},
+			want: &types.MergeAsyncWorkflowMessagesFromDLQResponse{MessagesCount: 4, LastMessageID: 42},
+		},
+		{
+			name: "MergeAsyncWorkflowMessagesFromDLQ redirected success on ShardOwnershipLost",
+			op: func(c Client) (any, error) {
+				return c.MergeAsyncWorkflowMessagesFromDLQ(context.Background(), &types.MergeAsyncWorkflowMessagesFromDLQRequest{
+					ShardID: 123,
+				})
+			},
+			mock: func(p *MockPeerResolver, c *MockClient) {
+				p.EXPECT().FromShardID(123).Return("test-peer-1", nil).Times(1)
+				p.EXPECT().FromHostAddress("host-test-peer-2").Return("test-peer-2", nil).Times(1)
+				c.EXPECT().MergeAsyncWorkflowMessagesFromDLQ(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("test-peer-1")}).
+					Return(nil, &types.ShardOwnershipLostError{
+						Message: "test-peer-1 lost the shard",
+						Owner:   "host-test-peer-2",
+					}).Times(1)
+				c.EXPECT().MergeAsyncWorkflowMessagesFromDLQ(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("test-peer-2")}).
+					Return(&types.MergeAsyncWorkflowMessagesFromDLQResponse{MessagesCount: 1, LastMessageID: 9}, nil).Times(1)
+			},
+			want: &types.MergeAsyncWorkflowMessagesFromDLQResponse{MessagesCount: 1, LastMessageID: 9},
+		},
+		{
+			name: "PurgeAsyncWorkflowMessagesFromDLQ success",
+			op: func(c Client) (any, error) {
+				return c.PurgeAsyncWorkflowMessagesFromDLQ(context.Background(), &types.PurgeAsyncWorkflowMessagesFromDLQRequest{
+					ShardID:               123,
+					QueueName:             "q1",
+					InclusiveEndMessageID: 50,
+				})
+			},
+			mock: func(p *MockPeerResolver, c *MockClient) {
+				p.EXPECT().FromShardID(123).Return("test-peer", nil).Times(1)
+				c.EXPECT().PurgeAsyncWorkflowMessagesFromDLQ(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("test-peer")}).
+					Return(&types.PurgeAsyncWorkflowMessagesFromDLQResponse{}, nil).Times(1)
+			},
+			want: &types.PurgeAsyncWorkflowMessagesFromDLQResponse{},
+		},
+		{
+			name: "PurgeAsyncWorkflowMessagesFromDLQ call error",
+			op: func(c Client) (any, error) {
+				return c.PurgeAsyncWorkflowMessagesFromDLQ(context.Background(), &types.PurgeAsyncWorkflowMessagesFromDLQRequest{
+					ShardID: 123,
+				})
+			},
+			mock: func(p *MockPeerResolver, c *MockClient) {
+				p.EXPECT().FromShardID(123).Return("test-peer", nil).Times(1)
+				c.EXPECT().PurgeAsyncWorkflowMessagesFromDLQ(gomock.Any(), gomock.Any(), []yarpc.CallOption{yarpc.WithShardKey("test-peer")}).
+					Return(nil, errors.New("boom")).Times(1)
+			},
+			wantError: true,
+		},
 	}
 
 	for _, tt := range tests {

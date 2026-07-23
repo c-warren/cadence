@@ -179,6 +179,7 @@ const (
 	FlagTaskType                       = "task_type"
 	FlagTaskVisibilityTimestamp        = "task_timestamp"
 	FlagQueueType                      = "queue_type"
+	FlagQueueName                      = "queue_name"
 	FlagStartingRPS                    = "starting_rps"
 	FlagRPS                            = "rps"
 	FlagRPSScaleUpSeconds              = "rps_scale_up_seconds"

@@ -386,6 +386,13 @@ type (
 		NewRunBranchToken []byte
 		CreationTime      time.Time
 		CurrentTimeStamp  time.Time
+		// Async workflow request replication tasks carry their payload in these
+		// fields rather than in the history-event columns above. Empty for all
+		// other replication task types.
+		AsyncWorkflowQueueName    string
+		AsyncWorkflowPayload      []byte
+		AsyncWorkflowEncoding     string
+		AsyncWorkflowPartitionKey string
 	}
 
 	// InternalWorkflowExecutionInfo describes a workflow execution for Persistence Interface

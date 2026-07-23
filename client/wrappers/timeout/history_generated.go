@@ -107,6 +107,12 @@ func (c *historyClient) GetReplicationMessages(ctx context.Context, gp1 *types.G
 	return c.client.GetReplicationMessages(ctx, gp1, p1...)
 }
 
+func (c *historyClient) MergeAsyncWorkflowMessagesFromDLQ(ctx context.Context, mp1 *types.MergeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.MergeAsyncWorkflowMessagesFromDLQ(ctx, mp1, p1...)
+}
+
 func (c *historyClient) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQMessagesRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeDLQMessagesResponse, err error) {
 	return c.client.MergeDLQMessages(ctx, mp1, p1...)
 }
@@ -123,6 +129,12 @@ func (c *historyClient) PollMutableState(ctx context.Context, pp1 *types.PollMut
 	return c.client.PollMutableState(ctx, pp1, p1...)
 }
 
+func (c *historyClient) PurgeAsyncWorkflowMessagesFromDLQ(ctx context.Context, pp1 *types.PurgeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (pp2 *types.PurgeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.PurgeAsyncWorkflowMessagesFromDLQ(ctx, pp1, p1...)
+}
+
 func (c *historyClient) PurgeDLQMessages(ctx context.Context, pp1 *types.PurgeDLQMessagesRequest, p1 ...yarpc.CallOption) (err error) {
 	return c.client.PurgeDLQMessages(ctx, pp1, p1...)
 }
@@ -137,6 +149,12 @@ func (c *historyClient) RatelimitUpdate(ctx context.Context, request *types.Rate
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
 	return c.client.RatelimitUpdate(ctx, request, opts...)
+}
+
+func (c *historyClient) ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, rp1 *types.ReadAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (rp2 *types.ReadAsyncWorkflowMessagesFromDLQResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.ReadAsyncWorkflowMessagesFromDLQ(ctx, rp1, p1...)
 }
 
 func (c *historyClient) ReadDLQMessages(ctx context.Context, rp1 *types.ReadDLQMessagesRequest, p1 ...yarpc.CallOption) (rp2 *types.ReadDLQMessagesResponse, err error) {

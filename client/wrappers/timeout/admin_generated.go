@@ -162,16 +162,34 @@ func (c *adminClient) MaintainCorruptWorkflow(ctx context.Context, ap1 *types.Ad
 	return c.client.MaintainCorruptWorkflow(ctx, ap1, p1...)
 }
 
+func (c *adminClient) MergeAsyncWorkflowMessagesFromDLQ(ctx context.Context, mp1 *types.MergeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.MergeAsyncWorkflowMessagesFromDLQ(ctx, mp1, p1...)
+}
+
 func (c *adminClient) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQMessagesRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeDLQMessagesResponse, err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
 	return c.client.MergeDLQMessages(ctx, mp1, p1...)
 }
 
+func (c *adminClient) PurgeAsyncWorkflowMessagesFromDLQ(ctx context.Context, pp1 *types.PurgeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (pp2 *types.PurgeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.PurgeAsyncWorkflowMessagesFromDLQ(ctx, pp1, p1...)
+}
+
 func (c *adminClient) PurgeDLQMessages(ctx context.Context, pp1 *types.PurgeDLQMessagesRequest, p1 ...yarpc.CallOption) (err error) {
 	ctx, cancel := createContext(ctx, c.timeout)
 	defer cancel()
 	return c.client.PurgeDLQMessages(ctx, pp1, p1...)
+}
+
+func (c *adminClient) ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, rp1 *types.ReadAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (rp2 *types.ReadAsyncWorkflowMessagesFromDLQResponse, err error) {
+	ctx, cancel := createContext(ctx, c.timeout)
+	defer cancel()
+	return c.client.ReadAsyncWorkflowMessagesFromDLQ(ctx, rp1, p1...)
 }
 
 func (c *adminClient) ReadDLQMessages(ctx context.Context, rp1 *types.ReadDLQMessagesRequest, p1 ...yarpc.CallOption) (rp2 *types.ReadDLQMessagesResponse, err error) {

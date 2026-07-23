@@ -230,6 +230,15 @@ service HistoryAPI {
   // EnqueueAsyncWorkflowMessageToDLQ enqueues an async workflow message onto a shard-scoped DLQ.
   rpc EnqueueAsyncWorkflowMessageToDLQ(EnqueueAsyncWorkflowMessageToDLQRequest) returns (EnqueueAsyncWorkflowMessageToDLQResponse);
 
+  // ReadAsyncWorkflowMessagesFromDLQ reads a page of async workflow messages from a shard-scoped DLQ.
+  rpc ReadAsyncWorkflowMessagesFromDLQ(ReadAsyncWorkflowMessagesFromDLQRequest) returns (ReadAsyncWorkflowMessagesFromDLQResponse);
+
+  // MergeAsyncWorkflowMessagesFromDLQ re-injects a page of shard-scoped DLQ messages back onto the main async workflow queue.
+  rpc MergeAsyncWorkflowMessagesFromDLQ(MergeAsyncWorkflowMessagesFromDLQRequest) returns (MergeAsyncWorkflowMessagesFromDLQResponse);
+
+  // PurgeAsyncWorkflowMessagesFromDLQ deletes shard-scoped DLQ messages at or below a message id.
+  rpc PurgeAsyncWorkflowMessagesFromDLQ(PurgeAsyncWorkflowMessagesFromDLQRequest) returns (PurgeAsyncWorkflowMessagesFromDLQResponse);
+
   // NotifyFailoverMarkers sends failover marker to the failover coordinator.
   rpc NotifyFailoverMarkers(NotifyFailoverMarkersRequest) returns (NotifyFailoverMarkersResponse);
 
@@ -842,5 +851,38 @@ message EnqueueAsyncWorkflowMessageToDLQRequest {
 
 message EnqueueAsyncWorkflowMessageToDLQResponse {
   int64 message_id = 1;
+}
+
+message ReadAsyncWorkflowMessagesFromDLQRequest {
+  int32 shard_id = 1;
+  string queue_name = 2;
+  int64 last_message_id = 3;
+  int32 page_size = 4;
+}
+
+message ReadAsyncWorkflowMessagesFromDLQResponse {
+  repeated AsyncWorkflowMessage messages = 1;
+  int64 last_message_id = 2;
+}
+
+message MergeAsyncWorkflowMessagesFromDLQRequest {
+  int32 shard_id = 1;
+  string queue_name = 2;
+  int64 inclusive_end_message_id = 3;
+  int32 page_size = 4;
+}
+
+message MergeAsyncWorkflowMessagesFromDLQResponse {
+  int32 messages_count = 1;
+  int64 last_message_id = 2;
+}
+
+message PurgeAsyncWorkflowMessagesFromDLQRequest {
+  int32 shard_id = 1;
+  string queue_name = 2;
+  int64 inclusive_end_message_id = 3;
+}
+
+message PurgeAsyncWorkflowMessagesFromDLQResponse {
 }
 

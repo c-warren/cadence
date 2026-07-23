@@ -1237,6 +1237,66 @@ func (c *clientImpl) EnqueueAsyncWorkflowMessageToDLQ(
 	return resp, err
 }
 
+func (c *clientImpl) ReadAsyncWorkflowMessagesFromDLQ(
+	ctx context.Context,
+	request *types.ReadAsyncWorkflowMessagesFromDLQRequest,
+	opts ...yarpc.CallOption,
+) (*types.ReadAsyncWorkflowMessagesFromDLQResponse, error) {
+
+	peer, err := c.peerResolver.FromShardID(int(request.GetShardID()))
+	if err != nil {
+		return nil, err
+	}
+	var resp *types.ReadAsyncWorkflowMessagesFromDLQResponse
+	op := func(ctx context.Context, peer string) error {
+		var e error
+		resp, e = c.client.ReadAsyncWorkflowMessagesFromDLQ(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+		return e
+	}
+	err = c.executeWithRedirect(ctx, peer, op)
+	return resp, err
+}
+
+func (c *clientImpl) MergeAsyncWorkflowMessagesFromDLQ(
+	ctx context.Context,
+	request *types.MergeAsyncWorkflowMessagesFromDLQRequest,
+	opts ...yarpc.CallOption,
+) (*types.MergeAsyncWorkflowMessagesFromDLQResponse, error) {
+
+	peer, err := c.peerResolver.FromShardID(int(request.GetShardID()))
+	if err != nil {
+		return nil, err
+	}
+	var resp *types.MergeAsyncWorkflowMessagesFromDLQResponse
+	op := func(ctx context.Context, peer string) error {
+		var e error
+		resp, e = c.client.MergeAsyncWorkflowMessagesFromDLQ(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+		return e
+	}
+	err = c.executeWithRedirect(ctx, peer, op)
+	return resp, err
+}
+
+func (c *clientImpl) PurgeAsyncWorkflowMessagesFromDLQ(
+	ctx context.Context,
+	request *types.PurgeAsyncWorkflowMessagesFromDLQRequest,
+	opts ...yarpc.CallOption,
+) (*types.PurgeAsyncWorkflowMessagesFromDLQResponse, error) {
+
+	peer, err := c.peerResolver.FromShardID(int(request.GetShardID()))
+	if err != nil {
+		return nil, err
+	}
+	var resp *types.PurgeAsyncWorkflowMessagesFromDLQResponse
+	op := func(ctx context.Context, peer string) error {
+		var e error
+		resp, e = c.client.PurgeAsyncWorkflowMessagesFromDLQ(ctx, request, append(opts, yarpc.WithShardKey(peer))...)
+		return e
+	}
+	err = c.executeWithRedirect(ctx, peer, op)
+	return resp, err
+}
+
 func (c *clientImpl) executeWithRedirect(
 	ctx context.Context,
 	peer string,

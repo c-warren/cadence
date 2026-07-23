@@ -115,3 +115,132 @@ func (v *EnqueueAsyncWorkflowMessageToDLQRequest) GetShardID() (o int32) {
 type EnqueueAsyncWorkflowMessageToDLQResponse struct {
 	MessageID int64
 }
+
+// ReadAsyncWorkflowMessagesFromDLQRequest is the request for HistoryAPI.ReadAsyncWorkflowMessagesFromDLQ.
+type ReadAsyncWorkflowMessagesFromDLQRequest struct {
+	ShardID       int32
+	QueueName     string
+	LastMessageID int64
+	PageSize      int32
+}
+
+// GetShardID is an internal getter (TBD...)
+func (v *ReadAsyncWorkflowMessagesFromDLQRequest) GetShardID() (o int32) {
+	if v != nil {
+		return v.ShardID
+	}
+	return
+}
+
+// GetQueueName is an internal getter (TBD...)
+func (v *ReadAsyncWorkflowMessagesFromDLQRequest) GetQueueName() (o string) {
+	if v != nil {
+		return v.QueueName
+	}
+	return
+}
+
+// GetLastMessageID is an internal getter (TBD...)
+func (v *ReadAsyncWorkflowMessagesFromDLQRequest) GetLastMessageID() (o int64) {
+	if v != nil {
+		return v.LastMessageID
+	}
+	return
+}
+
+// GetPageSize is an internal getter (TBD...)
+func (v *ReadAsyncWorkflowMessagesFromDLQRequest) GetPageSize() (o int32) {
+	if v != nil {
+		return v.PageSize
+	}
+	return
+}
+
+// ReadAsyncWorkflowMessagesFromDLQResponse is the response for HistoryAPI.ReadAsyncWorkflowMessagesFromDLQ.
+// LastMessageID is the exclusive cursor to pass as LastMessageID on the next page.
+type ReadAsyncWorkflowMessagesFromDLQResponse struct {
+	Messages      []*AsyncWorkflowMessage
+	LastMessageID int64
+}
+
+// MergeAsyncWorkflowMessagesFromDLQRequest is the request for HistoryAPI.MergeAsyncWorkflowMessagesFromDLQ.
+type MergeAsyncWorkflowMessagesFromDLQRequest struct {
+	ShardID               int32
+	QueueName             string
+	InclusiveEndMessageID int64
+	PageSize              int32
+}
+
+// GetShardID is an internal getter (TBD...)
+func (v *MergeAsyncWorkflowMessagesFromDLQRequest) GetShardID() (o int32) {
+	if v != nil {
+		return v.ShardID
+	}
+	return
+}
+
+// GetQueueName is an internal getter (TBD...)
+func (v *MergeAsyncWorkflowMessagesFromDLQRequest) GetQueueName() (o string) {
+	if v != nil {
+		return v.QueueName
+	}
+	return
+}
+
+// GetInclusiveEndMessageID is an internal getter (TBD...)
+func (v *MergeAsyncWorkflowMessagesFromDLQRequest) GetInclusiveEndMessageID() (o int64) {
+	if v != nil {
+		return v.InclusiveEndMessageID
+	}
+	return
+}
+
+// GetPageSize is an internal getter (TBD...)
+func (v *MergeAsyncWorkflowMessagesFromDLQRequest) GetPageSize() (o int32) {
+	if v != nil {
+		return v.PageSize
+	}
+	return
+}
+
+// MergeAsyncWorkflowMessagesFromDLQResponse is the response for HistoryAPI.MergeAsyncWorkflowMessagesFromDLQ.
+// MessagesCount is the number of messages merged this call; LastMessageID is the cursor of the last merged message.
+type MergeAsyncWorkflowMessagesFromDLQResponse struct {
+	MessagesCount int32
+	LastMessageID int64
+}
+
+// PurgeAsyncWorkflowMessagesFromDLQRequest is the request for HistoryAPI.PurgeAsyncWorkflowMessagesFromDLQ.
+type PurgeAsyncWorkflowMessagesFromDLQRequest struct {
+	ShardID               int32
+	QueueName             string
+	InclusiveEndMessageID int64
+}
+
+// GetShardID is an internal getter (TBD...)
+func (v *PurgeAsyncWorkflowMessagesFromDLQRequest) GetShardID() (o int32) {
+	if v != nil {
+		return v.ShardID
+	}
+	return
+}
+
+// GetQueueName is an internal getter (TBD...)
+func (v *PurgeAsyncWorkflowMessagesFromDLQRequest) GetQueueName() (o string) {
+	if v != nil {
+		return v.QueueName
+	}
+	return
+}
+
+// GetInclusiveEndMessageID is an internal getter (TBD...)
+func (v *PurgeAsyncWorkflowMessagesFromDLQRequest) GetInclusiveEndMessageID() (o int64) {
+	if v != nil {
+		return v.InclusiveEndMessageID
+	}
+	return
+}
+
+// PurgeAsyncWorkflowMessagesFromDLQResponse is the response for HistoryAPI.PurgeAsyncWorkflowMessagesFromDLQ.
+type PurgeAsyncWorkflowMessagesFromDLQResponse struct {
+}

@@ -79,6 +79,7 @@ func (q *queueImpl) CreateConsumer(p *provider.Params) (provider.Consumer, error
 		timeSource,
 		p.Logger,
 		p.MetricsClient,
+		resolveConsumerConfig(p.ConsumerConfig),
 	)
 	return consumer.New(q.ID(), historyConsumer, p.Logger, p.MetricsClient, p.FrontendClient), nil
 }
@@ -92,6 +93,9 @@ func (q *queueImpl) CreateProducer(p *provider.Params) (messaging.Producer, erro
 	}
 	p.Logger.Info("Creating history-backed async wf producer", tag.AsyncWFQueueID(q.config.ID()))
 	producer := newProducer(q.config.QueueName, p.HistoryClient, p.NumHistoryShards, p.Logger, p.MetricsClient)
+	// Enqueue count / failure / latency are emitted by the messaging.MetricProducer
+	// wrapper below (MessagingClientPublishScope, tagged by queue name), so the
+	// producer itself does not emit duplicate publish metrics.
 	withMetricsOpt := messaging.WithMetricTags(metrics.TopicTag(q.config.QueueName))
 	return messaging.NewMetricProducer(producer, p.MetricsClient, withMetricsOpt), nil
 }

@@ -131,14 +131,29 @@ func (g AdminHandler) MaintainCorruptWorkflow(ctx context.Context, request *admi
 	return proto.FromAdminMaintainCorruptWorkflowResponse(response), proto.FromError(err)
 }
 
+func (g AdminHandler) MergeAsyncWorkflowMessagesFromDLQ(ctx context.Context, request *adminv1.MergeAsyncWorkflowMessagesFromDLQRequest) (*adminv1.MergeAsyncWorkflowMessagesFromDLQResponse, error) {
+	response, err := g.h.MergeAsyncWorkflowMessagesFromDLQ(ctx, proto.ToAdminMergeAsyncWorkflowMessagesFromDLQRequest(request))
+	return proto.FromAdminMergeAsyncWorkflowMessagesFromDLQResponse(response), proto.FromError(err)
+}
+
 func (g AdminHandler) MergeDLQMessages(ctx context.Context, request *adminv1.MergeDLQMessagesRequest) (*adminv1.MergeDLQMessagesResponse, error) {
 	response, err := g.h.MergeDLQMessages(ctx, proto.ToAdminMergeDLQMessagesRequest(request))
 	return proto.FromAdminMergeDLQMessagesResponse(response), proto.FromError(err)
 }
 
+func (g AdminHandler) PurgeAsyncWorkflowMessagesFromDLQ(ctx context.Context, request *adminv1.PurgeAsyncWorkflowMessagesFromDLQRequest) (*adminv1.PurgeAsyncWorkflowMessagesFromDLQResponse, error) {
+	response, err := g.h.PurgeAsyncWorkflowMessagesFromDLQ(ctx, proto.ToAdminPurgeAsyncWorkflowMessagesFromDLQRequest(request))
+	return proto.FromAdminPurgeAsyncWorkflowMessagesFromDLQResponse(response), proto.FromError(err)
+}
+
 func (g AdminHandler) PurgeDLQMessages(ctx context.Context, request *adminv1.PurgeDLQMessagesRequest) (*adminv1.PurgeDLQMessagesResponse, error) {
 	err := g.h.PurgeDLQMessages(ctx, proto.ToAdminPurgeDLQMessagesRequest(request))
 	return &adminv1.PurgeDLQMessagesResponse{}, proto.FromError(err)
+}
+
+func (g AdminHandler) ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, request *adminv1.ReadAsyncWorkflowMessagesFromDLQRequest) (*adminv1.ReadAsyncWorkflowMessagesFromDLQResponse, error) {
+	response, err := g.h.ReadAsyncWorkflowMessagesFromDLQ(ctx, proto.ToAdminReadAsyncWorkflowMessagesFromDLQRequest(request))
+	return proto.FromAdminReadAsyncWorkflowMessagesFromDLQResponse(response), proto.FromError(err)
 }
 
 func (g AdminHandler) ReadDLQMessages(ctx context.Context, request *adminv1.ReadDLQMessagesRequest) (*adminv1.ReadDLQMessagesResponse, error) {

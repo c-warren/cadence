@@ -30,6 +30,7 @@ import (
 	"github.com/uber/cadence/client/frontend"
 	historyclient "github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common/clock"
+	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/messaging"
@@ -47,6 +48,24 @@ type (
 		NumHistoryShards   int
 		MembershipResolver membership.Resolver
 		TimeSource         clock.TimeSource
+		// ConsumerConfig carries runtime tuning knobs for history-backed queue
+		// consumers. Fields may be nil; consumers fall back to built-in defaults.
+		// Non-history queue types ignore it.
+		ConsumerConfig ConsumerConfig
+	}
+
+	// ConsumerConfig holds dynamic-config-backed tuning knobs for a history-backed
+	// async-workflow consumer. Each field is read live by the consumer so changes
+	// take effect without a restart (except BufferSize, read once at creation).
+	// Any nil field is replaced by the consumer's built-in default.
+	ConsumerConfig struct {
+		PageSize          dynamicproperties.IntPropertyFn
+		BufferSize        dynamicproperties.IntPropertyFn
+		PollInterval      dynamicproperties.DurationPropertyFn
+		CommitInterval    dynamicproperties.DurationPropertyFn
+		ErrorBackoff      dynamicproperties.DurationPropertyFn
+		RebalanceInterval dynamicproperties.DurationPropertyFn
+		RPCTimeout        dynamicproperties.DurationPropertyFn
 	}
 
 	Decoder interface {

@@ -1074,6 +1074,11 @@ func (m *executionManagerImpl) fromInternalReplicationTaskInfo(internalInfo *Int
 		BranchToken:       internalInfo.BranchToken,
 		NewRunBranchToken: internalInfo.NewRunBranchToken,
 		CreationTime:      internalInfo.CreationTime.UnixNano(),
+
+		AsyncWorkflowQueueName:    internalInfo.AsyncWorkflowQueueName,
+		AsyncWorkflowPayload:      internalInfo.AsyncWorkflowPayload,
+		AsyncWorkflowEncoding:     internalInfo.AsyncWorkflowEncoding,
+		AsyncWorkflowPartitionKey: internalInfo.AsyncWorkflowPartitionKey,
 	}
 }
 
@@ -1095,6 +1100,11 @@ func (m *executionManagerImpl) toInternalReplicationTaskInfo(info *ReplicationTa
 		NewRunBranchToken: info.NewRunBranchToken,
 		CreationTime:      time.Unix(0, info.CreationTime).UTC(),
 		CurrentTimeStamp:  m.timeSrc.Now(),
+
+		AsyncWorkflowQueueName:    info.AsyncWorkflowQueueName,
+		AsyncWorkflowPayload:      info.AsyncWorkflowPayload,
+		AsyncWorkflowEncoding:     info.AsyncWorkflowEncoding,
+		AsyncWorkflowPartitionKey: info.AsyncWorkflowPartitionKey,
 	}
 }
 

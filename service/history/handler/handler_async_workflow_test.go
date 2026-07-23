@@ -403,3 +403,306 @@ func TestHandlerEnqueueAsyncWorkflowMessageToDLQ(t *testing.T) {
 		})
 	}
 }
+
+func TestHandlerReadAsyncWorkflowMessagesFromDLQ(t *testing.T) {
+	req := &types.ReadAsyncWorkflowMessagesFromDLQRequest{
+		ShardID:       5,
+		QueueName:     "q1",
+		LastMessageID: 10,
+		PageSize:      100,
+	}
+	created := time.Unix(1700000000, 0).UTC()
+
+	tests := []struct {
+		name     string
+		setup    func(h *asyncWorkflowTestHandler)
+		wantResp *types.ReadAsyncWorkflowMessagesFromDLQResponse
+		wantErr  bool
+	}{
+		{
+			name: "ownership lost",
+			setup: func(h *asyncWorkflowTestHandler) {
+				h.expectOwnershipLost(5)
+			},
+			wantErr: true,
+		},
+		{
+			name: "success returns messages and advances cursor to last message id",
+			setup: func(h *asyncWorkflowTestHandler) {
+				h.expectOwned(5)
+				h.mockAsyncMgr.EXPECT().ReadMessagesFromDLQ(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, r *persistence.ReadAsyncWorkflowMessagesRequest) (*persistence.ReadAsyncWorkflowMessagesResponse, error) {
+						assert.Equal(t, "q1", r.QueueName)
+						assert.Equal(t, 5, r.ShardID)
+						assert.Equal(t, int64(10), r.LastMessageID)
+						assert.Equal(t, 100, r.PageSize)
+						return &persistence.ReadAsyncWorkflowMessagesResponse{
+							Messages: persistence.AsyncWorkflowMessageList{
+								{MessageID: 11, Payload: []byte("a"), Encoding: "json", PartitionKey: "pk", CreatedTime: created},
+								{MessageID: 15, Payload: []byte("b"), Encoding: "json", PartitionKey: "pk", CreatedTime: created},
+							},
+						}, nil
+					}).Times(1)
+			},
+			wantResp: &types.ReadAsyncWorkflowMessagesFromDLQResponse{
+				Messages: []*types.AsyncWorkflowMessage{
+					{MessageID: 11, Payload: []byte("a"), Encoding: "json", PartitionKey: "pk", CreatedTime: created},
+					{MessageID: 15, Payload: []byte("b"), Encoding: "json", PartitionKey: "pk", CreatedTime: created},
+				},
+				LastMessageID: 15,
+			},
+		},
+		{
+			name: "empty page keeps request cursor",
+			setup: func(h *asyncWorkflowTestHandler) {
+				h.expectOwned(5)
+				h.mockAsyncMgr.EXPECT().ReadMessagesFromDLQ(gomock.Any(), gomock.Any()).Return(
+					&persistence.ReadAsyncWorkflowMessagesResponse{}, nil).Times(1)
+			},
+			wantResp: &types.ReadAsyncWorkflowMessagesFromDLQResponse{
+				LastMessageID: 10,
+			},
+		},
+		{
+			name: "manager error",
+			setup: func(h *asyncWorkflowTestHandler) {
+				h.expectOwned(5)
+				h.mockAsyncMgr.EXPECT().ReadMessagesFromDLQ(gomock.Any(), gomock.Any()).Return(nil, errors.New("boom")).Times(1)
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			h := newAsyncWorkflowTestHandler(t, ctrl)
+			tc.setup(h)
+
+			resp, err := h.handler.ReadAsyncWorkflowMessagesFromDLQ(context.Background(), req)
+			if tc.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantResp, resp)
+		})
+	}
+}
+
+func TestHandlerMergeAsyncWorkflowMessagesFromDLQ(t *testing.T) {
+	tests := []struct {
+		name     string
+		req      *types.MergeAsyncWorkflowMessagesFromDLQRequest
+		setup    func(h *asyncWorkflowTestHandler)
+		wantResp *types.MergeAsyncWorkflowMessagesFromDLQResponse
+		wantErr  bool
+	}{
+		{
+			name: "ownership lost",
+			req:  &types.MergeAsyncWorkflowMessagesFromDLQRequest{ShardID: 5, QueueName: "q1", InclusiveEndMessageID: 100, PageSize: 10},
+			setup: func(h *asyncWorkflowTestHandler) {
+				h.expectOwnershipLost(5)
+			},
+			wantErr: true,
+		},
+		{
+			name: "success re-enqueues then range-deletes in order",
+			req:  &types.MergeAsyncWorkflowMessagesFromDLQRequest{ShardID: 5, QueueName: "q1", InclusiveEndMessageID: 100, PageSize: 10},
+			setup: func(h *asyncWorkflowTestHandler) {
+				h.expectOwned(5)
+				// Read one page starting from the beginning (exclusive EmptyMessageID cursor).
+				read := h.mockAsyncMgr.EXPECT().ReadMessagesFromDLQ(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, r *persistence.ReadAsyncWorkflowMessagesRequest) (*persistence.ReadAsyncWorkflowMessagesResponse, error) {
+						assert.Equal(t, "q1", r.QueueName)
+						assert.Equal(t, 5, r.ShardID)
+						assert.Equal(t, int64(-1), r.LastMessageID)
+						assert.Equal(t, 10, r.PageSize)
+						return &persistence.ReadAsyncWorkflowMessagesResponse{
+							Messages: persistence.AsyncWorkflowMessageList{
+								{MessageID: 11, Payload: []byte("a"), Encoding: "json", PartitionKey: "pk1"},
+								{MessageID: 12, Payload: []byte("b"), Encoding: "json", PartitionKey: "pk2"},
+							},
+						}, nil
+					}).Times(1)
+				// Both messages re-enqueued to the main queue BEFORE the range delete.
+				enq1 := h.mockAsyncMgr.EXPECT().Enqueue(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, r *persistence.EnqueueAsyncWorkflowMessageRequest) (*persistence.EnqueueAsyncWorkflowMessageResponse, error) {
+						assert.Equal(t, "q1", r.QueueName)
+						assert.Equal(t, 5, r.ShardID)
+						assert.Equal(t, []byte("a"), r.Payload)
+						assert.Equal(t, "pk1", r.PartitionKey)
+						return &persistence.EnqueueAsyncWorkflowMessageResponse{MessageID: 200}, nil
+					}).Times(1).After(read)
+				enq2 := h.mockAsyncMgr.EXPECT().Enqueue(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, r *persistence.EnqueueAsyncWorkflowMessageRequest) (*persistence.EnqueueAsyncWorkflowMessageResponse, error) {
+						assert.Equal(t, []byte("b"), r.Payload)
+						assert.Equal(t, "pk2", r.PartitionKey)
+						return &persistence.EnqueueAsyncWorkflowMessageResponse{MessageID: 201}, nil
+					}).Times(1).After(enq1)
+				h.mockAsyncMgr.EXPECT().RangeDeleteMessagesFromDLQ(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, r *persistence.RangeDeleteAsyncWorkflowMessagesRequest) error {
+						assert.Equal(t, "q1", r.QueueName)
+						assert.Equal(t, 5, r.ShardID)
+						// deletes up to the last merged message id, not the requested end.
+						assert.Equal(t, int64(12), r.InclusiveEndMessageID)
+						return nil
+					}).Times(1).After(enq2)
+			},
+			wantResp: &types.MergeAsyncWorkflowMessagesFromDLQResponse{MessagesCount: 2, LastMessageID: 12},
+		},
+		{
+			name: "respects inclusive end message id",
+			req:  &types.MergeAsyncWorkflowMessagesFromDLQRequest{ShardID: 5, QueueName: "q1", InclusiveEndMessageID: 11, PageSize: 10},
+			setup: func(h *asyncWorkflowTestHandler) {
+				h.expectOwned(5)
+				h.mockAsyncMgr.EXPECT().ReadMessagesFromDLQ(gomock.Any(), gomock.Any()).Return(
+					&persistence.ReadAsyncWorkflowMessagesResponse{
+						Messages: persistence.AsyncWorkflowMessageList{
+							{MessageID: 11, Payload: []byte("a")},
+							{MessageID: 12, Payload: []byte("b")}, // beyond inclusive end -> skipped
+						},
+					}, nil).Times(1)
+				// Only message 11 is re-enqueued.
+				h.mockAsyncMgr.EXPECT().Enqueue(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, r *persistence.EnqueueAsyncWorkflowMessageRequest) (*persistence.EnqueueAsyncWorkflowMessageResponse, error) {
+						assert.Equal(t, []byte("a"), r.Payload)
+						return &persistence.EnqueueAsyncWorkflowMessageResponse{MessageID: 300}, nil
+					}).Times(1)
+				h.mockAsyncMgr.EXPECT().RangeDeleteMessagesFromDLQ(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, r *persistence.RangeDeleteAsyncWorkflowMessagesRequest) error {
+						assert.Equal(t, int64(11), r.InclusiveEndMessageID)
+						return nil
+					}).Times(1)
+			},
+			wantResp: &types.MergeAsyncWorkflowMessagesFromDLQResponse{MessagesCount: 1, LastMessageID: 11},
+		},
+		{
+			name: "empty page does not delete",
+			req:  &types.MergeAsyncWorkflowMessagesFromDLQRequest{ShardID: 5, QueueName: "q1", InclusiveEndMessageID: 100, PageSize: 10},
+			setup: func(h *asyncWorkflowTestHandler) {
+				h.expectOwned(5)
+				h.mockAsyncMgr.EXPECT().ReadMessagesFromDLQ(gomock.Any(), gomock.Any()).Return(
+					&persistence.ReadAsyncWorkflowMessagesResponse{}, nil).Times(1)
+				// No Enqueue, no RangeDeleteMessagesFromDLQ expected.
+			},
+			wantResp: &types.MergeAsyncWorkflowMessagesFromDLQResponse{MessagesCount: 0, LastMessageID: 0},
+		},
+		{
+			name: "read error",
+			req:  &types.MergeAsyncWorkflowMessagesFromDLQRequest{ShardID: 5, QueueName: "q1", InclusiveEndMessageID: 100, PageSize: 10},
+			setup: func(h *asyncWorkflowTestHandler) {
+				h.expectOwned(5)
+				h.mockAsyncMgr.EXPECT().ReadMessagesFromDLQ(gomock.Any(), gomock.Any()).Return(nil, errors.New("boom")).Times(1)
+			},
+			wantErr: true,
+		},
+		{
+			name: "enqueue error aborts before delete",
+			req:  &types.MergeAsyncWorkflowMessagesFromDLQRequest{ShardID: 5, QueueName: "q1", InclusiveEndMessageID: 100, PageSize: 10},
+			setup: func(h *asyncWorkflowTestHandler) {
+				h.expectOwned(5)
+				h.mockAsyncMgr.EXPECT().ReadMessagesFromDLQ(gomock.Any(), gomock.Any()).Return(
+					&persistence.ReadAsyncWorkflowMessagesResponse{
+						Messages: persistence.AsyncWorkflowMessageList{{MessageID: 11, Payload: []byte("a")}},
+					}, nil).Times(1)
+				h.mockAsyncMgr.EXPECT().Enqueue(gomock.Any(), gomock.Any()).Return(nil, errors.New("boom")).Times(1)
+				// RangeDeleteMessagesFromDLQ must not be called on enqueue failure.
+			},
+			wantErr: true,
+		},
+		{
+			name: "range delete error",
+			req:  &types.MergeAsyncWorkflowMessagesFromDLQRequest{ShardID: 5, QueueName: "q1", InclusiveEndMessageID: 100, PageSize: 10},
+			setup: func(h *asyncWorkflowTestHandler) {
+				h.expectOwned(5)
+				h.mockAsyncMgr.EXPECT().ReadMessagesFromDLQ(gomock.Any(), gomock.Any()).Return(
+					&persistence.ReadAsyncWorkflowMessagesResponse{
+						Messages: persistence.AsyncWorkflowMessageList{{MessageID: 11, Payload: []byte("a")}},
+					}, nil).Times(1)
+				h.mockAsyncMgr.EXPECT().Enqueue(gomock.Any(), gomock.Any()).Return(
+					&persistence.EnqueueAsyncWorkflowMessageResponse{MessageID: 400}, nil).Times(1)
+				h.mockAsyncMgr.EXPECT().RangeDeleteMessagesFromDLQ(gomock.Any(), gomock.Any()).Return(errors.New("boom")).Times(1)
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			h := newAsyncWorkflowTestHandler(t, ctrl)
+			tc.setup(h)
+
+			resp, err := h.handler.MergeAsyncWorkflowMessagesFromDLQ(context.Background(), tc.req)
+			if tc.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantResp, resp)
+		})
+	}
+}
+
+func TestHandlerPurgeAsyncWorkflowMessagesFromDLQ(t *testing.T) {
+	req := &types.PurgeAsyncWorkflowMessagesFromDLQRequest{
+		ShardID:               7,
+		QueueName:             "q1",
+		InclusiveEndMessageID: 55,
+	}
+
+	tests := []struct {
+		name    string
+		setup   func(h *asyncWorkflowTestHandler)
+		wantErr bool
+	}{
+		{
+			name: "ownership lost",
+			setup: func(h *asyncWorkflowTestHandler) {
+				h.expectOwnershipLost(7)
+			},
+			wantErr: true,
+		},
+		{
+			name: "success",
+			setup: func(h *asyncWorkflowTestHandler) {
+				h.expectOwned(7)
+				h.mockAsyncMgr.EXPECT().RangeDeleteMessagesFromDLQ(gomock.Any(), gomock.Any()).DoAndReturn(
+					func(_ context.Context, r *persistence.RangeDeleteAsyncWorkflowMessagesRequest) error {
+						assert.Equal(t, "q1", r.QueueName)
+						assert.Equal(t, 7, r.ShardID)
+						assert.Equal(t, int64(55), r.InclusiveEndMessageID)
+						return nil
+					}).Times(1)
+			},
+		},
+		{
+			name: "manager error",
+			setup: func(h *asyncWorkflowTestHandler) {
+				h.expectOwned(7)
+				h.mockAsyncMgr.EXPECT().RangeDeleteMessagesFromDLQ(gomock.Any(), gomock.Any()).Return(errors.New("boom")).Times(1)
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			h := newAsyncWorkflowTestHandler(t, ctrl)
+			tc.setup(h)
+
+			resp, err := h.handler.PurgeAsyncWorkflowMessagesFromDLQ(context.Background(), req)
+			if tc.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, &types.PurgeAsyncWorkflowMessagesFromDLQResponse{}, resp)
+		})
+	}
+}

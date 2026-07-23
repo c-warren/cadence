@@ -73,6 +73,14 @@ func WithEmitConsumerCountMetrifFn(fn func(int)) ConsumerManagerOptions {
 	}
 }
 
+// WithConsumerConfig sets the dynamic-config-backed tuning knobs passed to
+// history-backed queue consumers. Non-history queue types ignore it.
+func WithConsumerConfig(cfg provider.ConsumerConfig) ConsumerManagerOptions {
+	return func(c *ConsumerManager) {
+		c.consumerConfig = cfg
+	}
+}
+
 func withAfterIterFn(fn func()) ConsumerManagerOptions {
 	return func(c *ConsumerManager) { c.afterIterFn = fn }
 }
@@ -134,6 +142,7 @@ type ConsumerManager struct {
 	wg                        sync.WaitGroup
 	activeConsumers           map[string]provider.Consumer
 	emitConsumerCountMetricFn func(int)
+	consumerConfig            provider.ConsumerConfig
 	afterIterFn               func() // test hook: called after each ticker iteration, nil in production
 }
 
@@ -246,6 +255,7 @@ func (c *ConsumerManager) refreshConsumers() {
 			NumHistoryShards:   c.numHistoryShards,
 			MembershipResolver: c.membershipResolver,
 			TimeSource:         c.timeSrc,
+			ConsumerConfig:     c.consumerConfig,
 		})
 		if err != nil {
 			c.logger.Error("Failed to create consumer", tag.Error(err), tag.WorkflowDomainName(domain.GetInfo().Name), tag.AsyncWFQueueID(queue.ID()))

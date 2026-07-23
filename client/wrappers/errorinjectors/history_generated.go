@@ -320,6 +320,26 @@ func (c *historyClient) GetReplicationMessages(ctx context.Context, gp1 *types.G
 	return
 }
 
+func (c *historyClient) MergeAsyncWorkflowMessagesFromDLQ(ctx context.Context, mp1 *types.MergeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		mp2, err = c.client.MergeAsyncWorkflowMessagesFromDLQ(ctx, mp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgHistoryInjectedFakeErr,
+			tag.HistoryClientOperationMergeAsyncWorkflowMessagesFromDLQ,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *historyClient) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQMessagesRequest, p1 ...yarpc.CallOption) (mp2 *types.MergeDLQMessagesResponse, err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
@@ -380,6 +400,26 @@ func (c *historyClient) PollMutableState(ctx context.Context, pp1 *types.PollMut
 	return
 }
 
+func (c *historyClient) PurgeAsyncWorkflowMessagesFromDLQ(ctx context.Context, pp1 *types.PurgeAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (pp2 *types.PurgeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		pp2, err = c.client.PurgeAsyncWorkflowMessagesFromDLQ(ctx, pp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgHistoryInjectedFakeErr,
+			tag.HistoryClientOperationPurgeAsyncWorkflowMessagesFromDLQ,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
 func (c *historyClient) PurgeDLQMessages(ctx context.Context, pp1 *types.PurgeDLQMessagesRequest, p1 ...yarpc.CallOption) (err error) {
 	fakeErr := c.fakeErrFn(c.errorRate)
 	var forwardCall bool
@@ -430,6 +470,26 @@ func (c *historyClient) RatelimitUpdate(ctx context.Context, request *types.Rate
 	if fakeErr != nil {
 		c.logger.Error(msgHistoryInjectedFakeErr,
 			tag.HistoryClientOperationRatelimitUpdate,
+			tag.Error(fakeErr),
+			tag.Bool(forwardCall),
+			tag.ClientError(err),
+		)
+		err = fakeErr
+		return
+	}
+	return
+}
+
+func (c *historyClient) ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, rp1 *types.ReadAsyncWorkflowMessagesFromDLQRequest, p1 ...yarpc.CallOption) (rp2 *types.ReadAsyncWorkflowMessagesFromDLQResponse, err error) {
+	fakeErr := c.fakeErrFn(c.errorRate)
+	var forwardCall bool
+	if forwardCall = c.forwardCallFn(fakeErr); forwardCall {
+		rp2, err = c.client.ReadAsyncWorkflowMessagesFromDLQ(ctx, rp1, p1...)
+	}
+
+	if fakeErr != nil {
+		c.logger.Error(msgHistoryInjectedFakeErr,
+			tag.HistoryClientOperationReadAsyncWorkflowMessagesFromDLQ,
 			tag.Error(fakeErr),
 			tag.Bool(forwardCall),
 			tag.ClientError(err),

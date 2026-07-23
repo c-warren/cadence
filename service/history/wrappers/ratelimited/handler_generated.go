@@ -125,6 +125,10 @@ func (h *historyHandler) Health(ctx context.Context) (hp1 *types.HealthStatus, e
 	return h.wrapped.Health(ctx)
 }
 
+func (h *historyHandler) MergeAsyncWorkflowMessagesFromDLQ(ctx context.Context, mp1 *types.MergeAsyncWorkflowMessagesFromDLQRequest) (mp2 *types.MergeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	return h.wrapped.MergeAsyncWorkflowMessagesFromDLQ(ctx, mp1)
+}
+
 func (h *historyHandler) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQMessagesRequest) (mp2 *types.MergeDLQMessagesResponse, err error) {
 	return h.wrapped.MergeDLQMessages(ctx, mp1)
 }
@@ -141,6 +145,10 @@ func (h *historyHandler) PrepareToStop(d1 time.Duration) (d2 time.Duration) {
 	return h.wrapped.PrepareToStop(d1)
 }
 
+func (h *historyHandler) PurgeAsyncWorkflowMessagesFromDLQ(ctx context.Context, pp1 *types.PurgeAsyncWorkflowMessagesFromDLQRequest) (pp2 *types.PurgeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	return h.wrapped.PurgeAsyncWorkflowMessagesFromDLQ(ctx, pp1)
+}
+
 func (h *historyHandler) PurgeDLQMessages(ctx context.Context, pp1 *types.PurgeDLQMessagesRequest) (err error) {
 	return h.wrapped.PurgeDLQMessages(ctx, pp1)
 }
@@ -151,6 +159,10 @@ func (h *historyHandler) QueryWorkflow(ctx context.Context, hp1 *types.HistoryQu
 
 func (h *historyHandler) RatelimitUpdate(ctx context.Context, rp1 *types.RatelimitUpdateRequest) (rp2 *types.RatelimitUpdateResponse, err error) {
 	return h.wrapped.RatelimitUpdate(ctx, rp1)
+}
+
+func (h *historyHandler) ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, rp1 *types.ReadAsyncWorkflowMessagesFromDLQRequest) (rp2 *types.ReadAsyncWorkflowMessagesFromDLQResponse, err error) {
+	return h.wrapped.ReadAsyncWorkflowMessagesFromDLQ(ctx, rp1)
 }
 
 func (h *historyHandler) ReadDLQMessages(ctx context.Context, rp1 *types.ReadDLQMessagesRequest) (rp2 *types.ReadDLQMessagesResponse, err error) {

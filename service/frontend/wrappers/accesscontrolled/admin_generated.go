@@ -389,6 +389,22 @@ func (a *adminHandler) MaintainCorruptWorkflow(ctx context.Context, ap1 *types.A
 	return a.handler.MaintainCorruptWorkflow(ctx, ap1)
 }
 
+func (a *adminHandler) MergeAsyncWorkflowMessagesFromDLQ(ctx context.Context, mp1 *types.MergeAsyncWorkflowMessagesFromDLQRequest) (mp2 *types.MergeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	attr := &authorization.Attributes{
+		APIName:     "MergeAsyncWorkflowMessagesFromDLQ",
+		Permission:  authorization.PermissionAdmin,
+		RequestBody: authorization.NewFilteredRequestBody(mp1),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.MergeAsyncWorkflowMessagesFromDLQ(ctx, mp1)
+}
+
 func (a *adminHandler) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQMessagesRequest) (mp2 *types.MergeDLQMessagesResponse, err error) {
 	attr := &authorization.Attributes{
 		APIName:     "MergeDLQMessages",
@@ -405,6 +421,22 @@ func (a *adminHandler) MergeDLQMessages(ctx context.Context, mp1 *types.MergeDLQ
 	return a.handler.MergeDLQMessages(ctx, mp1)
 }
 
+func (a *adminHandler) PurgeAsyncWorkflowMessagesFromDLQ(ctx context.Context, pp1 *types.PurgeAsyncWorkflowMessagesFromDLQRequest) (pp2 *types.PurgeAsyncWorkflowMessagesFromDLQResponse, err error) {
+	attr := &authorization.Attributes{
+		APIName:     "PurgeAsyncWorkflowMessagesFromDLQ",
+		Permission:  authorization.PermissionAdmin,
+		RequestBody: authorization.NewFilteredRequestBody(pp1),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.PurgeAsyncWorkflowMessagesFromDLQ(ctx, pp1)
+}
+
 func (a *adminHandler) PurgeDLQMessages(ctx context.Context, pp1 *types.PurgeDLQMessagesRequest) (err error) {
 	attr := &authorization.Attributes{
 		APIName:     "PurgeDLQMessages",
@@ -419,6 +451,22 @@ func (a *adminHandler) PurgeDLQMessages(ctx context.Context, pp1 *types.PurgeDLQ
 		return errUnauthorized
 	}
 	return a.handler.PurgeDLQMessages(ctx, pp1)
+}
+
+func (a *adminHandler) ReadAsyncWorkflowMessagesFromDLQ(ctx context.Context, rp1 *types.ReadAsyncWorkflowMessagesFromDLQRequest) (rp2 *types.ReadAsyncWorkflowMessagesFromDLQResponse, err error) {
+	attr := &authorization.Attributes{
+		APIName:     "ReadAsyncWorkflowMessagesFromDLQ",
+		Permission:  authorization.PermissionAdmin,
+		RequestBody: authorization.NewFilteredRequestBody(rp1),
+	}
+	isAuthorized, err := a.isAuthorized(ctx, attr)
+	if err != nil {
+		return nil, err
+	}
+	if !isAuthorized {
+		return nil, errUnauthorized
+	}
+	return a.handler.ReadAsyncWorkflowMessagesFromDLQ(ctx, rp1)
 }
 
 func (a *adminHandler) ReadDLQMessages(ctx context.Context, rp1 *types.ReadDLQMessagesRequest) (rp2 *types.ReadDLQMessagesResponse, err error) {

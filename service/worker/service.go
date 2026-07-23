@@ -28,6 +28,7 @@ import (
 	"sync/atomic"
 
 	"github.com/uber/cadence/common"
+	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
 	"github.com/uber/cadence/common/cluster"
 	"github.com/uber/cadence/common/config"
 	"github.com/uber/cadence/common/constants"
@@ -94,6 +95,7 @@ type (
 		DomainReplicationMaxRetryDuration   dynamicproperties.DurationPropertyFn
 		EnableESAnalyzer                    dynamicproperties.BoolPropertyFn
 		EnableAsyncWorkflowConsumption      dynamicproperties.BoolPropertyFn
+		AsyncWorkflowConsumerConfig         provider.ConsumerConfig
 		EnableDomainAuditLogging            dynamicproperties.BoolPropertyFn
 		HostName                            string
 	}
@@ -197,8 +199,17 @@ func NewConfig(params *resource.Params) *Config {
 		PersistenceMaxQPS:                   dc.GetIntProperty(dynamicproperties.WorkerPersistenceMaxQPS),
 		DomainReplicationMaxRetryDuration:   dc.GetDurationProperty(dynamicproperties.WorkerReplicationTaskMaxRetryDuration),
 		EnableAsyncWorkflowConsumption:      dc.GetBoolProperty(dynamicproperties.EnableAsyncWorkflowConsumption),
-		EnableDomainAuditLogging:            dc.GetBoolProperty(dynamicproperties.EnableDomainAuditLogging),
-		HostName:                            params.HostName,
+		AsyncWorkflowConsumerConfig: provider.ConsumerConfig{
+			PageSize:          dc.GetIntProperty(dynamicproperties.AsyncWorkflowConsumerPageSize),
+			BufferSize:        dc.GetIntProperty(dynamicproperties.AsyncWorkflowConsumerBufferSize),
+			PollInterval:      dc.GetDurationProperty(dynamicproperties.AsyncWorkflowConsumerPollInterval),
+			CommitInterval:    dc.GetDurationProperty(dynamicproperties.AsyncWorkflowConsumerCommitInterval),
+			ErrorBackoff:      dc.GetDurationProperty(dynamicproperties.AsyncWorkflowConsumerErrorBackoff),
+			RebalanceInterval: dc.GetDurationProperty(dynamicproperties.AsyncWorkflowConsumerRebalanceInterval),
+			RPCTimeout:        dc.GetDurationProperty(dynamicproperties.AsyncWorkflowConsumerRPCTimeout),
+		},
+		EnableDomainAuditLogging: dc.GetBoolProperty(dynamicproperties.EnableDomainAuditLogging),
+		HostName:                 params.HostName,
 	}
 	advancedVisWritingMode := dc.GetStringProperty(
 		dynamicproperties.WriteVisibilityStoreName,
@@ -505,6 +516,7 @@ func (s *Service) startAsyncWorkflowConsumerManager() common.Daemon {
 		s.params.PersistenceConfig.NumHistoryShards,
 		asyncworkflow.WithTimeSource(s.GetTimeSource()),
 		asyncworkflow.WithEnabledPropertyFn(s.config.EnableAsyncWorkflowConsumption),
+		asyncworkflow.WithConsumerConfig(s.config.AsyncWorkflowConsumerConfig),
 	)
 	cm.Start()
 	return cm

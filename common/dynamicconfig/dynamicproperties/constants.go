@@ -1663,6 +1663,25 @@ const (
 	// Allowed filters: DomainName
 	SchedulerWorkerRedundancyFactor
 
+	// AsyncWorkflowConsumerPageSize is the number of messages the worker-service
+	// history-backed async-workflow consumer fetches per GetAsyncWorkflowMessages
+	// RPC for each owned shard. Re-read on every poll so changes take effect
+	// without a restart.
+	// KeyName: worker.asyncWorkflowConsumerPageSize
+	// Value type: Int
+	// Default value: 100
+	AsyncWorkflowConsumerPageSize
+
+	// AsyncWorkflowConsumerBufferSize is the size of the in-memory channel buffering
+	// polled async-workflow messages towards the consumer. Read once at consumer
+	// creation; changing it takes effect only when the consumer is recreated (e.g.
+	// on the next domain-config refresh that restarts the consumer), because the
+	// channel cannot be resized while in use.
+	// KeyName: worker.asyncWorkflowConsumerBufferSize
+	// Value type: Int
+	// Default value: 1000
+	AsyncWorkflowConsumerBufferSize
+
 	// LastIntKey must be the last one in this const group
 	LastIntKey
 )
@@ -3376,6 +3395,42 @@ const (
 	// Allowed filters: Domain
 	MatchingRecordTaskStartedTimeout
 
+	// AsyncWorkflowConsumerPollInterval is how long the worker-service history-backed
+	// async-workflow consumer waits after an empty page before polling a shard again.
+	// Re-read on every poll so changes take effect without a restart.
+	// KeyName: worker.asyncWorkflowConsumerPollInterval
+	// Value type: Duration
+	// Default value: 1s
+	AsyncWorkflowConsumerPollInterval
+
+	// AsyncWorkflowConsumerCommitInterval is how often each shard flushes its ack
+	// level to the history service. Re-read on every commit tick.
+	// KeyName: worker.asyncWorkflowConsumerCommitInterval
+	// Value type: Duration
+	// Default value: 5s
+	AsyncWorkflowConsumerCommitInterval
+
+	// AsyncWorkflowConsumerErrorBackoff is the pause after a failed poll RPC before
+	// the consumer retries, avoiding hot-spinning. Re-read on every failure.
+	// KeyName: worker.asyncWorkflowConsumerErrorBackoff
+	// Value type: Duration
+	// Default value: 1s
+	AsyncWorkflowConsumerErrorBackoff
+
+	// AsyncWorkflowConsumerRebalanceInterval is the safety-net period for the consumer
+	// to re-evaluate shard ownership. Re-read on every rebalance tick.
+	// KeyName: worker.asyncWorkflowConsumerRebalanceInterval
+	// Value type: Duration
+	// Default value: 30s
+	AsyncWorkflowConsumerRebalanceInterval
+
+	// AsyncWorkflowConsumerRPCTimeout bounds a single ack-level commit or DLQ-enqueue
+	// RPC issued by the consumer. Re-read on every RPC.
+	// KeyName: worker.asyncWorkflowConsumerRPCTimeout
+	// Value type: Duration
+	// Default value: 10s
+	AsyncWorkflowConsumerRPCTimeout
+
 	// LastDurationKey must be the last one in this const group
 	LastDurationKey
 )
@@ -4603,6 +4658,16 @@ var IntKeys = map[IntKey]DynamicInt{
 		Filters:      []Filter{DomainName},
 		Description:  "Number of cadence-worker hosts that concurrently run a scheduler worker for each enabled domain. Re-read live every refresh tick.",
 		DefaultValue: 2,
+	},
+	AsyncWorkflowConsumerPageSize: {
+		KeyName:      "worker.asyncWorkflowConsumerPageSize",
+		Description:  "Number of messages the history-backed async-workflow consumer fetches per GetAsyncWorkflowMessages RPC for each owned shard. Re-read on every poll.",
+		DefaultValue: 100,
+	},
+	AsyncWorkflowConsumerBufferSize: {
+		KeyName:      "worker.asyncWorkflowConsumerBufferSize",
+		Description:  "Size of the in-memory channel buffering polled async-workflow messages towards the consumer. Read once at consumer creation.",
+		DefaultValue: 1000,
 	},
 }
 
@@ -6093,6 +6158,31 @@ var DurationKeys = map[DurationKey]DynamicDuration{
 		Filters:      []Filter{DomainName},
 		Description:  "MatchingRecordTaskStartedTimeout is the request timeout for RecordActivityTaskStarted and RecordDecisionTaskStarted",
 		DefaultValue: time.Second,
+	},
+	AsyncWorkflowConsumerPollInterval: {
+		KeyName:      "worker.asyncWorkflowConsumerPollInterval",
+		Description:  "How long the history-backed async-workflow consumer waits after an empty page before polling a shard again. Re-read on every poll.",
+		DefaultValue: time.Second,
+	},
+	AsyncWorkflowConsumerCommitInterval: {
+		KeyName:      "worker.asyncWorkflowConsumerCommitInterval",
+		Description:  "How often each shard flushes its ack level to the history service. Re-read on every commit tick.",
+		DefaultValue: time.Second * 5,
+	},
+	AsyncWorkflowConsumerErrorBackoff: {
+		KeyName:      "worker.asyncWorkflowConsumerErrorBackoff",
+		Description:  "Pause after a failed poll RPC before the consumer retries, avoiding hot-spinning. Re-read on every failure.",
+		DefaultValue: time.Second,
+	},
+	AsyncWorkflowConsumerRebalanceInterval: {
+		KeyName:      "worker.asyncWorkflowConsumerRebalanceInterval",
+		Description:  "Safety-net period for the consumer to re-evaluate shard ownership. Re-read on every rebalance tick.",
+		DefaultValue: time.Second * 30,
+	},
+	AsyncWorkflowConsumerRPCTimeout: {
+		KeyName:      "worker.asyncWorkflowConsumerRPCTimeout",
+		Description:  "Bounds a single ack-level commit or DLQ-enqueue RPC issued by the consumer. Re-read on every RPC.",
+		DefaultValue: time.Second * 10,
 	},
 }
 

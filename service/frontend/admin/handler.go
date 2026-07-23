@@ -1260,6 +1260,97 @@ func (adh *adminHandlerImpl) MergeDLQMessages(
 	}, nil
 }
 
+// ReadAsyncWorkflowMessagesFromDLQ reads a page of async workflow messages from a shard-scoped DLQ.
+func (adh *adminHandlerImpl) ReadAsyncWorkflowMessagesFromDLQ(
+	ctx context.Context,
+	request *types.ReadAsyncWorkflowMessagesFromDLQRequest,
+) (resp *types.ReadAsyncWorkflowMessagesFromDLQResponse, err error) {
+
+	defer func() { log.CapturePanic(recover(), adh.GetLogger(), &err) }()
+	scope, sw := adh.startRequestProfile(ctx, metrics.AdminReadAsyncWorkflowMessagesFromDLQScope)
+	defer sw.Stop()
+
+	if request == nil {
+		return nil, adh.error(validate.ErrRequestNotSet, scope)
+	}
+
+	if request.GetQueueName() == "" {
+		return nil, adh.error(validate.ErrEmptyQueueName, scope)
+	}
+
+	if request.GetPageSize() <= 0 {
+		request.PageSize = constants.ReadDLQMessagesPageSize
+	}
+
+	resp, err = adh.GetHistoryClient().ReadAsyncWorkflowMessagesFromDLQ(ctx, request)
+	if err != nil {
+		return nil, adh.error(err, scope)
+	}
+	return resp, nil
+}
+
+// MergeAsyncWorkflowMessagesFromDLQ re-injects a page of shard-scoped DLQ messages back onto the main async workflow queue.
+func (adh *adminHandlerImpl) MergeAsyncWorkflowMessagesFromDLQ(
+	ctx context.Context,
+	request *types.MergeAsyncWorkflowMessagesFromDLQRequest,
+) (resp *types.MergeAsyncWorkflowMessagesFromDLQResponse, err error) {
+
+	defer func() { log.CapturePanic(recover(), adh.GetLogger(), &err) }()
+	scope, sw := adh.startRequestProfile(ctx, metrics.AdminMergeAsyncWorkflowMessagesFromDLQScope)
+	defer sw.Stop()
+
+	if request == nil {
+		return nil, adh.error(validate.ErrRequestNotSet, scope)
+	}
+
+	if request.GetQueueName() == "" {
+		return nil, adh.error(validate.ErrEmptyQueueName, scope)
+	}
+
+	if request.GetInclusiveEndMessageID() <= 0 {
+		request.InclusiveEndMessageID = constants.InclusiveEndMessageID
+	}
+
+	if request.GetPageSize() <= 0 {
+		request.PageSize = constants.ReadDLQMessagesPageSize
+	}
+
+	resp, err = adh.GetHistoryClient().MergeAsyncWorkflowMessagesFromDLQ(ctx, request)
+	if err != nil {
+		return nil, adh.error(err, scope)
+	}
+	return resp, nil
+}
+
+// PurgeAsyncWorkflowMessagesFromDLQ deletes shard-scoped DLQ messages at or below a message id.
+func (adh *adminHandlerImpl) PurgeAsyncWorkflowMessagesFromDLQ(
+	ctx context.Context,
+	request *types.PurgeAsyncWorkflowMessagesFromDLQRequest,
+) (resp *types.PurgeAsyncWorkflowMessagesFromDLQResponse, err error) {
+
+	defer func() { log.CapturePanic(recover(), adh.GetLogger(), &err) }()
+	scope, sw := adh.startRequestProfile(ctx, metrics.AdminPurgeAsyncWorkflowMessagesFromDLQScope)
+	defer sw.Stop()
+
+	if request == nil {
+		return nil, adh.error(validate.ErrRequestNotSet, scope)
+	}
+
+	if request.GetQueueName() == "" {
+		return nil, adh.error(validate.ErrEmptyQueueName, scope)
+	}
+
+	if request.GetInclusiveEndMessageID() <= 0 {
+		request.InclusiveEndMessageID = constants.InclusiveEndMessageID
+	}
+
+	resp, err = adh.GetHistoryClient().PurgeAsyncWorkflowMessagesFromDLQ(ctx, request)
+	if err != nil {
+		return nil, adh.error(err, scope)
+	}
+	return resp, nil
+}
+
 // RefreshWorkflowTasks re-generates the workflow tasks
 func (adh *adminHandlerImpl) RefreshWorkflowTasks(
 	ctx context.Context,

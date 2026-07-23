@@ -636,6 +636,31 @@ func (p *taskProcessorImpl) generateDLQRequest(
 			DomainName: domainName,
 			ShardID:    common.Ptr(p.shard.GetShardID()),
 		}, nil
+
+	case types.ReplicationTaskTypeAsyncWorkflowRequest:
+		// Async workflow requests are not tied to a workflow execution (no
+		// domain/workflow/run) and cannot be re-fetched from the source cluster via
+		// GetDLQReplicationMessages, so the payload must travel with the DLQ entry.
+		// The full task is carried in the data blob for NoSQL backends and in the
+		// async fields of ReplicationTaskInfo for SQL backends (which have no
+		// full-task column) — mirroring the main replication queue force-blob path.
+		taskAttributes := replicationTask.GetAsyncWorkflowRequestTaskAttributes()
+		if taskAttributes == nil {
+			return nil, fmt.Errorf("async workflow request replication task with nil attributes")
+		}
+		return &persistence.PutReplicationTaskToDLQRequest{
+			SourceClusterName: p.sourceCluster,
+			TaskInfo: &persistence.ReplicationTaskInfo{
+				TaskID:                    replicationTask.GetSourceTaskID(),
+				TaskType:                  persistence.ReplicationTaskTypeAsyncWorkflowRequest,
+				AsyncWorkflowQueueName:    taskAttributes.GetQueueName(),
+				AsyncWorkflowPayload:      taskAttributes.GetPayload(),
+				AsyncWorkflowEncoding:     taskAttributes.GetEncoding(),
+				AsyncWorkflowPartitionKey: taskAttributes.GetPartitionKey(),
+			},
+			Task:    replicationTask,
+			ShardID: common.Ptr(p.shard.GetShardID()),
+		}, nil
 	default:
 		return nil, fmt.Errorf("unknown replication task type")
 	}

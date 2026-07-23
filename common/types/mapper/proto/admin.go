@@ -1613,3 +1613,175 @@ func ToAdminUpdateTaskListPartitionConfigResponse(t *adminv1.UpdateTaskListParti
 	}
 	return &types.UpdateTaskListPartitionConfigResponse{}
 }
+
+func FromAdminAsyncWorkflowMessage(t *types.AsyncWorkflowMessage) *adminv1.AsyncWorkflowMessage {
+	if t == nil {
+		return nil
+	}
+	return &adminv1.AsyncWorkflowMessage{
+		MessageId:    t.MessageID,
+		Payload:      t.Payload,
+		Encoding:     t.Encoding,
+		PartitionKey: t.PartitionKey,
+		CreatedTime:  timeToTimestamp(&t.CreatedTime),
+	}
+}
+
+func ToAdminAsyncWorkflowMessage(t *adminv1.AsyncWorkflowMessage) *types.AsyncWorkflowMessage {
+	if t == nil {
+		return nil
+	}
+	return &types.AsyncWorkflowMessage{
+		MessageID:    t.MessageId,
+		Payload:      t.Payload,
+		Encoding:     t.Encoding,
+		PartitionKey: t.PartitionKey,
+		CreatedTime:  timestampToTimeVal(t.CreatedTime),
+	}
+}
+
+func FromAdminAsyncWorkflowMessageArray(t []*types.AsyncWorkflowMessage) []*adminv1.AsyncWorkflowMessage {
+	if t == nil {
+		return nil
+	}
+	v := make([]*adminv1.AsyncWorkflowMessage, len(t))
+	for i := range t {
+		v[i] = FromAdminAsyncWorkflowMessage(t[i])
+	}
+	return v
+}
+
+func ToAdminAsyncWorkflowMessageArray(t []*adminv1.AsyncWorkflowMessage) []*types.AsyncWorkflowMessage {
+	if t == nil {
+		return nil
+	}
+	v := make([]*types.AsyncWorkflowMessage, len(t))
+	for i := range t {
+		v[i] = ToAdminAsyncWorkflowMessage(t[i])
+	}
+	return v
+}
+
+func FromAdminReadAsyncWorkflowMessagesFromDLQRequest(t *types.ReadAsyncWorkflowMessagesFromDLQRequest) *adminv1.ReadAsyncWorkflowMessagesFromDLQRequest {
+	if t == nil {
+		return nil
+	}
+	return &adminv1.ReadAsyncWorkflowMessagesFromDLQRequest{
+		QueueName:     t.QueueName,
+		ShardId:       t.ShardID,
+		LastMessageId: t.LastMessageID,
+		PageSize:      t.PageSize,
+	}
+}
+
+func ToAdminReadAsyncWorkflowMessagesFromDLQRequest(t *adminv1.ReadAsyncWorkflowMessagesFromDLQRequest) *types.ReadAsyncWorkflowMessagesFromDLQRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.ReadAsyncWorkflowMessagesFromDLQRequest{
+		QueueName:     t.QueueName,
+		ShardID:       t.ShardId,
+		LastMessageID: t.LastMessageId,
+		PageSize:      t.PageSize,
+	}
+}
+
+func FromAdminReadAsyncWorkflowMessagesFromDLQResponse(t *types.ReadAsyncWorkflowMessagesFromDLQResponse) *adminv1.ReadAsyncWorkflowMessagesFromDLQResponse {
+	if t == nil {
+		return nil
+	}
+	return &adminv1.ReadAsyncWorkflowMessagesFromDLQResponse{
+		Messages:      FromAdminAsyncWorkflowMessageArray(t.Messages),
+		LastMessageId: t.LastMessageID,
+	}
+}
+
+func ToAdminReadAsyncWorkflowMessagesFromDLQResponse(t *adminv1.ReadAsyncWorkflowMessagesFromDLQResponse) *types.ReadAsyncWorkflowMessagesFromDLQResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.ReadAsyncWorkflowMessagesFromDLQResponse{
+		Messages:      ToAdminAsyncWorkflowMessageArray(t.Messages),
+		LastMessageID: t.LastMessageId,
+	}
+}
+
+func FromAdminMergeAsyncWorkflowMessagesFromDLQRequest(t *types.MergeAsyncWorkflowMessagesFromDLQRequest) *adminv1.MergeAsyncWorkflowMessagesFromDLQRequest {
+	if t == nil {
+		return nil
+	}
+	return &adminv1.MergeAsyncWorkflowMessagesFromDLQRequest{
+		QueueName:             t.QueueName,
+		ShardId:               t.ShardID,
+		InclusiveEndMessageId: t.InclusiveEndMessageID,
+		PageSize:              t.PageSize,
+	}
+}
+
+func ToAdminMergeAsyncWorkflowMessagesFromDLQRequest(t *adminv1.MergeAsyncWorkflowMessagesFromDLQRequest) *types.MergeAsyncWorkflowMessagesFromDLQRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.MergeAsyncWorkflowMessagesFromDLQRequest{
+		QueueName:             t.QueueName,
+		ShardID:               t.ShardId,
+		InclusiveEndMessageID: t.InclusiveEndMessageId,
+		PageSize:              t.PageSize,
+	}
+}
+
+func FromAdminMergeAsyncWorkflowMessagesFromDLQResponse(t *types.MergeAsyncWorkflowMessagesFromDLQResponse) *adminv1.MergeAsyncWorkflowMessagesFromDLQResponse {
+	if t == nil {
+		return nil
+	}
+	return &adminv1.MergeAsyncWorkflowMessagesFromDLQResponse{
+		MessagesCount: t.MessagesCount,
+		LastMessageId: t.LastMessageID,
+	}
+}
+
+func ToAdminMergeAsyncWorkflowMessagesFromDLQResponse(t *adminv1.MergeAsyncWorkflowMessagesFromDLQResponse) *types.MergeAsyncWorkflowMessagesFromDLQResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.MergeAsyncWorkflowMessagesFromDLQResponse{
+		MessagesCount: t.MessagesCount,
+		LastMessageID: t.LastMessageId,
+	}
+}
+
+func FromAdminPurgeAsyncWorkflowMessagesFromDLQRequest(t *types.PurgeAsyncWorkflowMessagesFromDLQRequest) *adminv1.PurgeAsyncWorkflowMessagesFromDLQRequest {
+	if t == nil {
+		return nil
+	}
+	return &adminv1.PurgeAsyncWorkflowMessagesFromDLQRequest{
+		QueueName:             t.QueueName,
+		ShardId:               t.ShardID,
+		InclusiveEndMessageId: t.InclusiveEndMessageID,
+	}
+}
+
+func ToAdminPurgeAsyncWorkflowMessagesFromDLQRequest(t *adminv1.PurgeAsyncWorkflowMessagesFromDLQRequest) *types.PurgeAsyncWorkflowMessagesFromDLQRequest {
+	if t == nil {
+		return nil
+	}
+	return &types.PurgeAsyncWorkflowMessagesFromDLQRequest{
+		QueueName:             t.QueueName,
+		ShardID:               t.ShardId,
+		InclusiveEndMessageID: t.InclusiveEndMessageId,
+	}
+}
+
+func FromAdminPurgeAsyncWorkflowMessagesFromDLQResponse(t *types.PurgeAsyncWorkflowMessagesFromDLQResponse) *adminv1.PurgeAsyncWorkflowMessagesFromDLQResponse {
+	if t == nil {
+		return nil
+	}
+	return &adminv1.PurgeAsyncWorkflowMessagesFromDLQResponse{}
+}
+
+func ToAdminPurgeAsyncWorkflowMessagesFromDLQResponse(t *adminv1.PurgeAsyncWorkflowMessagesFromDLQResponse) *types.PurgeAsyncWorkflowMessagesFromDLQResponse {
+	if t == nil {
+		return nil
+	}
+	return &types.PurgeAsyncWorkflowMessagesFromDLQResponse{}
+}

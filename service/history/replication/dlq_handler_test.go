@@ -502,6 +502,44 @@ func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_CorruptBlob_FallsBackToCr
 	s.Len(taskInfo, 1)
 }
 
+func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_AsyncWorkflowRequest_ReconstructedFromInfo() {
+	// For SQL backends the full task blob is not persisted (Task is nil), but async
+	// workflow requests cannot be re-fetched cross-cluster. The handler reconstructs
+	// the task from the DLQ entry's async fields, so no admin client call is expected.
+	resp := &persistence.GetReplicationDLQTasksResponse{
+		Tasks: []*persistence.ReplicationDLQTask{
+			{
+				Info: &persistence.ReplicationTaskInfo{
+					TaskID:                    777,
+					TaskType:                  persistence.ReplicationTaskTypeAsyncWorkflowRequest,
+					AsyncWorkflowQueueName:    "test-queue",
+					AsyncWorkflowPayload:      []byte("test-payload"),
+					AsyncWorkflowEncoding:     "thriftrw",
+					AsyncWorkflowPartitionKey: "partition-key",
+				},
+			},
+		},
+	}
+	s.executionManager.On("GetReplicationTasksFromDLQ", mock.Anything, mock.Anything).Return(resp, nil).Times(1)
+
+	// No GetRemoteAdminClient or GetDLQReplicationMessages calls expected.
+	replicationTasks, taskInfo, _, err := s.messageHandler.readMessagesWithAckLevel(context.Background(), s.sourceCluster, 777, 12, nil)
+
+	s.NoError(err)
+	s.Len(replicationTasks, 1)
+	s.Len(taskInfo, 1)
+	rt := replicationTasks[0]
+	s.Require().NotNil(rt)
+	s.Equal(types.ReplicationTaskTypeAsyncWorkflowRequest, rt.GetTaskType())
+	s.Equal(int64(777), rt.SourceTaskID)
+	attr := rt.GetAsyncWorkflowRequestTaskAttributes()
+	s.Require().NotNil(attr)
+	s.Equal("test-queue", attr.QueueName)
+	s.Equal([]byte("test-payload"), attr.Payload)
+	s.Equal("thriftrw", attr.Encoding)
+	s.Equal("partition-key", attr.PartitionKey)
+}
+
 func (s *dlqHandlerSuite) TestReadMessagesWithAckLevel_MixedLocalAndRemote() {
 	// Task 1 is hydrated by the manager; task 2 has no payload and needs cross-cluster hydration.
 	replicationTask1 := &types.ReplicationTask{
