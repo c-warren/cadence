@@ -295,6 +295,9 @@ func TestConsumerManager(t *testing.T) {
 				mockDomainCache,
 				mockQueueProvider,
 				nil,
+				nil,
+				nil,
+				0,
 				WithTimeSource(mockTimeSrc),
 			)
 
@@ -358,6 +361,9 @@ func TestConsumerManagerEnabledDisabled(t *testing.T) {
 		mockDomainCache,
 		mockQueueProvider,
 		nil,
+		nil,
+		nil,
+		0,
 		WithTimeSource(mockTimeSrc),
 		WithEnabledPropertyFn(func(opts ...dynamicproperties.FilterOption) bool {
 			return atomic.LoadInt32(&consumerMgrEnabled) == 1

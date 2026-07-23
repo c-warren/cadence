@@ -42,6 +42,7 @@ import (
 	frontendClient "github.com/uber/cadence/client/frontend"
 	historyClient "github.com/uber/cadence/client/history"
 	matchingClient "github.com/uber/cadence/client/matching"
+	timeoutwrapper "github.com/uber/cadence/client/wrappers/timeout"
 	"github.com/uber/cadence/common"
 	carchiver "github.com/uber/cadence/common/archiver"
 	"github.com/uber/cadence/common/archiver/provider"
@@ -1003,6 +1004,14 @@ func (c *cadenceImpl) startWorker(hosts map[string][]membership.HostInfo, startW
 			asyncWFDomainCache,
 			queueProvider,
 			c.frontendClient,
+			// Wrap the raw history client with the default timeout wrapper so that
+			// the consumer's poll/commit RPCs carry a request TTL, mirroring how the
+			// real client factory builds the history client. Without this the
+			// background poll context has no deadline and YARPC rejects the call
+			// with "missing TTL".
+			timeoutwrapper.NewHistoryClient(c.GetHistoryClient(), timeoutwrapper.HistoryDefaultTimeout),
+			service.GetMembershipResolver(),
+			c.persistenceConfig.NumHistoryShards,
 			asyncworkflow.WithTimeSource(params.TimeSource),
 			asyncworkflow.WithRefreshInterval(time.Second),
 		)

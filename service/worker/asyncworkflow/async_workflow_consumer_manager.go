@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/uber/cadence/client/frontend"
+	historyclient "github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common"
 	"github.com/uber/cadence/common/asyncworkflow/queue"
 	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
@@ -36,6 +37,7 @@ import (
 	"github.com/uber/cadence/common/dynamicconfig/dynamicproperties"
 	"github.com/uber/cadence/common/log"
 	"github.com/uber/cadence/common/log/tag"
+	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
@@ -81,22 +83,28 @@ func NewConsumerManager(
 	domainCache cache.DomainCache,
 	queueProvider queue.Provider,
 	frontendClient frontend.Client,
+	historyClient historyclient.Client,
+	membershipResolver membership.Resolver,
+	numHistoryShards int,
 	options ...ConsumerManagerOptions,
 ) *ConsumerManager {
 	ctx, cancel := context.WithCancel(context.Background())
 	cm := &ConsumerManager{
-		enabledFn:       dynamicproperties.GetBoolPropertyFn(true),
-		logger:          logger.WithTags(tag.ComponentAsyncWFConsumptionManager),
-		metricsClient:   metricsClient,
-		domainCache:     domainCache,
-		queueProvider:   queueProvider,
-		frontendClient:  frontendClient,
-		refreshInterval: defaultRefreshInterval,
-		shutdownTimeout: defaultShutdownTimeout,
-		ctx:             ctx,
-		cancelFn:        cancel,
-		activeConsumers: make(map[string]provider.Consumer),
-		timeSrc:         clock.NewRealTimeSource(),
+		enabledFn:          dynamicproperties.GetBoolPropertyFn(true),
+		logger:             logger.WithTags(tag.ComponentAsyncWFConsumptionManager),
+		metricsClient:      metricsClient,
+		domainCache:        domainCache,
+		queueProvider:      queueProvider,
+		frontendClient:     frontendClient,
+		historyClient:      historyClient,
+		membershipResolver: membershipResolver,
+		numHistoryShards:   numHistoryShards,
+		refreshInterval:    defaultRefreshInterval,
+		shutdownTimeout:    defaultShutdownTimeout,
+		ctx:                ctx,
+		cancelFn:           cancel,
+		activeConsumers:    make(map[string]provider.Consumer),
+		timeSrc:            clock.NewRealTimeSource(),
 	}
 
 	cm.emitConsumerCountMetricFn = cm.emitConsumerCountMetric
@@ -116,6 +124,9 @@ type ConsumerManager struct {
 	domainCache               cache.DomainCache
 	queueProvider             queue.Provider
 	frontendClient            frontend.Client
+	historyClient             historyclient.Client
+	membershipResolver        membership.Resolver
+	numHistoryShards          int
 	refreshInterval           time.Duration
 	shutdownTimeout           time.Duration
 	ctx                       context.Context
@@ -228,9 +239,13 @@ func (c *ConsumerManager) refreshConsumers() {
 
 		c.logger.Info("Starting consumer", tag.WorkflowDomainName(domain.GetInfo().Name), tag.AsyncWFQueueID(queue.ID()))
 		consumer, err := queue.CreateConsumer(&provider.Params{
-			Logger:         c.logger,
-			MetricsClient:  c.metricsClient,
-			FrontendClient: c.frontendClient,
+			Logger:             c.logger,
+			MetricsClient:      c.metricsClient,
+			FrontendClient:     c.frontendClient,
+			HistoryClient:      c.historyClient,
+			NumHistoryShards:   c.numHistoryShards,
+			MembershipResolver: c.membershipResolver,
+			TimeSource:         c.timeSrc,
 		})
 		if err != nil {
 			c.logger.Error("Failed to create consumer", tag.Error(err), tag.WorkflowDomainName(domain.GetInfo().Name), tag.AsyncWFQueueID(queue.ID()))

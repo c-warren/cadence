@@ -32,6 +32,7 @@ import (
 	historyclient "github.com/uber/cadence/client/history"
 	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
 	"github.com/uber/cadence/common/log"
+	"github.com/uber/cadence/common/membership"
 	"github.com/uber/cadence/common/metrics"
 	"github.com/uber/cadence/common/types"
 )
@@ -90,12 +91,55 @@ func TestDecoder(t *testing.T) {
 	})
 }
 
-func TestCreateConsumerNotImplemented(t *testing.T) {
+func TestCreateConsumerValidation(t *testing.T) {
 	q := &queueImpl{config: &queueConfig{QueueName: "q1"}}
-	c, err := q.CreateConsumer(&provider.Params{})
-	assert.Nil(t, c)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not implemented")
+
+	t.Run("nil history client", func(t *testing.T) {
+		_, err := q.CreateConsumer(&provider.Params{
+			Logger:           log.NewNoop(),
+			MetricsClient:    metrics.NewNoopMetricsClient(),
+			NumHistoryShards: 4,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "history client is required")
+	})
+
+	t.Run("non-positive shards", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		_, err := q.CreateConsumer(&provider.Params{
+			Logger:           log.NewNoop(),
+			MetricsClient:    metrics.NewNoopMetricsClient(),
+			HistoryClient:    historyclient.NewMockClient(ctrl),
+			NumHistoryShards: 0,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid number of history shards")
+	})
+
+	t.Run("nil membership resolver", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		_, err := q.CreateConsumer(&provider.Params{
+			Logger:           log.NewNoop(),
+			MetricsClient:    metrics.NewNoopMetricsClient(),
+			HistoryClient:    historyclient.NewMockClient(ctrl),
+			NumHistoryShards: 4,
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "membership resolver is required")
+	})
+
+	t.Run("happy path returns non-nil consumer", func(t *testing.T) {
+		ctrl := gomock.NewController(t)
+		c, err := q.CreateConsumer(&provider.Params{
+			Logger:             log.NewNoop(),
+			MetricsClient:      metrics.NewNoopMetricsClient(),
+			HistoryClient:      historyclient.NewMockClient(ctrl),
+			NumHistoryShards:   4,
+			MembershipResolver: membership.NewMockResolver(ctrl),
+		})
+		require.NoError(t, err)
+		assert.NotNil(t, c)
+	})
 }
 
 func TestCreateProducerValidation(t *testing.T) {

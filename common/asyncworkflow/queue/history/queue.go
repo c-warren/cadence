@@ -26,7 +26,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/uber/cadence/common/asyncworkflow/queue/consumer"
 	"github.com/uber/cadence/common/asyncworkflow/queue/provider"
+	"github.com/uber/cadence/common/clock"
 	"github.com/uber/cadence/common/log/tag"
 	"github.com/uber/cadence/common/messaging"
 	"github.com/uber/cadence/common/metrics"
@@ -53,7 +55,32 @@ func (q *queueImpl) ID() string {
 }
 
 func (q *queueImpl) CreateConsumer(p *provider.Params) (provider.Consumer, error) {
-	return nil, errors.New("history-backed async queue consumer not implemented (Phase 4)")
+	if p.HistoryClient == nil {
+		return nil, errors.New("history client is required to create a history-backed async queue consumer")
+	}
+	if p.NumHistoryShards <= 0 {
+		return nil, fmt.Errorf("invalid number of history shards %d for history-backed async queue consumer", p.NumHistoryShards)
+	}
+	if p.MembershipResolver == nil {
+		return nil, errors.New("membership resolver is required to create a history-backed async queue consumer")
+	}
+
+	timeSource := p.TimeSource
+	if timeSource == nil {
+		timeSource = clock.NewRealTimeSource()
+	}
+
+	p.Logger.Info("Creating history-backed async wf consumer", tag.AsyncWFQueueID(q.config.ID()))
+	historyConsumer := newConsumer(
+		q.config.QueueName,
+		p.HistoryClient,
+		p.NumHistoryShards,
+		p.MembershipResolver,
+		timeSource,
+		p.Logger,
+		p.MetricsClient,
+	)
+	return consumer.New(q.ID(), historyConsumer, p.Logger, p.MetricsClient, p.FrontendClient), nil
 }
 
 func (q *queueImpl) CreateProducer(p *provider.Params) (messaging.Producer, error) {
