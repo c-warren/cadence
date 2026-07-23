@@ -54,6 +54,21 @@ func (mr *MockFactoryMockRecorder) Close() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockFactory)(nil).Close))
 }
 
+// NewAsyncWorkflowQueueManager mocks base method.
+func (m *MockFactory) NewAsyncWorkflowQueueManager() (persistence.AsyncWorkflowQueueManager, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewAsyncWorkflowQueueManager")
+	ret0, _ := ret[0].(persistence.AsyncWorkflowQueueManager)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewAsyncWorkflowQueueManager indicates an expected call of NewAsyncWorkflowQueueManager.
+func (mr *MockFactoryMockRecorder) NewAsyncWorkflowQueueManager() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewAsyncWorkflowQueueManager", reflect.TypeOf((*MockFactory)(nil).NewAsyncWorkflowQueueManager))
+}
+
 // NewConfigStoreManager mocks base method.
 func (m *MockFactory) NewConfigStoreManager() (persistence.ConfigStoreManager, error) {
 	m.ctrl.T.Helper()
@@ -238,6 +253,21 @@ func (m *MockDataStoreFactory) Close() {
 func (mr *MockDataStoreFactoryMockRecorder) Close() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Close", reflect.TypeOf((*MockDataStoreFactory)(nil).Close))
+}
+
+// NewAsyncWorkflowQueue mocks base method.
+func (m *MockDataStoreFactory) NewAsyncWorkflowQueue() (persistence.AsyncWorkflowQueueStore, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "NewAsyncWorkflowQueue")
+	ret0, _ := ret[0].(persistence.AsyncWorkflowQueueStore)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NewAsyncWorkflowQueue indicates an expected call of NewAsyncWorkflowQueue.
+func (mr *MockDataStoreFactoryMockRecorder) NewAsyncWorkflowQueue() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NewAsyncWorkflowQueue", reflect.TypeOf((*MockDataStoreFactory)(nil).NewAsyncWorkflowQueue))
 }
 
 // NewConfigStore mocks base method.

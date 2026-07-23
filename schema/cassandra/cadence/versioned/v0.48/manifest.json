@@ -1,0 +1,8 @@
+{
+  "CurrVersion": "0.48",
+  "MinCompatibleVersion": "0.48",
+  "Description": "Add async_workflow_queue, async_workflow_queue_metadata and async_workflow_queue_dlq tables for the Cassandra/history-backed async workflow queue",
+  "SchemaUpdateCqlFiles": [
+    "async_workflow_queue.cql"
+  ]
+}

@@ -114,6 +114,11 @@ func (f *Factory) NewQueue(queueType persistence.QueueType) (persistence.QueueSt
 	return newNoSQLQueueStore(f.cfg, f.logger, f.metricsClient, queueType, f.dc)
 }
 
+// NewAsyncWorkflowQueue returns a new async workflow queue store backed by nosql
+func (f *Factory) NewAsyncWorkflowQueue() (persistence.AsyncWorkflowQueueStore, error) {
+	return newNoSQLAsyncWorkflowQueueStore(f.cfg, f.logger, f.metricsClient, f.dc)
+}
+
 // NewConfigStore returns a new config store
 func (f *Factory) NewConfigStore() (persistence.ConfigStore, error) {
 	return NewNoSQLConfigStore(f.cfg, f.logger, f.metricsClient, f.dc)

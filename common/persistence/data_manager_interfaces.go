@@ -20,12 +20,13 @@
 // THE SOFTWARE.
 
 // Generate rate limiter wrappers.
-//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,ExecutionManagerFactory,TaskManager,HistoryManager,DomainManager,DomainAuditManager,HistoryTaskDLQManager,QueueManager,ConfigStoreManager
+//go:generate mockgen -package $GOPACKAGE -destination data_manager_interfaces_mock.go github.com/uber/cadence/common/persistence Task,ShardManager,ExecutionManager,ExecutionManagerFactory,TaskManager,HistoryManager,DomainManager,DomainAuditManager,HistoryTaskDLQManager,QueueManager,AsyncWorkflowQueueManager,ConfigStoreManager
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/configstore_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/history_generated.go
 //go:generate gowrap gen -g -p . -i ExecutionManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/execution_generated.go
 //go:generate gowrap gen -g -p . -i QueueManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/queue_generated.go
+//go:generate gowrap gen -g -p . -i AsyncWorkflowQueueManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/asyncworkflowqueue_generated.go
 //go:generate gowrap gen -g -p . -i TaskManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/task_generated.go
 //go:generate gowrap gen -g -p . -i ShardManager -t ./wrappers/templates/ratelimited.tmpl -o wrappers/ratelimited/shard_generated.go
 
@@ -37,6 +38,7 @@
 //go:generate gowrap gen -g -p . -i HistoryManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/history_generated.go
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/domain_generated.go
 //go:generate gowrap gen -g -p . -i QueueManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/queue_generated.go
+//go:generate gowrap gen -g -p . -i AsyncWorkflowQueueManager -t ./wrappers/templates/errorinjector.tmpl -o wrappers/errorinjectors/asyncworkflowqueue_generated.go
 
 // Generate metered wrappers.
 //go:generate gowrap gen -g -p . -i ConfigStoreManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/configstore_generated.go
@@ -46,6 +48,7 @@
 //go:generate gowrap gen -g -p . -i DomainManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/domain_generated.go
 //go:generate gowrap gen -g -p . -i HistoryTaskDLQManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/historytaskdlq_generated.go
 //go:generate gowrap gen -g -p . -i QueueManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/queue_generated.go
+//go:generate gowrap gen -g -p . -i AsyncWorkflowQueueManager -t ./wrappers/templates/metered.tmpl -o wrappers/metered/asyncworkflowqueue_generated.go
 
 // execution metered wrapper is special
 //go:generate gowrap gen -g -p . -i ExecutionManager -t ./wrappers/templates/metered_execution.tmpl -o wrappers/metered/execution_generated.go
@@ -1978,6 +1981,88 @@ type (
 	}
 
 	QueueMessageList []*QueueMessage
+
+	// AsyncWorkflowQueueManager manages the history-backed async workflow request queue(s).
+	// Each logical queue (QueueName, the equivalent of a Kafka topic) is sharded by history shard id.
+	// Within a (QueueName, ShardID) partition, MessageID is a monotonic sequence assigned by the single
+	// shard owner, giving FIFO ordering without conditional writes. Consumers advance a per-shard ack
+	// level and range-delete acked messages; poison messages are moved to a per-shard DLQ.
+	AsyncWorkflowQueueManager interface {
+		Closeable
+		Enqueue(ctx context.Context, request *EnqueueAsyncWorkflowMessageRequest) (*EnqueueAsyncWorkflowMessageResponse, error)
+		ReadMessages(ctx context.Context, request *ReadAsyncWorkflowMessagesRequest) (*ReadAsyncWorkflowMessagesResponse, error)
+		UpdateAckLevel(ctx context.Context, request *UpdateAsyncWorkflowAckLevelRequest) error
+		GetAckLevel(ctx context.Context, request *GetAsyncWorkflowAckLevelRequest) (*GetAsyncWorkflowAckLevelResponse, error)
+		RangeDeleteMessages(ctx context.Context, request *RangeDeleteAsyncWorkflowMessagesRequest) error
+		EnqueueToDLQ(ctx context.Context, request *EnqueueAsyncWorkflowMessageRequest) (*EnqueueAsyncWorkflowMessageResponse, error)
+		ReadMessagesFromDLQ(ctx context.Context, request *ReadAsyncWorkflowMessagesRequest) (*ReadAsyncWorkflowMessagesResponse, error)
+		RangeDeleteMessagesFromDLQ(ctx context.Context, request *RangeDeleteAsyncWorkflowMessagesRequest) error
+	}
+
+	// AsyncWorkflowMessage is a single async workflow request stored in the queue.
+	AsyncWorkflowMessage struct {
+		QueueName    string    `json:"queue_name"`
+		ShardID      int       `json:"shard_id"`
+		MessageID    int64     `json:"message_id"`
+		Payload      []byte    `json:"message_payload"`
+		Encoding     string    `json:"encoding"`
+		PartitionKey string    `json:"partition_key"`
+		CreatedTime  time.Time `json:"created_time"`
+	}
+
+	AsyncWorkflowMessageList []*AsyncWorkflowMessage
+
+	// EnqueueAsyncWorkflowMessageRequest enqueues a single message onto (QueueName, ShardID).
+	// The caller (the history shard owner) is the single writer for the shard.
+	EnqueueAsyncWorkflowMessageRequest struct {
+		QueueName        string
+		ShardID          int
+		Payload          []byte
+		Encoding         string
+		PartitionKey     string
+		CurrentTimeStamp time.Time
+	}
+
+	// EnqueueAsyncWorkflowMessageResponse returns the monotonic message id assigned by the store.
+	EnqueueAsyncWorkflowMessageResponse struct {
+		MessageID int64
+	}
+
+	// ReadAsyncWorkflowMessagesRequest reads up to PageSize messages with MessageID > LastMessageID.
+	ReadAsyncWorkflowMessagesRequest struct {
+		QueueName     string
+		ShardID       int
+		LastMessageID int64 // exclusive lower bound (the consumer's current cursor)
+		PageSize      int
+	}
+
+	ReadAsyncWorkflowMessagesResponse struct {
+		Messages AsyncWorkflowMessageList
+	}
+
+	// UpdateAsyncWorkflowAckLevelRequest advances the per-shard consumption cursor via CAS.
+	UpdateAsyncWorkflowAckLevelRequest struct {
+		QueueName        string
+		ShardID          int
+		AckLevel         int64
+		CurrentTimeStamp time.Time
+	}
+
+	GetAsyncWorkflowAckLevelRequest struct {
+		QueueName string
+		ShardID   int
+	}
+
+	GetAsyncWorkflowAckLevelResponse struct {
+		AckLevel int64
+	}
+
+	// RangeDeleteAsyncWorkflowMessagesRequest deletes all messages with MessageID <= InclusiveEndMessageID.
+	RangeDeleteAsyncWorkflowMessagesRequest struct {
+		QueueName             string
+		ShardID               int
+		InclusiveEndMessageID int64
+	}
 
 	ConfigStoreManager interface {
 		Closeable

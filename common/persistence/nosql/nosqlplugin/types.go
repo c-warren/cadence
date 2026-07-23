@@ -378,6 +378,26 @@ type (
 		CurrentTimeStamp time.Time
 	}
 
+	// AsyncWorkflowQueueMessageRow defines a row in the async_workflow_queue (or its DLQ) table.
+	AsyncWorkflowQueueMessageRow struct {
+		QueueName        string
+		ShardID          int
+		ID               int64
+		Payload          []byte
+		Encoding         string
+		PartitionKey     string
+		CurrentTimeStamp time.Time
+	}
+
+	// AsyncWorkflowQueueMetadataRow defines a row in the async_workflow_queue_metadata table.
+	AsyncWorkflowQueueMetadataRow struct {
+		QueueName        string
+		ShardID          int
+		AckLevel         int64
+		Version          int64
+		CurrentTimeStamp time.Time
+	}
+
 	// HistoryNodeRow represents a row in history_node table
 	HistoryNodeRow struct {
 		ShardID  int

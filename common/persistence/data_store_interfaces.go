@@ -310,6 +310,21 @@ type (
 		Payload   []byte    `json:"message_payload"`
 	}
 
+	// AsyncWorkflowQueueStore is the DB-specific store backing AsyncWorkflowQueueManager.
+	// It shares the public request/response types (the payload is already raw bytes, so no DataBlob
+	// transform is needed between the manager and the store).
+	AsyncWorkflowQueueStore interface {
+		Closeable
+		Enqueue(ctx context.Context, request *EnqueueAsyncWorkflowMessageRequest) (*EnqueueAsyncWorkflowMessageResponse, error)
+		ReadMessages(ctx context.Context, request *ReadAsyncWorkflowMessagesRequest) (*ReadAsyncWorkflowMessagesResponse, error)
+		UpdateAckLevel(ctx context.Context, request *UpdateAsyncWorkflowAckLevelRequest) error
+		GetAckLevel(ctx context.Context, request *GetAsyncWorkflowAckLevelRequest) (*GetAsyncWorkflowAckLevelResponse, error)
+		RangeDeleteMessages(ctx context.Context, request *RangeDeleteAsyncWorkflowMessagesRequest) error
+		EnqueueToDLQ(ctx context.Context, request *EnqueueAsyncWorkflowMessageRequest) (*EnqueueAsyncWorkflowMessageResponse, error)
+		ReadMessagesFromDLQ(ctx context.Context, request *ReadAsyncWorkflowMessagesRequest) (*ReadAsyncWorkflowMessagesResponse, error)
+		RangeDeleteMessagesFromDLQ(ctx context.Context, request *RangeDeleteAsyncWorkflowMessagesRequest) error
+	}
+
 	// DataBlob represents a blob for any binary data.
 	// It contains raw data, and metadata(right now only encoding) in other field
 	// Note that it should be only used for Persistence layer, below dataInterface and application(historyEngine/etc)
