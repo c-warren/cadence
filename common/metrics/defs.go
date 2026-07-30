@@ -430,12 +430,6 @@ const (
 	HistoryClientMergeDLQMessagesScope
 	// HistoryClientEnqueueAsyncWorkflowMessageScope tracks RPC calls to history service
 	HistoryClientEnqueueAsyncWorkflowMessageScope
-	// HistoryClientGetAsyncWorkflowMessagesScope tracks RPC calls to history service
-	HistoryClientGetAsyncWorkflowMessagesScope
-	// HistoryClientUpdateAsyncWorkflowAckLevelScope tracks RPC calls to history service
-	HistoryClientUpdateAsyncWorkflowAckLevelScope
-	// HistoryClientEnqueueAsyncWorkflowMessageToDLQScope tracks RPC calls to history service
-	HistoryClientEnqueueAsyncWorkflowMessageToDLQScope
 	// HistoryClientRefreshWorkflowTasksScope tracks RPC calls to history service
 	HistoryClientRefreshWorkflowTasksScope
 	// HistoryClientNotifyFailoverMarkersScope tracks RPC calls to history service
@@ -1269,12 +1263,6 @@ const (
 	HistoryMergeDLQMessagesScope
 	// HistoryEnqueueAsyncWorkflowMessageScope tracks EnqueueAsyncWorkflowMessage API calls received by service
 	HistoryEnqueueAsyncWorkflowMessageScope
-	// HistoryGetAsyncWorkflowMessagesScope tracks GetAsyncWorkflowMessages API calls received by service
-	HistoryGetAsyncWorkflowMessagesScope
-	// HistoryUpdateAsyncWorkflowAckLevelScope tracks UpdateAsyncWorkflowAckLevel API calls received by service
-	HistoryUpdateAsyncWorkflowAckLevelScope
-	// HistoryEnqueueAsyncWorkflowMessageToDLQScope tracks EnqueueAsyncWorkflowMessageToDLQ API calls received by service
-	HistoryEnqueueAsyncWorkflowMessageToDLQScope
 	// HistoryShardControllerScope is the scope used by shard controller
 	HistoryShardControllerScope
 	// HistoryReapplyEventsScope tracks ReapplyEvents API calls received by service
@@ -1493,6 +1481,8 @@ const (
 	HistoryTaskDLQProcessorScope
 	// AsyncWorkflowQueueGCScope is the scope used by the per-shard async workflow queue GC daemon
 	AsyncWorkflowQueueGCScope
+	// AsyncWorkflowQueueConsumerScope is the scope used by the per-shard async workflow queue consumer
+	AsyncWorkflowQueueConsumerScope
 	NumHistoryScopes
 )
 
@@ -1733,9 +1723,6 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryClientPurgeDLQMessagesScope:                  {operation: "HistoryClientPurgeDLQMessages", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientMergeDLQMessagesScope:                  {operation: "HistoryClientMergeDLQMessages", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientEnqueueAsyncWorkflowMessageScope:       {operation: "HistoryClientEnqueueAsyncWorkflowMessage", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
-		HistoryClientGetAsyncWorkflowMessagesScope:          {operation: "HistoryClientGetAsyncWorkflowMessages", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
-		HistoryClientUpdateAsyncWorkflowAckLevelScope:       {operation: "HistoryClientUpdateAsyncWorkflowAckLevel", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
-		HistoryClientEnqueueAsyncWorkflowMessageToDLQScope:  {operation: "HistoryClientEnqueueAsyncWorkflowMessageToDLQ", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientRefreshWorkflowTasksScope:              {operation: "HistoryClientRefreshWorkflowTasks", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientNotifyFailoverMarkersScope:             {operation: "HistoryClientNotifyFailoverMarkers", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
 		HistoryClientGetCrossClusterTasksScope:              {operation: "HistoryClientGetCrossClusterTasks", tags: map[string]string{CadenceRoleTagName: HistoryClientRoleTagValue}},
@@ -2151,9 +2138,6 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		HistoryPurgeDLQMessagesScope:                                    {operation: "PurgeDLQMessages"},
 		HistoryMergeDLQMessagesScope:                                    {operation: "MergeDLQMessages"},
 		HistoryEnqueueAsyncWorkflowMessageScope:                         {operation: "EnqueueAsyncWorkflowMessage"},
-		HistoryGetAsyncWorkflowMessagesScope:                            {operation: "GetAsyncWorkflowMessages"},
-		HistoryUpdateAsyncWorkflowAckLevelScope:                         {operation: "UpdateAsyncWorkflowAckLevel"},
-		HistoryEnqueueAsyncWorkflowMessageToDLQScope:                    {operation: "EnqueueAsyncWorkflowMessageToDLQ"},
 		HistoryShardControllerScope:                                     {operation: "ShardController"},
 		HistoryReapplyEventsScope:                                       {operation: "EventReapplication"},
 		HistoryRefreshWorkflowTasksScope:                                {operation: "RefreshWorkflowTasks"},
@@ -2260,6 +2244,7 @@ var ScopeDefs = map[ServiceIdx]map[ScopeIdx]scopeDefinition{
 		WorkflowCorruptionRepairScope:                                   {operation: "WorkflowCorruptionRepair"},
 		HistoryTaskDLQProcessorScope:                                    {operation: "HistoryTaskDLQProcessor"},
 		AsyncWorkflowQueueGCScope:                                       {operation: "AsyncWorkflowQueueGC"},
+		AsyncWorkflowQueueConsumerScope:                                 {operation: "AsyncWorkflowQueueConsumer"},
 	},
 	// Matching Scope Names
 	Matching: {
@@ -3044,6 +3029,23 @@ const (
 	// AsyncWorkflowQueueGCSweepsCounter counts async workflow queue GC range-delete sweeps
 	AsyncWorkflowQueueGCSweepsCounter
 
+	// AsyncWorkflowQueueConsumerFetchedCounter counts messages fetched from the async workflow queue
+	AsyncWorkflowQueueConsumerFetchedCounter
+	// AsyncWorkflowQueueConsumerSubmittedCounter counts messages submitted to the async workflow task scheduler
+	AsyncWorkflowQueueConsumerSubmittedCounter
+	// AsyncWorkflowQueueConsumerDecodeFailuresCounter counts undecodable messages routed straight to the DLQ
+	AsyncWorkflowQueueConsumerDecodeFailuresCounter
+	// AsyncWorkflowQueueConsumerDLQCounter counts messages written to the async workflow queue DLQ
+	AsyncWorkflowQueueConsumerDLQCounter
+	// AsyncWorkflowQueueConsumerDLQFailuresCounter counts failed DLQ writes (the ack level stalls; alert on this)
+	AsyncWorkflowQueueConsumerDLQFailuresCounter
+	// AsyncWorkflowQueueConsumerCommitFailuresCounter counts failed ack level commits
+	AsyncWorkflowQueueConsumerCommitFailuresCounter
+	// AsyncWorkflowQueueConsumerPollFailuresCounter counts failed queue polls
+	AsyncWorkflowQueueConsumerPollFailuresCounter
+	// AsyncWorkflowQueueConsumerBacklogGauge tracks the count of fetched-but-unacked messages per shard
+	AsyncWorkflowQueueConsumerBacklogGauge
+
 	NumHistoryMetrics
 )
 
@@ -3688,10 +3690,19 @@ var MetricDefs = map[ServiceIdx]map[MetricIdx]metricDefinition{
 		TaskScheduleSubmittedPerTaskList:          {metricName: "task_schedule_submitted_per_task_list", metricType: Counter},
 		TaskScheduleThrottledPerTaskList:          {metricName: "task_schedule_throttled_per_task_list", metricType: Counter},
 
-		HistoryTaskDLQReinjectFailuresCounter:      {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
-		HistoryTaskDLQPageSizeBytes:                {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
-		AsyncWorkflowQueueGCFailuresCounter: {metricName: "async_workflow_queue_gc_failures", metricType: Counter},
-		AsyncWorkflowQueueGCSweepsCounter:   {metricName: "async_workflow_queue_gc_sweeps", metricType: Counter},
+		HistoryTaskDLQReinjectFailuresCounter: {metricName: "history_task_dlq_reinject_failures", metricType: Counter},
+		HistoryTaskDLQPageSizeBytes:           {metricName: "history_task_dlq_page_size_bytes", metricType: Histogram, buckets: ResponsePayloadSizeBuckets},
+		AsyncWorkflowQueueGCFailuresCounter:   {metricName: "async_workflow_queue_gc_failures", metricType: Counter},
+		AsyncWorkflowQueueGCSweepsCounter:     {metricName: "async_workflow_queue_gc_sweeps", metricType: Counter},
+
+		AsyncWorkflowQueueConsumerFetchedCounter:        {metricName: "async_workflow_queue_consumer_fetched", metricType: Counter},
+		AsyncWorkflowQueueConsumerSubmittedCounter:      {metricName: "async_workflow_queue_consumer_submitted", metricType: Counter},
+		AsyncWorkflowQueueConsumerDecodeFailuresCounter: {metricName: "async_workflow_queue_consumer_decode_failures", metricType: Counter},
+		AsyncWorkflowQueueConsumerDLQCounter:            {metricName: "async_workflow_queue_consumer_dlq", metricType: Counter},
+		AsyncWorkflowQueueConsumerDLQFailuresCounter:    {metricName: "async_workflow_queue_consumer_dlq_failures", metricType: Counter},
+		AsyncWorkflowQueueConsumerCommitFailuresCounter: {metricName: "async_workflow_queue_consumer_commit_failures", metricType: Counter},
+		AsyncWorkflowQueueConsumerPollFailuresCounter:   {metricName: "async_workflow_queue_consumer_poll_failures", metricType: Counter},
+		AsyncWorkflowQueueConsumerBacklogGauge:          {metricName: "async_workflow_queue_consumer_backlog", metricType: Gauge},
 
 		TaskBatchCompleteCounter:                                      {metricName: "task_batch_complete_counter", metricType: Counter},
 		TaskBatchCompleteFailure:                                      {metricName: "task_batch_complete_error", metricType: Counter},

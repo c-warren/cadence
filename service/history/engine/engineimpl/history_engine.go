@@ -112,6 +112,7 @@ type historyEngineImpl struct {
 	failoverMarkerNotifier    failover.MarkerNotifier
 	dlqProcessor              taskdlq.Processor
 	asyncQueueGCProcessor     asyncworkflowqueue.Processor
+	asyncQueueConsumer        asyncworkflowqueue.Consumer
 
 	updateWithActionFn func(
 		context.Context,
@@ -147,6 +148,7 @@ func NewEngineWithShardContext(
 	rawMatchingClient matching.Client,
 	failoverCoordinator failover.Coordinator,
 	queueFactories []queue.Factory,
+	asyncWFTaskScheduler asyncworkflowqueue.TaskScheduler,
 ) engine.Engine {
 	currentClusterName := shard.GetService().GetClusterMetadata().GetCurrentClusterName()
 
@@ -307,9 +309,17 @@ func NewEngineWithShardContext(
 
 	historyEngImpl.asyncQueueGCProcessor = asyncworkflowqueue.NewProcessorFromShard(
 		shard,
-		config.AsyncWorkflowQueueGCQueueNames,
 		config.AsyncWorkflowQueueGCEnabled,
 		config.AsyncWorkflowQueueGCInterval,
+	)
+
+	historyEngImpl.asyncQueueConsumer = asyncworkflowqueue.NewConsumerFromShard(
+		shard,
+		asyncWFTaskScheduler,
+		config.AsyncWorkflowQueueConsumerEnabled,
+		config.AsyncWorkflowQueueConsumerPollInterval,
+		config.AsyncWorkflowQueueConsumerCommitInterval,
+		config.AsyncWorkflowQueueConsumerPageSize,
 	)
 
 	shard.SetEngine(historyEngImpl)
@@ -328,6 +338,7 @@ func (e *historyEngineImpl) Start() {
 	}
 	e.dlqProcessor.Start()
 	e.asyncQueueGCProcessor.Start()
+	e.asyncQueueConsumer.Start()
 	e.replicationDLQHandler.Start()
 	e.replicationMetricsEmitter.Start()
 
@@ -357,6 +368,7 @@ func (e *historyEngineImpl) Stop() {
 	}
 	e.dlqProcessor.Stop()
 	e.asyncQueueGCProcessor.Stop()
+	e.asyncQueueConsumer.Stop()
 	e.replicationDLQHandler.Stop()
 	e.replicationMetricsEmitter.Stop()
 

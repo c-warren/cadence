@@ -48,6 +48,7 @@ import (
 	"github.com/uber/cadence/common/quotas/global/rpc"
 	"github.com/uber/cadence/common/types"
 	"github.com/uber/cadence/common/types/mapper/proto"
+	"github.com/uber/cadence/service/history/asyncworkflowqueue"
 	"github.com/uber/cadence/service/history/config"
 	"github.com/uber/cadence/service/history/constants"
 	"github.com/uber/cadence/service/history/engine"
@@ -82,6 +83,7 @@ type (
 		rateLimiter              quotas.Limiter
 		replicationTaskFetchers  replication.TaskFetchers
 		queueTaskProcessor       task.Processor
+		asyncWFTaskScheduler     asyncworkflowqueue.TaskScheduler
 		failoverCoordinator      failover.Coordinator
 		workflowIDCache          workflowcache.WFCache
 		ratelimitAggregator      algorithm.RequestWeighted
@@ -181,6 +183,17 @@ func (h *handlerImpl) Start() {
 	h.queueTaskProcessor = task.NewRateLimitedProcessor(taskProcessor, taskRateLimiter)
 	h.queueTaskProcessor.Start()
 
+	h.asyncWFTaskScheduler, err = asyncworkflowqueue.NewTaskScheduler(
+		h.config,
+		h.GetLogger(),
+		h.GetMetricsClient(),
+		h.GetTimeSource(),
+	)
+	if err != nil {
+		h.GetLogger().Fatal("Creating async workflow task scheduler failed", tag.Error(err))
+	}
+	h.asyncWFTaskScheduler.Start()
+
 	h.queueFactories = []queue.Factory{
 		queuev2.NewTransferQueueFactory(
 			h.queueTaskProcessor,
@@ -224,6 +237,7 @@ func (h *handlerImpl) Stop() {
 	h.replicationTaskFetchers.Stop()
 	h.controller.Stop()
 	h.queueTaskProcessor.Stop()
+	h.asyncWFTaskScheduler.Stop()
 	h.historyEventNotifier.Stop()
 	h.failoverCoordinator.Stop()
 }
@@ -261,6 +275,7 @@ func (h *handlerImpl) CreateEngine(
 		h.GetMatchingRawClient(),
 		h.failoverCoordinator,
 		h.queueFactories,
+		h.asyncWFTaskScheduler,
 	)
 }
 
@@ -2158,7 +2173,6 @@ func (h *handlerImpl) EnqueueAsyncWorkflowMessage(
 	}
 
 	presp, err := h.GetAsyncWorkflowQueueManager().Enqueue(ctx, &persistence.EnqueueAsyncWorkflowMessageRequest{
-		QueueName:    request.QueueName,
 		ShardID:      int(request.ShardID),
 		Payload:      request.Payload,
 		Encoding:     request.Encoding,
@@ -2168,147 +2182,6 @@ func (h *handlerImpl) EnqueueAsyncWorkflowMessage(
 		return nil, h.error(err, scope, "", "", "")
 	}
 	return &types.EnqueueAsyncWorkflowMessageResponse{MessageID: presp.MessageID}, nil
-}
-
-// GetAsyncWorkflowMessages reads a page of async workflow messages from the shard-scoped queue.
-func (h *handlerImpl) GetAsyncWorkflowMessages(
-	ctx context.Context,
-	request *types.GetAsyncWorkflowMessagesRequest,
-) (resp *types.GetAsyncWorkflowMessagesResponse, retError error) {
-
-	defer func() { log.CapturePanic(recover(), h.GetLogger(), &retError) }()
-	h.startWG.Wait()
-
-	scope, sw := h.startRequestProfile(ctx, metrics.HistoryGetAsyncWorkflowMessagesScope)
-	defer sw.Stop()
-
-	if h.isShuttingDown() {
-		return nil, constants.ErrShuttingDown
-	}
-	if request == nil {
-		return nil, errAsyncWorkflowRequestNotSet
-	}
-
-	if _, err := h.controller.GetEngineForShard(int(request.GetShardID())); err != nil {
-		return nil, h.error(err, scope, "", "", "")
-	}
-
-	manager := h.GetAsyncWorkflowQueueManager()
-	ackResp, err := manager.GetAckLevel(ctx, &persistence.GetAsyncWorkflowAckLevelRequest{
-		QueueName: request.QueueName,
-		ShardID:   int(request.ShardID),
-	})
-	if err != nil {
-		return nil, h.error(err, scope, "", "", "")
-	}
-
-	// Clamp the read cursor to at least the committed ack level so consumers never
-	// re-read messages that have already been acknowledged.
-	effectiveCursor := max(request.LastMessageID, ackResp.AckLevel)
-
-	readResp, err := manager.ReadMessages(ctx, &persistence.ReadAsyncWorkflowMessagesRequest{
-		QueueName:     request.QueueName,
-		ShardID:       int(request.ShardID),
-		LastMessageID: effectiveCursor,
-		PageSize:      int(request.PageSize),
-	})
-	if err != nil {
-		return nil, h.error(err, scope, "", "", "")
-	}
-	return &types.GetAsyncWorkflowMessagesResponse{
-		Messages: fromPersistenceAsyncWorkflowMessages(readResp.Messages),
-		AckLevel: ackResp.AckLevel,
-	}, nil
-}
-
-// UpdateAsyncWorkflowAckLevel advances the per-shard consumption cursor.
-func (h *handlerImpl) UpdateAsyncWorkflowAckLevel(
-	ctx context.Context,
-	request *types.UpdateAsyncWorkflowAckLevelRequest,
-) (resp *types.UpdateAsyncWorkflowAckLevelResponse, retError error) {
-
-	defer func() { log.CapturePanic(recover(), h.GetLogger(), &retError) }()
-	h.startWG.Wait()
-
-	scope, sw := h.startRequestProfile(ctx, metrics.HistoryUpdateAsyncWorkflowAckLevelScope)
-	defer sw.Stop()
-
-	if h.isShuttingDown() {
-		return nil, constants.ErrShuttingDown
-	}
-	if request == nil {
-		return nil, errAsyncWorkflowRequestNotSet
-	}
-
-	if _, err := h.controller.GetEngineForShard(int(request.GetShardID())); err != nil {
-		return nil, h.error(err, scope, "", "", "")
-	}
-
-	if err := h.GetAsyncWorkflowQueueManager().UpdateAckLevel(ctx, &persistence.UpdateAsyncWorkflowAckLevelRequest{
-		QueueName: request.QueueName,
-		ShardID:   int(request.ShardID),
-		AckLevel:  request.AckLevel,
-	}); err != nil {
-		return nil, h.error(err, scope, "", "", "")
-	}
-	return &types.UpdateAsyncWorkflowAckLevelResponse{}, nil
-}
-
-// EnqueueAsyncWorkflowMessageToDLQ enqueues a poison message onto the shard-scoped DLQ.
-func (h *handlerImpl) EnqueueAsyncWorkflowMessageToDLQ(
-	ctx context.Context,
-	request *types.EnqueueAsyncWorkflowMessageToDLQRequest,
-) (resp *types.EnqueueAsyncWorkflowMessageToDLQResponse, retError error) {
-
-	defer func() { log.CapturePanic(recover(), h.GetLogger(), &retError) }()
-	h.startWG.Wait()
-
-	scope, sw := h.startRequestProfile(ctx, metrics.HistoryEnqueueAsyncWorkflowMessageToDLQScope)
-	defer sw.Stop()
-
-	if h.isShuttingDown() {
-		return nil, constants.ErrShuttingDown
-	}
-	if request == nil {
-		return nil, errAsyncWorkflowRequestNotSet
-	}
-
-	if _, err := h.controller.GetEngineForShard(int(request.GetShardID())); err != nil {
-		return nil, h.error(err, scope, "", "", "")
-	}
-
-	presp, err := h.GetAsyncWorkflowQueueManager().EnqueueToDLQ(ctx, &persistence.EnqueueAsyncWorkflowMessageRequest{
-		QueueName:    request.QueueName,
-		ShardID:      int(request.ShardID),
-		Payload:      request.Payload,
-		Encoding:     request.Encoding,
-		PartitionKey: request.PartitionKey,
-	})
-	if err != nil {
-		return nil, h.error(err, scope, "", "", "")
-	}
-	return &types.EnqueueAsyncWorkflowMessageToDLQResponse{MessageID: presp.MessageID}, nil
-}
-
-// fromPersistenceAsyncWorkflowMessages maps persistence async workflow messages to wire messages.
-func fromPersistenceAsyncWorkflowMessages(messages persistence.AsyncWorkflowMessageList) []*types.AsyncWorkflowMessage {
-	if messages == nil {
-		return nil
-	}
-	result := make([]*types.AsyncWorkflowMessage, len(messages))
-	for i, m := range messages {
-		if m == nil {
-			continue
-		}
-		result[i] = &types.AsyncWorkflowMessage{
-			MessageID:    m.MessageID,
-			Payload:      m.Payload,
-			Encoding:     m.Encoding,
-			PartitionKey: m.PartitionKey,
-			CreatedTime:  m.CreatedTime,
-		}
-	}
-	return result
 }
 
 // convertError is a helper method to convert ShardOwnershipLostError from persistence layer returned by various
