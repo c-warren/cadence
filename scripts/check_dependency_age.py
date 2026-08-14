@@ -21,6 +21,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -28,9 +29,21 @@ from datetime import datetime, timedelta, timezone
 DEFAULT_MIN_AGE_DAYS = 14
 DEFAULT_PROXY_URL = "https://proxy.golang.org"
 FETCH_TIMEOUT_SECONDS = 10
+RETRY_BACKOFF_SECONDS = 2
 
 _REQUIRE_INLINE = re.compile(r"^require\s+(\S+)\s+(\S+)")
+_REPLACE_INLINE = re.compile(r"^replace\s+(.+)$")
 _PSEUDO_VERSION = re.compile(r"-(\d{14})-[0-9a-f]{12}$")
+
+
+class ProxyError(Exception):
+    """The module proxy could not be queried (transport/server failure).
+
+    Distinct from a 404/410 "version not known to the proxy", which is
+    legitimate for private or replaced modules. A ProxyError must fail the
+    check run: silently skipping would let unvetted versions through
+    whenever the proxy is unreachable.
+    """
 
 
 def parse_go_mod_requires(content):
@@ -65,6 +78,55 @@ def new_requirements(base_content, head_content):
     return [(mod, ver) for mod, ver in head.items() if base.get(mod) != ver]
 
 
+def _parse_replace_clause(clause):
+    """'old [ver] => new [ver]' -> (key, (new, ver) | None), or None."""
+    if "=>" not in clause:
+        return None
+    left, right = (side.strip() for side in clause.split("=>", 1))
+    right_parts = right.split()
+    if len(right_parts) >= 2 and right_parts[1].startswith("v"):
+        target = (right_parts[0], right_parts[1])
+    else:
+        # Filesystem path replacement — no version to age-check.
+        target = None
+    return left, target
+
+
+def parse_go_mod_replaces(content):
+    """Return {replaced module [version]: (target module, version) | None}."""
+    replaces = {}
+    in_block = False
+    for raw in content.splitlines():
+        line = raw.split("//", 1)[0].strip()
+        if not line:
+            continue
+        if in_block:
+            if line == ")":
+                in_block = False
+                continue
+            parsed = _parse_replace_clause(line)
+            if parsed:
+                replaces[parsed[0]] = parsed[1]
+            continue
+        if line.startswith("replace ("):
+            in_block = True
+            continue
+        m = _REPLACE_INLINE.match(line)
+        if m:
+            parsed = _parse_replace_clause(m.group(1))
+            if parsed:
+                replaces[parsed[0]] = parsed[1]
+    return replaces
+
+
+def new_replacements(base_content, head_content):
+    """Versioned replace targets present in head but not in base."""
+    base = parse_go_mod_replaces(base_content) if base_content is not None else {}
+    head = parse_go_mod_replaces(head_content)
+    return [target for key, target in head.items()
+            if target is not None and base.get(key) != target]
+
+
 def escape_module_path(path):
     """Encode a module path or version for proxy URLs (uppercase -> !lower)."""
     return "".join("!" + c.lower() if c.isascii() and c.isupper() else c
@@ -80,24 +142,43 @@ def pseudo_version_time(version):
         tzinfo=timezone.utc)
 
 
-def fetch_publish_time(module, version, proxy_url=None):
-    """Publish time from the module proxy's @v/<version>.info, or None."""
+def fetch_publish_time(module, version, proxy_url=None,
+                       urlopen=urllib.request.urlopen, retries=3):
+    """Publish time from the module proxy's @v/<version>.info.
+
+    Returns None only when the proxy affirmatively does not know the version
+    (HTTP 404/410). Transport or server failures raise ProxyError after
+    exhausting retries, so the check fails closed instead of silently
+    passing unvetted versions.
+    """
     base = (proxy_url or os.environ.get("DEP_AGE_PROXY_URL")
             or DEFAULT_PROXY_URL).rstrip("/")
     url = "{}/{}/@v/{}.info".format(
         base, escape_module_path(module), escape_module_path(version))
-    try:
-        with urllib.request.urlopen(url, timeout=FETCH_TIMEOUT_SECONDS) as resp:
-            info = json.load(resp)
-    except (urllib.error.URLError, OSError, ValueError):
-        return None
-    stamp = info.get("Time")
-    if not stamp:
-        return None
-    try:
-        return datetime.fromisoformat(stamp.replace("Z", "+00:00"))
-    except ValueError:
-        return None
+    last_err = None
+    for attempt in range(retries):
+        if attempt:
+            time.sleep(RETRY_BACKOFF_SECONDS)
+        try:
+            with urlopen(url, timeout=FETCH_TIMEOUT_SECONDS) as resp:
+                info = json.load(resp)
+        except urllib.error.HTTPError as err:
+            if err.code in (404, 410):
+                return None
+            last_err = err
+            continue
+        except (urllib.error.URLError, OSError, ValueError) as err:
+            last_err = err
+            continue
+        stamp = info.get("Time")
+        if not stamp:
+            return None
+        try:
+            return datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    raise ProxyError("failed to query {} after {} attempt(s): {}".format(
+        url, retries, last_err))
 
 
 def find_violations(pairs, threshold_days, now, fetch_time):
@@ -137,6 +218,7 @@ def introduced_pairs(base_ref, paths):
         shown = _git(["show", "{}:{}".format(base_ref, path)])
         base_content = shown.stdout if shown.returncode == 0 else None
         pairs.update(new_requirements(base_content, head_content))
+        pairs.update(new_replacements(base_content, head_content))
     return sorted(pairs)
 
 
@@ -162,7 +244,13 @@ def main(argv):
         return 2
 
     now = datetime.now(timezone.utc)
-    violations = find_violations(pairs, threshold_days, now, fetch_publish_time)
+    try:
+        violations = find_violations(pairs, threshold_days, now,
+                                     fetch_publish_time)
+    except ProxyError as err:
+        print("ERROR module proxy unavailable, failing closed: {}".format(err),
+              file=sys.stderr)
+        return 2
     for module, version, published in violations:
         days_ago = (now - published).days
         print("VIOLATION {}@{} published {} ({} days ago, minimum {})".format(

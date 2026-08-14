@@ -108,5 +108,79 @@ class FindViolationsTest(unittest.TestCase):
         self.assertEqual(len(got), 1)
 
 
+GO_MOD_REPLACE_BASE = """module github.com/uber/cadence
+
+go 1.23
+
+require github.com/foo/bar v1.0.0
+
+replace github.com/foo/bar => github.com/foo/bar v1.0.1
+"""
+
+GO_MOD_REPLACE_HEAD = """module github.com/uber/cadence
+
+go 1.23
+
+require github.com/foo/bar v1.0.0
+
+replace github.com/foo/bar => github.com/evil/fork v0.0.0-20260812000000-abcdef123456
+
+replace (
+\tgithub.com/baz/qux v2.0.0 => github.com/baz/qux v2.1.0
+\tgithub.com/local/dep => ../localdep
+)
+"""
+
+
+class ParseReplacesTest(unittest.TestCase):
+    def test_inline_block_and_filesystem_replaces(self):
+        got = cda.parse_go_mod_replaces(GO_MOD_REPLACE_HEAD)
+        self.assertEqual(got, {
+            "github.com/foo/bar":
+                ("github.com/evil/fork", "v0.0.0-20260812000000-abcdef123456"),
+            "github.com/baz/qux v2.0.0": ("github.com/baz/qux", "v2.1.0"),
+            "github.com/local/dep": None,
+        })
+
+
+class NewReplacementsTest(unittest.TestCase):
+    def test_changed_and_added_replacements_reported_filesystem_skipped(self):
+        got = sorted(cda.new_replacements(GO_MOD_REPLACE_BASE,
+                                          GO_MOD_REPLACE_HEAD))
+        self.assertEqual(got, [
+            ("github.com/baz/qux", "v2.1.0"),
+            ("github.com/evil/fork", "v0.0.0-20260812000000-abcdef123456"),
+        ])
+
+    def test_unchanged_replacement_not_reported(self):
+        got = cda.new_replacements(GO_MOD_REPLACE_BASE, GO_MOD_REPLACE_BASE)
+        self.assertEqual(got, [])
+
+
+class ProxyErrorTest(unittest.TestCase):
+    def test_proxy_error_propagates_out_of_find_violations(self):
+        def fetch(_module, _version):
+            raise cda.ProxyError("connection refused")
+        now = datetime(2026, 8, 13, tzinfo=timezone.utc)
+        with self.assertRaises(cda.ProxyError):
+            cda.find_violations([("a.com/x", "v1.0.0")], threshold_days=14,
+                                now=now, fetch_time=fetch)
+
+    def test_http_404_returns_none_but_transport_error_raises(self):
+        import urllib.error
+
+        def opener_404(url, timeout):
+            raise urllib.error.HTTPError(url, 404, "not found", {}, None)
+
+        def opener_refused(url, timeout):
+            raise urllib.error.URLError("connection refused")
+
+        self.assertIsNone(cda.fetch_publish_time(
+            "a.com/x", "v1.0.0", urlopen=opener_404))
+        with self.assertRaises(cda.ProxyError):
+            cda.fetch_publish_time(
+                "a.com/x", "v1.0.0", urlopen=opener_refused, retries=1)
+
+
 if __name__ == "__main__":
     unittest.main()
