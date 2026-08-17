@@ -24,5 +24,15 @@ jobs:
           # Full history so the merge-base with the PR base branch exists.
           fetch-depth: 0
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
       - name: Check age of introduced Go module versions
-        run: python3 scripts/check_dependency_age.py --base-ref "origin/${GITHUB_BASE_REF}"
+        # Build then run directly: `go run` flattens all non-zero exit codes
+        # to 1, which would lose the 1=violation vs 2=infrastructure-error
+        # distinction.
+        run: |
+          go build -o /tmp/dependencyage ./tools/dependencyage/cmd/dependencyage
+          /tmp/dependencyage --base-ref "origin/${GITHUB_BASE_REF}"
