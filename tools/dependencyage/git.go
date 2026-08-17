@@ -33,17 +33,23 @@ import (
 // GitSource reads changed go.mod files and their base and head contents using
 // the git CLI.
 type GitSource struct {
-	Dir string
+	Dir          string
+	mergeBaseRef string
+	mergeBaseSHA string
 }
 
 // ChangedGoModFiles returns added, copied, modified, and renamed go.mod files
 // between baseRef and HEAD.
 func (s *GitSource) ChangedGoModFiles(baseRef string) ([]string, error) {
+	mergeBaseSHA, err := s.mergeBase(baseRef)
+	if err != nil {
+		return nil, err
+	}
 	output, err := s.git(
 		"diff",
 		"--name-only",
 		"--diff-filter=ACMR",
-		baseRef+"...HEAD",
+		mergeBaseSHA+"..HEAD",
 		"--",
 		"go.mod",
 		"**/go.mod",
@@ -72,11 +78,33 @@ func (s *GitSource) Contents(
 		return "", "", false, fmt.Errorf("read working-tree file %s: %w", path, err)
 	}
 
-	baseContent, err := s.git("show", baseRef+":"+path)
+	mergeBaseSHA, err := s.mergeBase(baseRef)
+	if err != nil {
+		return "", "", false, err
+	}
+	baseContent, err := s.git("show", mergeBaseSHA+":"+path)
 	if err != nil {
 		return string(headContent), "", false, nil
 	}
 	return string(headContent), string(baseContent), true, nil
+}
+
+func (s *GitSource) mergeBase(baseRef string) (string, error) {
+	if s.mergeBaseRef == baseRef && s.mergeBaseSHA != "" {
+		return s.mergeBaseSHA, nil
+	}
+
+	output, err := s.git("merge-base", baseRef, "HEAD")
+	if err != nil {
+		return "", fmt.Errorf("git merge-base failed: %w", err)
+	}
+	mergeBaseSHA := strings.TrimSpace(string(output))
+	if mergeBaseSHA == "" {
+		return "", fmt.Errorf("git merge-base failed: empty output")
+	}
+	s.mergeBaseRef = baseRef
+	s.mergeBaseSHA = mergeBaseSHA
+	return s.mergeBaseSHA, nil
 }
 
 func (s *GitSource) git(args ...string) ([]byte, error) {

@@ -35,7 +35,9 @@ import (
 const (
 	defaultProxyRetries = 3
 	defaultProxyBackoff = 2 * time.Second
-	defaultProxyTimeout = 10 * time.Second
+	// The proxy synchronously fetches uncached versions from their origin, which
+	// can exceed 10 seconds before returning a legitimate response such as 404.
+	defaultProxyTimeout = 30 * time.Second
 )
 
 // ProxyClient queries a Go module proxy for version publish times.
@@ -71,7 +73,7 @@ func (c *ProxyClient) PublishTime(
 		"%s/%s/@v/%s.info",
 		strings.TrimRight(c.BaseURL, "/"),
 		EscapeModulePath(module),
-		EscapeModulePath(version),
+		EscapeVersion(version),
 	)
 
 	var lastErr error

@@ -73,10 +73,20 @@ func Run(ctx context.Context, cfg Config) int {
 			_, _ = fmt.Fprintf(errW, "ERROR %v\n", err)
 			return 2
 		}
-		for _, pair := range NewRequirements(base, head) {
+		requirements, err := NewRequirements(base, head)
+		if err != nil {
+			_, _ = fmt.Fprintf(errW, "ERROR %v\n", err)
+			return 2
+		}
+		for _, pair := range requirements {
 			pairSet[pair] = struct{}{}
 		}
-		for _, pair := range NewReplacements(base, head) {
+		replacements, err := NewReplacements(base, head)
+		if err != nil {
+			_, _ = fmt.Fprintf(errW, "ERROR %v\n", err)
+			return 2
+		}
+		for _, pair := range replacements {
 			pairSet[pair] = struct{}{}
 		}
 	}

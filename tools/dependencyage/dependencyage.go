@@ -31,20 +31,24 @@ import (
 	"io"
 	"regexp"
 	"sort"
-	"strings"
 	"time"
+
+	"golang.org/x/mod/modfile"
+	"golang.org/x/mod/module"
 )
 
-var (
-	requireInlinePattern = regexp.MustCompile(`^require\s+(\S+)\s+(\S+)`)
-	replaceInlinePattern = regexp.MustCompile(`^replace\s+(.+)$`)
-	pseudoVersionPattern = regexp.MustCompile(`-(\d{14})-[0-9a-f]{12}$`)
-)
+var pseudoVersionPattern = regexp.MustCompile(`-(\d{14})-[0-9a-f]{12}$`)
 
 // ModuleVersion is one introduced module path and version pair.
 type ModuleVersion struct {
 	Module  string
 	Version string
+}
+
+// Replacement is one replace directive.
+type Replacement struct {
+	Old ModuleVersion
+	New *ModuleVersion
 }
 
 // Violation is an introduced version younger than the configured threshold.
@@ -64,91 +68,54 @@ type TimeFetcher func(
 
 // ParseRequires returns the module path and version from every require
 // directive in go.mod content.
-func ParseRequires(content string) map[string]string {
-	requires := make(map[string]string)
-	inBlock := false
-
-	for _, raw := range strings.Split(content, "\n") {
-		line := stripComment(raw)
-		if line == "" {
-			continue
-		}
-
-		if inBlock {
-			if line == ")" {
-				inBlock = false
-				continue
-			}
-
-			parts := strings.Fields(line)
-			if len(parts) >= 2 {
-				requires[parts[0]] = parts[1]
-			}
-			continue
-		}
-
-		if strings.HasPrefix(line, "require (") {
-			inBlock = true
-			continue
-		}
-
-		matches := requireInlinePattern.FindStringSubmatch(line)
-		if matches != nil {
-			requires[matches[1]] = matches[2]
-		}
+func ParseRequires(content string) (map[string]string, error) {
+	file, err := parseModFile(content)
+	if err != nil {
+		return nil, err
 	}
 
-	return requires
+	requires := make(map[string]string)
+	for _, require := range file.Require {
+		requires[require.Mod.Path] = require.Mod.Version
+	}
+	return requires, nil
 }
 
-// ParseReplaces returns each raw replace source and its versioned target. A nil
-// target represents a filesystem-path replacement.
-func ParseReplaces(content string) map[string]*ModuleVersion {
-	replaces := make(map[string]*ModuleVersion)
-	inBlock := false
-
-	for _, raw := range strings.Split(content, "\n") {
-		line := stripComment(raw)
-		if line == "" {
-			continue
-		}
-
-		if inBlock {
-			if line == ")" {
-				inBlock = false
-				continue
-			}
-
-			key, target, ok := parseReplaceClause(line)
-			if ok {
-				replaces[key] = target
-			}
-			continue
-		}
-
-		if strings.HasPrefix(line, "replace (") {
-			inBlock = true
-			continue
-		}
-
-		matches := replaceInlinePattern.FindStringSubmatch(line)
-		if matches == nil {
-			continue
-		}
-		key, target, ok := parseReplaceClause(matches[1])
-		if ok {
-			replaces[key] = target
-		}
+// ParseReplaces returns every replace directive. A nil target represents a
+// filesystem-path replacement.
+func ParseReplaces(content string) ([]Replacement, error) {
+	file, err := parseModFile(content)
+	if err != nil {
+		return nil, err
 	}
 
-	return replaces
+	replaces := make([]Replacement, 0, len(file.Replace))
+	for _, replace := range file.Replace {
+		replacement := Replacement{
+			Old: ModuleVersion{Module: replace.Old.Path, Version: replace.Old.Version},
+		}
+		if replace.New.Version != "" {
+			replacement.New = &ModuleVersion{
+				Module:  replace.New.Path,
+				Version: replace.New.Version,
+			}
+		}
+		replaces = append(replaces, replacement)
+	}
+	return replaces, nil
 }
 
 // NewRequirements returns head requirements that are new or have a different
 // version than the corresponding base requirement.
-func NewRequirements(baseContent, headContent string) []ModuleVersion {
-	base := ParseRequires(baseContent)
-	head := ParseRequires(headContent)
+func NewRequirements(baseContent, headContent string) ([]ModuleVersion, error) {
+	base, err := ParseRequires(baseContent)
+	if err != nil {
+		return nil, err
+	}
+	head, err := ParseRequires(headContent)
+	if err != nil {
+		return nil, err
+	}
 
 	introduced := make([]ModuleVersion, 0, len(head))
 	for module, version := range head {
@@ -157,38 +124,65 @@ func NewRequirements(baseContent, headContent string) []ModuleVersion {
 		}
 	}
 	sortModuleVersions(introduced)
-	return introduced
+	return introduced, nil
 }
 
-// NewReplacements returns versioned head replacement targets that differ from
-// the target for the same source in base.
-func NewReplacements(baseContent, headContent string) []ModuleVersion {
-	base := ParseReplaces(baseContent)
-	head := ParseReplaces(headContent)
+// NewReplacements returns versioned head replacement targets not present among
+// the base replacement targets.
+func NewReplacements(baseContent, headContent string) ([]ModuleVersion, error) {
+	base, err := ParseReplaces(baseContent)
+	if err != nil {
+		return nil, err
+	}
+	head, err := ParseReplaces(headContent)
+	if err != nil {
+		return nil, err
+	}
 
-	var introduced []ModuleVersion
-	for key, target := range head {
-		if target != nil && !moduleVersionsEqual(base[key], target) {
-			introduced = append(introduced, *target)
+	baseTargets := make(map[ModuleVersion]struct{}, len(base))
+	for _, replacement := range base {
+		if replacement.New != nil {
+			baseTargets[*replacement.New] = struct{}{}
 		}
 	}
+	headTargets := make(map[ModuleVersion]struct{}, len(head))
+	var introduced []ModuleVersion
+	for _, replacement := range head {
+		if replacement.New == nil {
+			continue
+		}
+		target := *replacement.New
+		if _, exists := baseTargets[target]; exists {
+			continue
+		}
+		if _, exists := headTargets[target]; exists {
+			continue
+		}
+		headTargets[target] = struct{}{}
+		introduced = append(introduced, target)
+	}
 	sortModuleVersions(introduced)
-	return introduced
+	return introduced, nil
 }
 
 // EscapeModulePath applies the uppercase escaping used by the Go module proxy
-// protocol. It may also be used to escape versions in proxy URLs.
+// protocol.
 func EscapeModulePath(path string) string {
-	var escaped strings.Builder
-	for _, character := range path {
-		if character >= 'A' && character <= 'Z' {
-			escaped.WriteByte('!')
-			escaped.WriteRune(character + ('a' - 'A'))
-			continue
-		}
-		escaped.WriteRune(character)
+	escaped, err := module.EscapePath(path)
+	if err != nil {
+		return path
 	}
-	return escaped.String()
+	return escaped
+}
+
+// EscapeVersion applies the uppercase escaping used for versions in the Go
+// module proxy protocol.
+func EscapeVersion(version string) string {
+	escaped, err := module.EscapeVersion(version)
+	if err != nil {
+		return version
+	}
+	return escaped
 }
 
 // PseudoVersionTime returns the UTC commit timestamp embedded at the end of a
@@ -250,30 +244,76 @@ func FindViolations(
 	return violations, nil
 }
 
-func stripComment(line string) string {
-	content, _, _ := strings.Cut(line, "//")
-	return strings.TrimSpace(content)
-}
+func parseModFile(content string) (*modfile.File, error) {
+	file, err := modfile.Parse("go.mod", []byte(content), nil)
+	if err == nil {
+		return file, nil
+	}
 
-func parseReplaceClause(clause string) (string, *ModuleVersion, bool) {
-	left, right, ok := strings.Cut(clause, "=>")
+	fixes, ok := incompatibleVersionFixes(err)
 	if !ok {
-		return "", nil, false
+		return nil, err
+	}
+	originals := make(map[ModuleVersion]string, len(fixes))
+	file, err = modfile.Parse("go.mod", []byte(content), func(path, version string) (string, error) {
+		canonical := module.CanonicalVersion(version)
+		if canonical == "" {
+			return "", fmt.Errorf("invalid module version %q", version)
+		}
+		fixed, exists := fixes[ModuleVersion{Module: path, Version: canonical}]
+		if !exists {
+			return canonical, nil
+		}
+		originals[ModuleVersion{Module: path, Version: fixed}] = canonical
+		return fixed, nil
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	key := strings.TrimSpace(left)
-	rightParts := strings.Fields(strings.TrimSpace(right))
-	if len(rightParts) < 2 || !strings.HasPrefix(rightParts[1], "v") {
-		return key, nil, true
+	for _, require := range file.Require {
+		require.Mod.Version = originalVersion(require.Mod.Path, require.Mod.Version, originals)
 	}
-	return key, &ModuleVersion{Module: rightParts[0], Version: rightParts[1]}, true
+	for _, replace := range file.Replace {
+		replace.Old.Version = originalVersion(replace.Old.Path, replace.Old.Version, originals)
+		replace.New.Version = originalVersion(replace.New.Path, replace.New.Version, originals)
+	}
+	return file, nil
 }
 
-func moduleVersionsEqual(left, right *ModuleVersion) bool {
-	if left == nil || right == nil {
-		return left == right
+func incompatibleVersionFixes(err error) (map[ModuleVersion]string, bool) {
+	errors, ok := err.(modfile.ErrorList)
+	if !ok || len(errors) == 0 {
+		return nil, false
 	}
-	return *left == *right
+
+	fixes := make(map[ModuleVersion]string, len(errors))
+	for _, parseError := range errors {
+		if parseError.Verb != "require" && parseError.Verb != "replace" {
+			return nil, false
+		}
+		invalidVersion, ok := parseError.Err.(*module.InvalidVersionError)
+		if !ok {
+			return nil, false
+		}
+		canonical := module.CanonicalVersion(invalidVersion.Version)
+		_, pathMajor, pathOK := module.SplitPathVersion(parseError.ModPath)
+		fixed := canonical + "+incompatible"
+		if canonical == "" || !pathOK || pathMajor != "" ||
+			module.CheckPathMajor(canonical, pathMajor) == nil ||
+			module.CheckPathMajor(fixed, pathMajor) != nil {
+			return nil, false
+		}
+		fixes[ModuleVersion{Module: parseError.ModPath, Version: canonical}] = fixed
+	}
+	return fixes, true
+}
+
+func originalVersion(path, version string, originals map[ModuleVersion]string) string {
+	if original, exists := originals[ModuleVersion{Module: path, Version: version}]; exists {
+		return original
+	}
+	return version
 }
 
 func sortModuleVersions(pairs []ModuleVersion) {
