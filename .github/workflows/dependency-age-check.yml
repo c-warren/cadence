@@ -1,0 +1,33 @@
+name: Dependency age check
+
+on:
+  pull_request:
+    paths:
+      - '**/go.mod'
+      - 'go.mod'
+
+permissions:
+  contents: read
+
+env:
+  # Fail the check if any Go module version introduced by this PR was
+  # published within the last N days. Override at the repo level via a
+  # repository variable if a different window is needed.
+  MIN_DEPENDENCY_AGE_DAYS: ${{ vars.MIN_DEPENDENCY_AGE_DAYS || 14 }}
+
+jobs:
+  dependency-age:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the merge-base with the PR base branch exists.
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+
+      - name: Check age of introduced Go module versions
+        run: go run ./tools/dependencyage/cmd/dependencyage --base-ref "origin/${GITHUB_BASE_REF}"
