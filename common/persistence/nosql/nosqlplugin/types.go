@@ -467,6 +467,13 @@ type (
 		CreatedTime     time.Time
 	}
 
+	// AsyncWorkflowDLQMessageRow is one row of async_workflow_queue_dlq. Its key is the source
+	// message's (ShardID, SourceCluster, MessageID); CreatedTime is when the row entered the DLQ.
+	AsyncWorkflowDLQMessageRow struct {
+		AsyncWorkflowMessageRow
+		Reason string
+	}
+
 	// SelectMessagesBetweenRequest is a request struct for SelectMessagesBetween
 	SelectMessagesBetweenRequest struct {
 		QueueType               persistence.QueueType

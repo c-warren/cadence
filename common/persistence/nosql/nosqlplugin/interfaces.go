@@ -72,6 +72,7 @@ type (
 		SemaphoreTokenCRUD
 		HistoryDLQTaskCRUD
 		AsyncWorkflowQueueCRUD
+		AsyncWorkflowDLQCRUD
 	}
 
 	// ClientErrorChecker checks for common nosql errors on client
@@ -706,5 +707,25 @@ type (
 		UpsertAsyncWorkflowAckLevel(ctx context.Context, shardID int, sourceCluster string, ackLevel int64, now time.Time) error
 		// RangeDeleteAsyncWorkflowMessages deletes message rows (type=0 only) with message_id <= inclusiveMaxMessageID.
 		RangeDeleteAsyncWorkflowMessages(ctx context.Context, shardID int, sourceCluster string, inclusiveMaxMessageID int64) error
+	}
+
+	/***
+	 * AsyncWorkflowDLQCRUD is for the dead-letter queue of the per-shard async workflow queue.
+	 *
+	 * Recommendation: use a dedicated async_workflow_queue_dlq table.
+	 *
+	 * Significant columns:
+	 * async_workflow_queue_dlq partition key: shard_id; range key: (source_cluster, message_id)
+	 * The key is the source message's key, so an insert with the same key overwrites.
+	 */
+	AsyncWorkflowDLQCRUD interface {
+		// InsertAsyncWorkflowDLQMessage writes or overwrites one DLQ row. No condition, no LWT.
+		InsertAsyncWorkflowDLQMessage(ctx context.Context, row *AsyncWorkflowDLQMessageRow) error
+		// SelectAsyncWorkflowDLQMessages returns up to pageSize rows with message_id > exclusiveMinMessageID,
+		// ascending, for one (shard, source cluster).
+		SelectAsyncWorkflowDLQMessages(ctx context.Context, shardID int, sourceCluster string, exclusiveMinMessageID int64, pageSize int) ([]*AsyncWorkflowDLQMessageRow, error)
+		// RangeDeleteAsyncWorkflowDLQMessages deletes rows with message_id <= inclusiveMaxMessageID
+		// for one (shard, source cluster).
+		RangeDeleteAsyncWorkflowDLQMessages(ctx context.Context, shardID int, sourceCluster string, inclusiveMaxMessageID int64) error
 	}
 )
