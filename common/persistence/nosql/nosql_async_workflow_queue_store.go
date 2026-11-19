@@ -14,8 +14,8 @@ import (
 )
 
 // nosqlAsyncWorkflowQueueStore backs persistence.AsyncWorkflowQueueStore with the nosqlplugin
-// AsyncWorkflowQueueCRUD. The DLQ methods return ErrAsyncWorkflowQueueNotImplemented until the
-// DLQ table and its CRUD exist.
+// AsyncWorkflowQueueCRUD and AsyncWorkflowDLQCRUD. The DLQ methods live in
+// nosql_async_workflow_queue_dlq_store.go.
 type nosqlAsyncWorkflowQueueStore struct {
 	shardedNosqlStore
 }
@@ -129,18 +129,6 @@ func (sh *nosqlAsyncWorkflowQueueStore) RangeDeleteAsyncWorkflowMessages(ctx con
 		return convertCommonErrors(storeShard.db, "RangeDeleteAsyncWorkflowMessages", err)
 	}
 	return nil
-}
-
-func (sh *nosqlAsyncWorkflowQueueStore) EnqueueAsyncWorkflowMessageToDLQ(context.Context, *persistence.InternalEnqueueAsyncWorkflowMessageToDLQRequest) error {
-	return persistence.ErrAsyncWorkflowQueueNotImplemented
-}
-
-func (sh *nosqlAsyncWorkflowQueueStore) ReadAsyncWorkflowMessagesFromDLQ(context.Context, *persistence.ReadAsyncWorkflowMessagesFromDLQRequest) (*persistence.ReadAsyncWorkflowMessagesFromDLQResponse, error) {
-	return nil, persistence.ErrAsyncWorkflowQueueNotImplemented
-}
-
-func (sh *nosqlAsyncWorkflowQueueStore) RangeDeleteAsyncWorkflowMessagesFromDLQ(context.Context, *persistence.RangeDeleteAsyncWorkflowMessagesFromDLQRequest) error {
-	return persistence.ErrAsyncWorkflowQueueNotImplemented
 }
 
 // asyncWorkflowMessageFromRow converts a plugin row into the persistence message. The DLQ store

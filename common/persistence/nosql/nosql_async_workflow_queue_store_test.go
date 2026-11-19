@@ -138,16 +138,6 @@ func TestNoSQLAsyncWorkflowQueueStoreDuplicateMessage(t *testing.T) {
 	assert.Contains(t, conditionFailed.Msg, "7")
 }
 
-func TestNoSQLAsyncWorkflowQueueStoreDLQNotImplemented(t *testing.T) {
-	ctx := context.Background()
-	store, _, _, _ := newTestAsyncWorkflowQueueStore(t)
-
-	assert.ErrorIs(t, store.EnqueueAsyncWorkflowMessageToDLQ(ctx, &persistence.InternalEnqueueAsyncWorkflowMessageToDLQRequest{}), persistence.ErrAsyncWorkflowQueueNotImplemented)
-	_, err := store.ReadAsyncWorkflowMessagesFromDLQ(ctx, &persistence.ReadAsyncWorkflowMessagesFromDLQRequest{})
-	assert.ErrorIs(t, err, persistence.ErrAsyncWorkflowQueueNotImplemented)
-	assert.ErrorIs(t, store.RangeDeleteAsyncWorkflowMessagesFromDLQ(ctx, &persistence.RangeDeleteAsyncWorkflowMessagesFromDLQRequest{}), persistence.ErrAsyncWorkflowQueueNotImplemented)
-}
-
 func TestNoSQLAsyncWorkflowQueueStoreErrors(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2025, 1, 6, 15, 0, 0, 0, time.UTC)

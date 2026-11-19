@@ -2313,6 +2313,7 @@ type (
 	}
 
 	// AsyncWorkflowDLQMessage is one row of async_workflow_queue_dlq; the key is the source message's.
+	// CreatedTime is when the row entered the DLQ, not the source message's time.
 	AsyncWorkflowDLQMessage struct {
 		AsyncWorkflowMessage
 		Reason string
