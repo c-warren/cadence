@@ -132,6 +132,12 @@ func TestCassandraSemaphoreTaskPersistence(t *testing.T) {
 	suite.Run(t, s)
 }
 
+func TestCassandraAsyncWorkflowQueuePersistence(t *testing.T) {
+	s := new(pt.AsyncWorkflowQueuePersistenceSuite)
+	s.TestBase = CassandraTestBase(t)
+	suite.Run(t, s)
+}
+
 // CassandraTestBase creates and sets up a TestBase backed by an external/public Cassandra.
 // Optional dcOpts can be used to customize the DynamicConfiguration before the test base is set up.
 func CassandraTestBase(t *testing.T, dcOpts ...func(*persistence.DynamicConfiguration)) *pt.TestBase {

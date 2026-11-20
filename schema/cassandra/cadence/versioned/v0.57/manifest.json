@@ -1,0 +1,9 @@
+{
+  "CurrVersion": "0.57",
+  "MinCompatibleVersion": "0.57",
+  "Description": "Add async_workflow_queue and async_workflow_queue_dlq tables",
+  "SchemaUpdateCqlFiles": [
+    "async_workflow_queue.cql",
+    "async_workflow_queue_dlq.cql"
+  ]
+}
